@@ -21,8 +21,8 @@ interface Props {
 }
 
 const PAD = { top: 18, right: 14, bottom: 30, left: 62 };
-const GREEN = "var(--fin-green)";
-const NEUTRAL = "#b9bbbe";
+const GREEN = "var(--fin-in)";
+const NEUTRAL = "var(--fin-out)";
 
 function scaleFor(values: number[]) {
   const max = Math.max(0, ...values);
@@ -191,8 +191,8 @@ export function CashFlowChart({ buckets, inflow, outflow, balance, mode, animati
             animate={{ opacity: 1, y: 0, scale: 1, left: tipLeft, top: tipTop }}
             exit={{ opacity: 0, transition: { duration: 0.1 } }}
             transition={{ duration: 0.18, ease: motionTokens.ease }}
-            className="pointer-events-none absolute z-10 rounded-[18px] px-4 py-3.5 text-[var(--fin-on-green)] shadow-[0_18px_40px_-16px_rgba(0,0,0,0.85)]"
-            style={{ width: TIP_W, background: "var(--fin-green)", translateY: below ? 0 : "-100%" }}
+            className="pointer-events-none absolute z-10 rounded-[18px] px-4 py-3.5 text-[var(--fin-on-accent)] shadow-[0_18px_40px_-16px_rgba(0,0,0,0.85)]"
+            style={{ width: TIP_W, background: "var(--fin-in)", translateY: below ? 0 : "-100%" }}
           >
             <p className="text-[11.5px] font-semibold opacity-75">{buckets[active].longLabel}</p>
             {mode === "saldo" ? (
@@ -204,13 +204,13 @@ export function CashFlowChart({ buckets, inflow, outflow, balance, mode, animati
             <dl className="mt-2.5 space-y-1 border-t border-[rgba(12,26,18,0.18)] pt-2 text-[12px]">
               <div className="flex items-center justify-between">
                 <dt className="flex items-center gap-1.5">
-                  <span className="size-2 rounded-full bg-[var(--fin-on-green)]" aria-hidden /> Recebido
+                  <span className="size-2 rounded-full bg-[var(--fin-on-accent)]" aria-hidden /> Recebido
                 </dt>
                 <dd className="tnum font-bold">{formatBRL(inflow[active])}</dd>
               </div>
               <div className="flex items-center justify-between">
                 <dt className="flex items-center gap-1.5">
-                  <span className="size-2 rounded-full border border-[var(--fin-on-green)]" aria-hidden /> Pago
+                  <span className="size-2 rounded-full border border-[var(--fin-on-accent)]" aria-hidden /> Pago
                 </dt>
                 <dd className="tnum font-bold">{formatBRL(outflow[active])}</dd>
               </div>

@@ -129,7 +129,7 @@ export function TransactionForm({
         </Field>
         {values.kind === "custo" && (
           <label className="flex cursor-pointer items-center gap-2.5 text-[13px] text-ink-soft sm:col-span-2">
-            <input type="checkbox" checked={paidNow} onChange={(e) => setPaidNow(e.target.checked)} className="size-4 accent-[var(--fin-green)]" />
+            <input type="checkbox" checked={paidNow} onChange={(e) => setPaidNow(e.target.checked)} className="size-4 accent-[var(--fin-in)]" />
             Despesa já paga nesta data (gera saída de caixa)
           </label>
         )}

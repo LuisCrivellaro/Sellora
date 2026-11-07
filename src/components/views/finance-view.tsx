@@ -33,7 +33,7 @@ function Delta({ value, inverse = false }: { value: number | null; inverse?: boo
   const good = inverse ? !up : up;
   const Icon = up ? ArrowUpRight : ArrowDownRight;
   return (
-    <span className={cn("tnum inline-flex items-center gap-0.5 text-[11.5px] font-semibold", good ? "text-[var(--fin-green)]" : "text-[#e8a0a0]")}>
+    <span className={cn("tnum inline-flex items-center gap-0.5 text-[11.5px] font-semibold", good ? "text-[var(--fin-in)]" : "text-danger")}>
       <Icon className="size-3.5" aria-hidden />
       {formatPercent(Math.abs(value))} vs período anterior
     </span>
@@ -120,8 +120,8 @@ export function FinanceView() {
         </div>
         <div className="grid gap-4">
           {[
-            { label: "Saídas no período", value: flow.period.outflow, prev: flow.previous.outflow, color: "#b9bbbe", inverse: true },
-            { label: "Entradas no período", value: flow.period.inflow, prev: flow.previous.inflow, color: "var(--fin-green)", inverse: false },
+            { label: "Saídas no período", value: flow.period.outflow, prev: flow.previous.outflow, color: "var(--fin-out)", inverse: true },
+            { label: "Entradas no período", value: flow.period.inflow, prev: flow.previous.inflow, color: "var(--fin-in)", inverse: false },
           ].map((m) => (
             <div key={m.label}>
               <div className="mb-1.5 flex items-baseline justify-between gap-3">
@@ -185,7 +185,7 @@ export function FinanceView() {
           </FinCard>
         </div>
 
-        <FinCard index={4} className="min-h-[440px] p-5 sm:p-6" label="Fluxo financeiro">
+        <FinCard index={4} className="facade-lit min-h-[440px] p-5 sm:p-6" label="Fluxo financeiro">
           <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
             <PillGroup<FlowMode>
               label="Séries do gráfico"
@@ -203,12 +203,12 @@ export function FinanceView() {
           <div className="mb-2 flex flex-wrap items-center gap-x-5 gap-y-1 text-[12.5px] text-ink-soft">
             {mode !== "saldo" && mode !== "saidas" && (
               <span className="flex items-center gap-2">
-                <span className="h-0.5 w-4 rounded bg-[var(--fin-green)]" aria-hidden /> Entradas <b className="tnum text-ink">{formatBRLCompact(flow.period.inflow)}</b>
+                <span className="h-0.5 w-4 rounded bg-[var(--fin-in)]" aria-hidden /> Entradas <b className="tnum text-ink">{formatBRLCompact(flow.period.inflow)}</b>
               </span>
             )}
             {mode !== "saldo" && mode !== "entradas" && (
               <span className="flex items-center gap-2">
-                <span className="h-0.5 w-4 rounded bg-[#b9bbbe]" aria-hidden /> Saídas <b className="tnum text-ink">{formatBRLCompact(flow.period.outflow)}</b>
+                <span className="h-0.5 w-4 rounded bg-[var(--fin-out)]" aria-hidden /> Saídas <b className="tnum text-ink">{formatBRLCompact(flow.period.outflow)}</b>
               </span>
             )}
             {mode === "saldo" && <span>Saldo acumulado a partir de {formatBRL(flow.openingBalance)} registrados antes do período</span>}
@@ -223,7 +223,7 @@ export function FinanceView() {
         <FinCard index={5} label="Recebimentos futuros">
           <div className="mb-3 flex items-center justify-between">
             <h2 className="text-[15px] font-semibold text-ink">Recebimentos futuros</h2>
-            <button type="button" onClick={() => { setStatus("pendente"); setMovesOpen(true); }} className="text-[12px] font-semibold text-[var(--fin-green)] hover:underline">
+            <button type="button" onClick={() => { setStatus("pendente"); setMovesOpen(true); }} className="text-[12px] font-semibold text-[var(--fin-in)] hover:underline">
               Ver todos
             </button>
           </div>
@@ -268,7 +268,7 @@ export function FinanceView() {
                       </span>
                     </span>
                     <span className="mt-1.5 block">
-                      <GrowBar value={r.receivedShare} color="var(--fin-green)" label={`${r.project.title}: recebido sobre contratado`} valueText={`${formatPercent(r.receivedShare * 100)}`} />
+                      <GrowBar value={r.receivedShare} color="var(--fin-in)" label={`${r.project.title}: recebido sobre contratado`} valueText={`${formatPercent(r.receivedShare * 100)}`} />
                     </span>
                     <span className="mt-1 block text-[11px] text-[var(--fin-neutral)]">
                       {r.result === null ? "Sem custos registrados — resultado não calculado" : `Custos ${formatBRL(r.costs)} · resultado realizado ${formatBRL(r.result)}`}
@@ -283,7 +283,7 @@ export function FinanceView() {
         <FinCard index={7} label="Movimentações recentes">
           <div className="mb-3 flex items-center justify-between">
             <h2 className="text-[15px] font-semibold text-ink">Movimentações recentes</h2>
-            <button type="button" onClick={() => { setStatus("todos"); setMovesOpen(true); }} className="text-[12px] font-semibold text-[var(--fin-green)] hover:underline">
+            <button type="button" onClick={() => { setStatus("todos"); setMovesOpen(true); }} className="text-[12px] font-semibold text-[var(--fin-in)] hover:underline">
               Ver todas
             </button>
           </div>
@@ -293,7 +293,7 @@ export function FinanceView() {
             <ul className="flex flex-col divide-y divide-[var(--fin-border)]">
               {data.moves.map((m) => (
                 <li key={m.id} className="flex items-center gap-3 py-2.5">
-                  <span className={cn("grid size-8 shrink-0 place-items-center rounded-full", m.kind === "entrada" ? "bg-[rgba(103,185,154,0.12)] text-[var(--fin-green)]" : "bg-white/[0.06] text-[#c9cacc]")} aria-hidden>
+                  <span className={cn("grid size-8 shrink-0 place-items-center rounded-full", m.kind === "entrada" ? "bg-[rgba(168,145,209,0.14)] text-[var(--fin-in)]" : "bg-[rgba(187,107,165,0.14)] text-[var(--fin-out)]")} aria-hidden>
                     {m.kind === "entrada" ? <ArrowDownRight className="size-4" /> : <ArrowUpRight className="size-4" />}
                   </span>
                   <div className="min-w-0 flex-1">
@@ -303,7 +303,7 @@ export function FinanceView() {
                     </p>
                   </div>
                   <div className="text-right">
-                    <p className={cn("tnum text-[13.5px] font-bold", m.kind === "entrada" ? "text-[var(--fin-green)]" : "text-ink")}>
+                    <p className={cn("tnum text-[13.5px] font-bold", m.kind === "entrada" ? "text-[var(--fin-in)]" : "text-ink")}>
                       {m.kind === "entrada" ? "+" : "−"} {formatBRL(m.amount)}
                     </p>
                     <p className="text-[11px] text-[var(--fin-neutral)]">{m.kind === "entrada" ? "Recebimento" : "Despesa paga"}</p>

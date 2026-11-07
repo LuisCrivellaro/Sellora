@@ -60,10 +60,10 @@ export function PillGroup<T extends string>({ value, onChange, options, label, s
             className={cn(
               "focus-inset relative isolate inline-flex items-center justify-center rounded-full border font-semibold whitespace-nowrap transition-[color,border-color,background-color,transform] duration-150 active:scale-[0.96]",
               size === "sm" ? "h-8 px-3.5 text-[12.5px]" : "h-9 px-4.5 text-[13px]",
-              active ? "border-transparent text-[#0d0d0e]" : "border-[var(--fin-border-strong)] bg-transparent text-ink-soft hover:bg-white/[0.05] hover:text-ink",
+              active ? "border-transparent text-ink" : "border-[var(--fin-border-strong)] bg-transparent text-ink-soft hover:bg-white/[0.05] hover:text-ink",
             )}
           >
-            {active && <motion.span layoutId={layoutId} className="absolute inset-0 -z-10 rounded-full bg-[#f1f1f2]" transition={{ type: "spring", stiffness: 520, damping: 42 }} />}
+            {active && <motion.span layoutId={layoutId} className="pill-active absolute inset-0 -z-10" transition={{ type: "spring", stiffness: 520, damping: 42 }} />}
             {o.label}
           </button>
         );
@@ -73,7 +73,7 @@ export function PillGroup<T extends string>({ value, onChange, options, label, s
 }
 
 /** Indicador circular com significado explícito (rótulo obrigatório). */
-export function RingIndicator({ value, label, size = 58, color = "var(--fin-green)", children }: { value: number; label: string; size?: number; color?: string; children?: ReactNode }) {
+export function RingIndicator({ value, label, size = 58, color = "var(--fin-in)", children }: { value: number; label: string; size?: number; color?: string; children?: ReactNode }) {
   const enabled = useMotionEnabled();
   const stroke = 6;
   const r = (size - stroke) / 2;
@@ -130,7 +130,7 @@ export function MiniBars({ items, format }: { items: { key: string; label: strin
               className="w-full origin-bottom rounded-md"
               style={{
                 height: `${Math.max(6, (it.value / max) * 100)}%`,
-                background: it.value === 0 ? "rgba(255,255,255,0.07)" : it.tone === "danger" ? "var(--signal-danger)" : "var(--fin-green)",
+                background: it.value === 0 ? "rgba(255,255,255,0.07)" : it.tone === "danger" ? "var(--signal-danger)" : "var(--fin-in)",
                 opacity: it.value === 0 ? 1 : 0.9,
               }}
               initial={enabled ? { scaleY: 0 } : false}
