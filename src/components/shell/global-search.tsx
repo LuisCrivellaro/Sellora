@@ -1,7 +1,7 @@
 "use client";
 
 import { Dialog } from "radix-ui";
-import { CornerDownLeft, FileText, FolderKanban, Search, Store, UsersRound } from "lucide-react";
+import { CornerDownLeft, FileText, FolderKanban, Search, Store, UsersRound, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useId, useMemo, useState, type KeyboardEvent } from "react";
 import { leadStageMeta, projectStageMeta, proposalStatusMeta } from "@/lib/constants";
@@ -110,7 +110,13 @@ export function GlobalSearch({ open, onOpenChange }: { open: boolean; onOpenChan
               aria-label="Termo de busca"
               className="h-14 min-w-0 flex-1 bg-transparent text-[15px] text-ink outline-none placeholder:text-ink-faint"
             />
-            <kbd className="hidden rounded-md border border-seam-strong px-1.5 py-0.5 text-[11px] text-ink-faint sm:block">Esc</kbd>
+            <Dialog.Close
+              type="button"
+              aria-label="Fechar busca"
+              className="grid size-9 shrink-0 place-items-center rounded-full text-ink-faint transition-colors hover:bg-white/[0.06] hover:text-ink"
+            >
+              <X className="size-[18px]" aria-hidden />
+            </Dialog.Close>
           </div>
           <ul id={listId} role="listbox" aria-label="Resultados" className="max-h-[52vh] overflow-y-auto p-2">
             {!query.trim() && <li className="px-3 py-6 text-center text-[13px] text-ink-faint">Digite para buscar em todos os módulos.</li>}

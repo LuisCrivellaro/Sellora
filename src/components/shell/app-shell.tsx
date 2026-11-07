@@ -3,7 +3,6 @@
 import { MotionConfig, motion } from "motion/react";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { DemoBadge } from "@/components/ui/badge";
 import { TooltipProvider } from "@/components/ui/overlay";
 import { ToastProvider } from "@/components/ui/toast";
 import { useStore } from "@/lib/data/store";
@@ -63,7 +62,6 @@ export function AppShell({ children }: { children: ReactNode }) {
               <TopNavigation />
               <div className="flex-1 md:hidden" />
               <SearchButton onOpen={() => setSearchOpen(true)} />
-              <div className="ml-auto hidden items-center gap-2.5 xl:flex">{db && <DemoBadge demo={db.demo} />}</div>
               <div className="pill-group flex items-center gap-0.5 p-0.5">
                 <NotificationsButton />
                 <span className="hidden sm:contents">
@@ -74,11 +72,10 @@ export function AppShell({ children }: { children: ReactNode }) {
               <MobileNav />
             </motion.header>
 
-            {db && (
-              <div className="mt-3 flex items-center gap-2 xl:hidden">
-                <DemoBadge demo={db.demo} />
-                {db.demo && <span className="text-[12px] text-ink-faint">Dados fictícios, salvos só neste navegador.</span>}
-              </div>
+            {db?.demo && (
+              <p className="mt-3 text-[12px] text-ink-faint xl:hidden">
+                Dados fictícios, salvos só neste navegador.
+              </p>
             )}
             {storageError && (
               <p role="alert" className="mt-3 rounded-2xl border border-[rgba(255,79,112,0.4)] bg-[rgba(255,79,112,0.08)] px-4 py-2.5 text-[13px] text-ink">
