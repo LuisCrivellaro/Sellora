@@ -4,6 +4,7 @@ import { motion } from "motion/react";
 import { useId, useState, type KeyboardEvent } from "react";
 import { motionTokens, useMotionEnabled } from "@/lib/motion";
 import { cn } from "@/lib/utils";
+import { dashboardColors } from "@/lib/visualization";
 import { labelEvery, niceScale, useElementSize } from "./chart-utils";
 
 interface BarDatum {
@@ -14,7 +15,7 @@ interface BarDatum {
 
 /**
  * Barras em cápsula: as barras comuns têm textura pontilhada escura; a barra
- * em destaque (maior valor ou selecionada) acende em gradiente violeta→magenta.
+ * em destaque (maior valor ou selecionada) usa o vermelho da paleta comercial.
  */
 export function CapsuleBarChart({
   data,
@@ -67,16 +68,16 @@ export function CapsuleBarChart({
         <svg width={width} height={height} aria-hidden className="block overflow-visible">
           <defs>
             <linearGradient id={`${uid}-hi`} x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="#9b6bc9" />
-              <stop offset="55%" stopColor="#bb6ba5" />
-              <stop offset="100%" stopColor="#bb6ba5" stopOpacity={0.85} />
+              <stop offset="0%" stopColor={dashboardColors.redLight} />
+              <stop offset="55%" stopColor={dashboardColors.red} />
+              <stop offset="100%" stopColor={dashboardColors.redDark} stopOpacity={0.85} />
             </linearGradient>
             <pattern id={`${uid}-dots`} width="5" height="5" patternUnits="userSpaceOnUse">
               <circle cx="1.2" cy="1.2" r="0.9" fill="rgba(255,255,255,0.14)" />
             </pattern>
             <linearGradient id={`${uid}-base`} x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="#2a2338" />
-              <stop offset="100%" stopColor="#1a1524" />
+              <stop offset="0%" stopColor={`color-mix(in oklab, ${dashboardColors.redDark} 40%, ${dashboardColors.graphite})`} />
+              <stop offset="100%" stopColor={dashboardColors.graphite} />
             </linearGradient>
           </defs>
           {scale.values.map((v) => {
@@ -110,7 +111,7 @@ export function CapsuleBarChart({
                   {isHi && <rect x={cx - barW / 2} y={top} width={barW} height={bh} rx={barW / 2} fill="none" stroke="rgba(255,255,255,0.35)" />}
                 </motion.g>
                 {d.value > 0 && (
-                  <circle cx={cx} cy={top - 7} r={3.4} fill={isHi ? "#b08fd6" : "#c27ab0"} style={{ filter: "drop-shadow(0 0 2px rgba(187,107,165,0.5))" }} />
+                  <circle cx={cx} cy={top - 7} r={3.4} fill={isHi ? dashboardColors.redLight : dashboardColors.redSoft} style={{ filter: `drop-shadow(0 0 2px ${dashboardColors.red}80)` }} />
                 )}
                 {(i % every === 0 || isHi) && (
                   <text x={cx} y={height - 8} textAnchor="middle" className={cn("text-[11px]", isHi ? "fill-ink" : "fill-ink-faint")}>
@@ -187,7 +188,7 @@ export function HatchedColumns({
                   className={cn("h-full w-full rounded-[14px] border", isPeak ? "hatch" : "dots")}
                   style={{
                     borderColor: `color-mix(in oklab, ${color} ${isPeak ? 85 : 55}%, transparent)`,
-                    background: isPeak ? `linear-gradient(180deg, color-mix(in oklab, ${color} 40%, #1b1526), #16111f)` : "linear-gradient(180deg,#221c2e,#15111d)",
+                    background: `linear-gradient(180deg, color-mix(in oklab, ${color} ${isPeak ? 40 : 18}%, ${dashboardColors.graphite}), var(--facade-inset))`,
                     boxShadow: isPeak ? `0 0 12px -8px ${color}, inset 0 1px 0 rgba(255,255,255,0.12)` : "inset 0 1px 0 rgba(255,255,255,0.05)",
                   }}
                 />

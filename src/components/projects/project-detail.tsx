@@ -4,12 +4,12 @@ import { Check, ExternalLink, Pencil, Plus, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
 import { SegmentedBar } from "@/components/charts/segmented-bar";
-import { StatusBadge, TonePill } from "@/components/ui/badge";
+import { StatusBadge, TonePill } from "@/components/ui/dashboard-badge";
 import { Button } from "@/components/ui/button";
 import { Select, TextInput } from "@/components/ui/field";
 import { Modal } from "@/components/ui/overlay";
 import { useToast } from "@/components/ui/toast";
-import { PROJECT_STAGES, projectStageMeta, projectStatusMeta, siteTypeMeta, tone } from "@/lib/constants";
+import { PROJECT_STAGES, projectStageMeta, projectStatusMeta, siteTypeMeta } from "@/lib/constants";
 import { addProjectTask, removeProjectTask, setProjectStage, toggleProjectTask } from "@/lib/data/repository";
 import { useStore } from "@/lib/data/store";
 import { formatDate, formatRelative } from "@/lib/dates";
@@ -17,6 +17,7 @@ import { projectDeadline, projectProgress, projectStatus } from "@/lib/metrics/p
 import type { Project, ProjectStage } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { Money } from "@/components/ui/money";
+import { dashboardProgressColor, dashboardProjectStageColors, dashboardProjectStatusColors } from "@/lib/visualization";
 
 export function ProjectDetail({ project, open, onOpenChange, onEdit }: { project: Project | null; open: boolean; onOpenChange: (o: boolean) => void; onEdit: (p: Project) => void }) {
   const { db } = useStore();
@@ -48,7 +49,7 @@ export function ProjectDetail({ project, open, onOpenChange, onEdit }: { project
     <Modal open={open} onOpenChange={onOpenChange} variant="sheet" size="xl" title={project.title} description={`${client?.name ?? "Cliente removido"} · ${siteTypeMeta[project.siteType].label}`}>
       <div className="flex flex-col gap-5">
         <div className="flex flex-wrap items-center gap-2">
-          <TonePill tone={projectStatusMeta[status].tone}>{projectStatusMeta[status].label}</TonePill>
+          <TonePill tone={projectStatusMeta[status].tone} color={dashboardProjectStatusColors[status]}>{projectStatusMeta[status].label}</TonePill>
           <TonePill tone={deadline.overdue ? "danger" : deadline.soon ? "warn" : "ghost"}>
             {deadline.done ? `Entregue em ${formatDate(project.deliveredAt)}` : `Prazo ${formatDate(project.dueDate)} (${formatRelative(project.dueDate)})`}
           </TonePill>
@@ -72,7 +73,7 @@ export function ProjectDetail({ project, open, onOpenChange, onEdit }: { project
               Progresso <span className="font-bold text-ink">{progress}%</span> · {done}/{project.tasks.length} tarefas
             </p>
           </div>
-          <SegmentedBar value={progress / 100} color={tone.violet} label="Progresso do projeto" valueText={`${progress}%, ${done} de ${project.tasks.length} tarefas`} />
+          <SegmentedBar value={progress / 100} color={dashboardProgressColor(progress)} label="Progresso do projeto" valueText={`${progress}%, ${done} de ${project.tasks.length} tarefas`} />
           <ol className="mt-4 grid grid-cols-3 gap-1.5 sm:grid-cols-6" aria-label="Etapas">
             {PROJECT_STAGES.map((s, i) => (
               <li key={s}>
@@ -89,7 +90,7 @@ export function ProjectDetail({ project, open, onOpenChange, onEdit }: { project
                   )}
                 >
                   <span className="flex items-center gap-1.5 font-semibold">
-                    {i < stageIdx ? <Check className="size-3.5 text-mint" aria-hidden /> : <span className="size-1.5 rounded-full" style={{ background: tone[projectStageMeta[s].tone] }} aria-hidden />}
+                    {i < stageIdx ? <Check className="size-3.5 text-mint" aria-hidden /> : <span className="size-1.5 rounded-full" style={{ background: dashboardProjectStageColors[s] }} aria-hidden />}
                     {projectStageMeta[s].label}
                   </span>
                 </button>

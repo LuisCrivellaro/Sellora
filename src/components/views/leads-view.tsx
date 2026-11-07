@@ -11,7 +11,7 @@ import { LeadKanban } from "@/components/leads/lead-kanban";
 import { SourceIcon } from "@/components/shared/source-icon";
 import { useUrlParams } from "@/components/shared/use-url-state";
 import { Avatar } from "@/components/ui/avatar";
-import { StatusBadge, TonePill } from "@/components/ui/badge";
+import { StatusBadge, TonePill } from "@/components/ui/dashboard-badge";
 import { Button } from "@/components/ui/button";
 import { DashboardCard, LegendStat } from "@/components/ui/card";
 import { DataTable, type Column } from "@/components/ui/data-table";
@@ -22,24 +22,14 @@ import { PageHeader } from "@/components/ui/page-header";
 import { Segmented } from "@/components/ui/segmented";
 import { EmptyState, PageSkeleton } from "@/components/ui/states";
 import { useToast } from "@/components/ui/toast";
-import {
-  LEAD_SOURCES,
-  LEAD_STAGES,
-  leadSourceMeta,
-  leadStageMeta,
-  priorityMeta,
-  SEGMENTS,
-  segmentMeta,
-  temperatureMeta,
-  tone,
-  websiteSituationMeta,
-} from "@/lib/constants";
+import { LEAD_SOURCES, LEAD_STAGES, leadSourceMeta, leadStageMeta, priorityMeta, SEGMENTS, segmentMeta, temperatureMeta, websiteSituationMeta } from "@/lib/constants";
 import { deleteLead, moveLeadStage } from "@/lib/data/repository";
 import { useStore } from "@/lib/data/store";
 import { buildBuckets, countByBucket, formatDate, formatRelative } from "@/lib/dates";
 import { leadsWithoutContact, pendingFollowUps, sourceDistribution, temperatureDistribution } from "@/lib/metrics/leads";
 import type { Lead, LeadStage, LeadTemperature } from "@/lib/types";
 import { cn, matchesQuery, sum } from "@/lib/utils";
+import { dashboardTemperatureColors, dashboardTone as tone } from "@/lib/visualization";
 
 const SPECIAL: Record<string, string> = { sem_contato: "Sem contato registrado", follow_up: "Com follow-up pendente" };
 
@@ -113,7 +103,7 @@ export function LeadsView() {
       sortValue: (l) => leadSourceMeta[l.source].label,
       cell: (l) => (
         <span className="tile inline-flex h-8 items-center gap-1.5 rounded-lg px-2 text-[12.5px] whitespace-nowrap">
-          <SourceIcon source={l.source} className="size-3.5 text-lilac" />
+          <span style={{ color: tone[leadSourceMeta[l.source].tone] }} className="contents"><SourceIcon source={l.source} className="size-3.5" /></span>
           {leadSourceMeta[l.source].label}
         </span>
       ),
@@ -208,7 +198,7 @@ export function LeadsView() {
                 key: k,
                 label: temperatureMeta[k].label,
                 value: analytics.temperature[k],
-                color: tone[temperatureMeta[k].tone],
+                color: dashboardTemperatureColors[k],
               }))}
               centerValue={String(tempTotal)}
             />

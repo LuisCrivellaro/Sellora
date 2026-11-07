@@ -5,9 +5,10 @@ import { useState } from "react";
 import { motionTokens, useMotionEnabled } from "@/lib/motion";
 import type { RadarAxis } from "@/lib/metrics/home";
 import { useElementSize } from "./chart-utils";
+import { dashboardColors } from "@/lib/visualization";
 
 /** Radar com eixos normalizados 0–100; cada eixo é focável e explica a fórmula. */
-export function RadarChart({ axes, color = "#bb6ba5", summary }: { axes: RadarAxis[]; color?: string; summary: string }) {
+export function RadarChart({ axes, color = dashboardColors.red, summary }: { axes: RadarAxis[]; color?: string; summary: string }) {
   const enabled = useMotionEnabled();
   const [ref, { width }] = useElementSize<HTMLDivElement>();
   const [active, setActive] = useState<number | null>(null);

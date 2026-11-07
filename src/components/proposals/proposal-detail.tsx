@@ -4,7 +4,7 @@ import { Copy, Pencil, Printer, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
 import { LogoMark } from "@/components/shell/logo";
-import { TonePill } from "@/components/ui/badge";
+import { TonePill } from "@/components/ui/dashboard-badge";
 import { Button } from "@/components/ui/button";
 import { Select } from "@/components/ui/field";
 import { ConfirmDialog, Modal } from "@/components/ui/overlay";
@@ -16,6 +16,7 @@ import { formatDate } from "@/lib/dates";
 import { isExpired, proposalSubtotal, proposalTotal } from "@/lib/metrics/proposals";
 import type { Proposal } from "@/lib/types";
 import { Money } from "@/components/ui/money";
+import { dashboardProposalStatusColors } from "@/lib/visualization";
 
 export function ProposalDetail({
   proposal,
@@ -43,7 +44,7 @@ export function ProposalDetail({
       <Modal open={open} onOpenChange={onOpenChange} variant="sheet" size="xl" title={proposal.title} description={`Para ${proposal.recipientName} · criada em ${formatDate(proposal.createdAt)}`}>
         <div className="no-print flex flex-col gap-4">
           <div className="flex flex-wrap items-center gap-2">
-            <TonePill tone={proposalStatusMeta[proposal.status].tone}>{proposalStatusMeta[proposal.status].label}</TonePill>
+            <TonePill tone={proposalStatusMeta[proposal.status].tone} color={dashboardProposalStatusColors[proposal.status]}>{proposalStatusMeta[proposal.status].label}</TonePill>
             {expired && <TonePill tone="danger">Validade vencida</TonePill>}
             {lead && (
               <Link href={`/leads?id=${lead.id}`} className="text-[12px] font-semibold text-interactive hover:text-ink">

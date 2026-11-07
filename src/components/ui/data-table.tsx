@@ -30,6 +30,8 @@ interface Props<T> {
   empty: ReactNode;
   caption: string;
   mobileCard: (row: T) => ReactNode;
+  /** Mantém a tabela com rolagem interna no celular quando solicitado. */
+  mobileLayout?: "cards" | "table";
   initialSort?: { key: string; dir: "asc" | "desc" };
   rowActions?: (row: T) => ReactNode;
 }
@@ -49,6 +51,7 @@ export function DataTable<T>({
   empty,
   caption,
   mobileCard,
+  mobileLayout = "cards",
   initialSort,
   rowActions,
 }: Props<T>) {
@@ -97,7 +100,12 @@ export function DataTable<T>({
   return (
     <div className="flex min-w-0 flex-col">
       {/* Desktop/tablet */}
-      <div className="relative hidden min-w-0 max-w-full overflow-x-auto md:block">
+      <div
+        className={cn("relative min-w-0 max-w-full overflow-x-auto", mobileLayout === "table" ? "block" : "hidden md:block")}
+        role={mobileLayout === "table" ? "region" : undefined}
+        aria-label={mobileLayout === "table" ? `${caption}: rolagem horizontal` : undefined}
+        tabIndex={mobileLayout === "table" ? 0 : undefined}
+      >
         <table className="w-full border-separate border-spacing-0 text-left">
           <caption className="sr-only">{caption}</caption>
           <thead>
@@ -190,7 +198,7 @@ export function DataTable<T>({
       </div>
 
       {/* Mobile: lista de cartões */}
-      <ul className="flex flex-col gap-2 md:hidden" aria-label={caption}>
+      <ul className={mobileLayout === "table" ? "hidden" : "flex flex-col gap-2 md:hidden"} aria-label={caption}>
         {visible.map((row) => {
           const id = getRowId(row);
           return (

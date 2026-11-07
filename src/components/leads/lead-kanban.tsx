@@ -3,15 +3,16 @@
 import { ArrowRightLeft, CalendarClock } from "lucide-react";
 import { useState } from "react";
 import { SourceIcon } from "@/components/shared/source-icon";
-import { TonePill } from "@/components/ui/badge";
+import { TonePill } from "@/components/ui/dashboard-badge";
 import { Menu } from "@/components/ui/overlay";
 import { useToast } from "@/components/ui/toast";
-import { LEAD_STAGES, leadStageMeta, priorityMeta, tone } from "@/lib/constants";
+import { LEAD_STAGES, leadStageMeta, priorityMeta } from "@/lib/constants";
 import { moveLeadStage } from "@/lib/data/repository";
 import { formatRelative } from "@/lib/dates";
 import type { Lead, LeadStage } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { Money } from "@/components/ui/money";
+import { dashboardTone as tone } from "@/lib/visualization";
 
 /**
  * Pipeline Kanban. Arrastar e soltar com mouse/toque; alternativa acessível

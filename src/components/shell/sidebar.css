@@ -52,6 +52,7 @@
 }
 
 .sidebar-bottom {
+  display: none;
   flex-shrink: 0;
   border-top: 1px solid var(--seam);
   padding: 16px 20px;
@@ -206,6 +207,7 @@
 }
 
 @media (min-width: 768px) and (max-width: 1024px) {
+  .sidebar-bottom { display: block; }
   .sellora-shell[data-sidebar-expanded="true"] { --sidebar-width: 264px; }
   .sidebar-collapse { display: inline-flex; }
   .sellora-sidebar:not([data-compact]) .sidebar-collapse { width: 100%; justify-content: flex-start; }

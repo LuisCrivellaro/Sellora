@@ -9,7 +9,7 @@ import { ProposalDetail } from "@/components/proposals/proposal-detail";
 import { ProposalForm } from "@/components/proposals/proposal-form";
 import { useUrlParams } from "@/components/shared/use-url-state";
 import { Avatar } from "@/components/ui/avatar";
-import { StatusBadge, TonePill } from "@/components/ui/badge";
+import { StatusBadge, TonePill } from "@/components/ui/dashboard-badge";
 import { Button } from "@/components/ui/button";
 import { DashboardCard, LegendStat } from "@/components/ui/card";
 import { DataTable, type Column } from "@/components/ui/data-table";
@@ -17,13 +17,14 @@ import { SearchInput } from "@/components/ui/field";
 import { PageHeader } from "@/components/ui/page-header";
 import { Segmented } from "@/components/ui/segmented";
 import { EmptyState, PageSkeleton } from "@/components/ui/states";
-import { PROPOSAL_STATUSES, proposalStatusMeta, tone } from "@/lib/constants";
+import { PROPOSAL_STATUSES, proposalStatusMeta } from "@/lib/constants";
 import { useStore } from "@/lib/data/store";
 import { formatDate, formatRelative, RANGE_OPTIONS, type RangeKey } from "@/lib/dates";
 import { approvalRate, isExpired, proposalsByStatus, proposalSeries, proposalTotal } from "@/lib/metrics/proposals";
 import type { Proposal, ProposalStatus } from "@/lib/types";
 import { cn, formatBRL, formatPercent, matchesQuery, sum } from "@/lib/utils";
 import { Money } from "@/components/ui/money";
+import { dashboardColors, dashboardProposalStatusColors } from "@/lib/visualization";
 
 type StatusFilter = ProposalStatus | "todas" | "aguardando";
 
@@ -53,7 +54,7 @@ export function ProposalsView() {
   const detail = detailId ? (db.proposals.find((p) => p.id === detailId) ?? null) : null;
   const rangeInfo = RANGE_OPTIONS.find((r) => r.value === range)!;
   const maxValue = Math.max(1, ...data.byStatus.map((s) => s.value));
-  const colors: Record<ProposalStatus, string> = { rascunho: "#8a83a0", enviada: "#8866bd", negociacao: "#bb6ba5", aprovada: "#5fbf9f", recusada: "#7473c4" };
+  const colors = dashboardProposalStatusColors;
 
   const columns: Column<Proposal>[] = [
     {
@@ -84,7 +85,7 @@ export function ProposalsView() {
         </span>
       ),
     },
-    { key: "status", header: "Status", sortValue: (p) => PROPOSAL_STATUSES.indexOf(p.status), cell: (p) => <StatusBadge tone={proposalStatusMeta[p.status].tone} label={proposalStatusMeta[p.status].label} /> },
+    { key: "status", header: "Status", sortValue: (p) => PROPOSAL_STATUSES.indexOf(p.status), cell: (p) => <StatusBadge tone={proposalStatusMeta[p.status].tone} color={colors[p.status]} label={proposalStatusMeta[p.status].label} /> },
     {
       key: "next",
       header: "Próxima ação",
@@ -114,16 +115,16 @@ export function ProposalsView() {
           actions={<Segmented label="Período" value={range} onChange={setRange} options={RANGE_OPTIONS.map((r) => ({ value: r.value, label: r.label, title: r.description }))} />}
         >
           <div className="mb-3 flex flex-wrap gap-x-6 gap-y-1.5">
-            <LegendStat color={tone.magenta} label="Criadas" value={sum(data.series.created)} />
-            <LegendStat color={tone.lilac} label="Enviadas" value={sum(data.series.sent)} />
+            <LegendStat color={dashboardColors.red} label="Criadas" value={sum(data.series.created)} />
+            <LegendStat color={dashboardColors.steel} label="Enviadas" value={sum(data.series.sent)} />
           </div>
           <NeonLineChart
             height={220}
             labels={data.series.buckets.map((b) => b.label)}
             longLabels={data.series.buckets.map((b) => b.longLabel)}
             series={[
-              { key: "criadas", label: "Criadas", color: "#bb6ba5", values: data.series.created },
-              { key: "enviadas", label: "Enviadas", color: "#a891d1", values: data.series.sent },
+              { key: "criadas", label: "Criadas", color: dashboardColors.red, values: data.series.created },
+              { key: "enviadas", label: "Enviadas", color: dashboardColors.steel, values: data.series.sent },
             ]}
             summary={`Propostas, ${rangeInfo.description}: ${sum(data.series.created)} criadas e ${sum(data.series.sent)} enviadas`}
           />
@@ -194,7 +195,7 @@ export function ProposalsView() {
                   </span>
                   <span className="tnum text-[14px] font-bold text-ink"><Money value={proposalTotal(p)} /></span>
                 </span>
-                <StatusBadge size="sm" tone={proposalStatusMeta[p.status].tone} label={proposalStatusMeta[p.status].label} />
+                <StatusBadge size="sm" tone={proposalStatusMeta[p.status].tone} color={colors[p.status]} label={proposalStatusMeta[p.status].label} />
               </span>
             )}
             empty={

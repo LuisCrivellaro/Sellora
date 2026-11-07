@@ -4,10 +4,10 @@ import { ExternalLink, FolderPlus, Pencil } from "lucide-react";
 import Link from "next/link";
 import { SegmentedBar } from "@/components/charts/segmented-bar";
 import { ActivityPanel } from "@/components/shared/activity-panel";
-import { StatusBadge, TonePill } from "@/components/ui/badge";
+import { StatusBadge, TonePill } from "@/components/ui/dashboard-badge";
 import { Button } from "@/components/ui/button";
 import { Modal } from "@/components/ui/overlay";
-import { clientStatusMeta, projectStageMeta, segmentMeta, tone } from "@/lib/constants";
+import { clientStatusMeta, projectStageMeta, segmentMeta } from "@/lib/constants";
 import { useStore } from "@/lib/data/store";
 import { formatDate } from "@/lib/dates";
 import { openAmount, paidAmount } from "@/lib/metrics/finance";
@@ -15,6 +15,7 @@ import { projectProgress } from "@/lib/metrics/projects";
 import type { Client } from "@/lib/types";
 import { sum } from "@/lib/utils";
 import { Money } from "@/components/ui/money";
+import { dashboardProgressColor, dashboardProjectStageColors } from "@/lib/visualization";
 
 export function ClientDetail({ client, open, onOpenChange, onEdit }: { client: Client | null; open: boolean; onOpenChange: (o: boolean) => void; onEdit: (c: Client) => void }) {
   const { db } = useStore();
@@ -101,10 +102,10 @@ export function ClientDetail({ client, open, onOpenChange, onEdit }: { client: C
                     <Link href={`/projetos?id=${p.id}`} className="block rounded-2xl border border-seam p-3 hover:border-seam-strong">
                       <span className="flex items-center justify-between gap-2">
                         <span className="text-[13.5px] font-semibold text-ink">{p.title}</span>
-                        <StatusBadge size="sm" tone={projectStageMeta[p.stage].tone} label={projectStageMeta[p.stage].label} />
+                        <StatusBadge size="sm" tone={projectStageMeta[p.stage].tone} color={dashboardProjectStageColors[p.stage]} label={projectStageMeta[p.stage].label} />
                       </span>
                       <span className="mt-2 flex items-center gap-3">
-                        <SegmentedBar size="sm" value={prog / 100} color={tone.violet} label={`Progresso de ${p.title}`} />
+                        <SegmentedBar size="sm" value={prog / 100} color={dashboardProgressColor(prog)} label={`Progresso de ${p.title}`} />
                         <span className="tnum text-[12px] font-bold text-ink">{prog}%</span>
                       </span>
                       {(p.previewUrl || p.publishedUrl) && (

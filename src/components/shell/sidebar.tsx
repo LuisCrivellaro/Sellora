@@ -4,8 +4,6 @@ import { Dialog } from "radix-ui";
 import { Menu, PanelLeftClose, PanelLeftOpen, X } from "lucide-react";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, useSyncExternalStore } from "react";
-import { DemoBadge } from "@/components/ui/badge";
-import { useStore } from "@/lib/data/store";
 import BranchedMenu from "./branched-menu";
 import { Logo } from "./logo";
 import { isActive, NAV_ITEMS, NAV_SECTIONS } from "./nav-config";
@@ -49,7 +47,6 @@ export function Sidebar({ expanded, onExpandedChange, onDrawerClose }: {
   const tablet = useSyncExternalStore(subscribeTablet, getTablet, getServerTablet);
   const compact = tablet && !expanded;
   const navigating = useRef(false);
-  const { db, mode } = useStore();
 
   useEffect(() => {
     const media = window.matchMedia("(min-width: 768px)");
@@ -69,7 +66,6 @@ export function Sidebar({ expanded, onExpandedChange, onDrawerClose }: {
         <div className="sidebar-brand"><Logo compact={compact} /></div>
         <div className="sidebar-scroll"><SidebarMenu compact={compact} /></div>
         <div className="sidebar-bottom">
-          {!compact && <div className="sidebar-status">{db && <DemoBadge demo={db.demo} remote={mode === "supabase"} />}</div>}
           <button
             type="button"
             className="sidebar-collapse"
@@ -102,7 +98,6 @@ export function Sidebar({ expanded, onExpandedChange, onDrawerClose }: {
             <Dialog.Close className="sidebar-close" aria-label="Fechar menu de navegação"><X size={20} aria-hidden="true" /></Dialog.Close>
           </div>
           <div className="sidebar-scroll"><SidebarMenu onSelect={closeAfterNavigation} /></div>
-          <div className="sidebar-status">{db && <DemoBadge demo={db.demo} remote={mode === "supabase"} />}</div>
         </Dialog.Content>
       </Dialog.Portal>
     </>

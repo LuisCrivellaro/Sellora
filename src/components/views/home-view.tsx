@@ -1,225 +1,150 @@
 "use client";
 
-import { AlarmClock, ArrowUpRight, BadgeCheck, CalendarClock, CircleDollarSign, FileText, Handshake, MessageCircle, Percent, UserPlus, UsersRound } from "lucide-react";
+import { AlarmClock, ArrowUpRight, BadgeCheck, CalendarDays, CalendarClock, ChevronDown, CircleDollarSign, FileText, Handshake, MessageCircle, UserPlus, UsersRound } from "lucide-react";
 import Link from "next/link";
-import { useMemo, useState } from "react";
-import { Heatmap } from "@/components/charts/heatmap";
+import { useMemo, useState, type CSSProperties } from "react";
 import { NeonLineChart } from "@/components/charts/neon-line-chart";
 import { RadarChart } from "@/components/charts/radar";
 import { SegmentedBar } from "@/components/charts/segmented-bar";
+import { HomeKpi } from "@/components/home/kpi-card";
+import { RecentCommercialActivities } from "@/components/home/recent-activities";
 import { SourceIcon } from "@/components/shared/source-icon";
 import { DashboardCard, LegendStat } from "@/components/ui/card";
 import { IconTile, PageHeader } from "@/components/ui/page-header";
 import { Segmented } from "@/components/ui/segmented";
-import { AnimatedCounter, PageSkeleton } from "@/components/ui/states";
-import { leadSourceMeta, leadStageMeta, OPEN_STAGES, tone } from "@/lib/constants";
+import { PageSkeleton } from "@/components/ui/states";
+import { leadSourceMeta, leadStageMeta, OPEN_STAGES } from "@/lib/constants";
 import { useStore } from "@/lib/data/store";
 import { formatDate, formatShort, RANGE_OPTIONS, type RangeKey } from "@/lib/dates";
-import { commercialRadar, commercialSeries, nextActions } from "@/lib/metrics/home";
-import { activityHeatmap, funnel, isContactActivity, sourceDistribution } from "@/lib/metrics/leads";
-import { formatPercent, sum } from "@/lib/utils";
+import { commercialRadar, nextActions } from "@/lib/metrics/home";
+import { homePeriodOverview } from "@/lib/metrics/home-overview";
+import { formatPercent } from "@/lib/utils";
+import { dashboardColors, dashboardTone as tone } from "@/lib/visualization";
+import "./home-view.css";
 
-const DAYS = ["Seg", "Ter", "Qua", "Qui", "Sex", "Sáb", "Dom"];
-
-const ACTION_ICONS = {
-  sem_contato: UserPlus,
-  follow_ups: AlarmClock,
-  propostas: FileText,
-  prazos: CalendarClock,
-  pagamentos: CircleDollarSign,
-} as const;
+const ACTION_ICONS = { sem_contato: UserPlus, follow_ups: AlarmClock, propostas: FileText, prazos: CalendarClock, pagamentos: CircleDollarSign } as const;
 
 export function HomeView() {
   const { db } = useStore();
   const [range, setRange] = useState<RangeKey>("90d");
-
   const data = useMemo(() => {
     if (!db) return null;
     const now = new Date();
-    const heat = activityHeatmap(db.activities, 12, now, (a) => isContactActivity(a) || (a.type === "follow_up" && !!a.leadId));
     return {
-      series: commercialSeries(db, range, now),
-      sources: sourceDistribution(db.leads),
-      funnel: funnel(db),
-      heat,
+      now,
+      overview: homePeriodOverview(db, range, now),
       radar: commercialRadar(db, now),
       actions: nextActions(db, now),
-      openTotal: db.leads.filter((l) => OPEN_STAGES.includes(l.stage)).length,
-      stages: OPEN_STAGES.map((s) => ({ stage: s, count: db.leads.filter((l) => l.stage === s).length })),
+      openTotal: db.leads.filter((lead) => OPEN_STAGES.includes(lead.stage)).length,
+      stages: OPEN_STAGES.map((stage) => ({ stage, count: db.leads.filter((lead) => lead.stage === stage).length })),
     };
   }, [db, range]);
 
-  if (!db || !data) return <PageSkeleton rows={[["col-span-12 xl:col-span-8 h-[360px]", "col-span-12 xl:col-span-4 h-[360px]"], ["col-span-12 lg:col-span-4 h-[340px]", "col-span-12 lg:col-span-4 h-[340px]", "col-span-12 lg:col-span-4 h-[340px]"]]} />;
+  if (!db || !data) return <PageSkeleton rows={[["col-span-12 sm:col-span-6 xl:col-span-3 h-[170px]", "col-span-12 sm:col-span-6 xl:col-span-3 h-[170px]", "col-span-12 sm:col-span-6 xl:col-span-3 h-[170px]", "col-span-12 sm:col-span-6 xl:col-span-3 h-[170px]"], ["col-span-12 xl:col-span-8 h-[350px]", "col-span-12 xl:col-span-4 h-[350px]"], ["col-span-12 h-[420px]"]]} />;
 
-  const { series } = data;
-  const rangeInfo = RANGE_OPTIONS.find((r) => r.value === range)!;
-  const funnelIcons = [UsersRound, MessageCircle, FileText, Handshake];
-
+  const { overview } = data;
+  const { series, metrics } = overview;
+  const rangeInfo = RANGE_OPTIONS.find((item) => item.value === range)!;
   return (
-    <>
-      <PageHeader title="Visão geral" description={`Operação comercial e de entrega · ${formatDate(new Date().toISOString())}`} />
-      <div className="grid grid-cols-12 gap-3.5">
-        {/* Evolução comercial */}
-        <DashboardCard
-          index={0}
-          lit
-          className="col-span-12 xl:col-span-8"
-          title="Evolução comercial"
-          description={rangeInfo.description}
-          actions={<Segmented label="Período" value={range} onChange={setRange} options={RANGE_OPTIONS.map((r) => ({ value: r.value, label: r.label, title: r.description }))} />}
-        >
-          <div className="mb-3 flex flex-wrap gap-x-6 gap-y-1.5">
-            <LegendStat color={tone.magenta} label="Leads captados" value={sum(series.leads)} />
-            <LegendStat color={tone.lilac} label="Contatos realizados" value={sum(series.contacts)} />
-            <LegendStat color={tone.mint} label="Propostas enviadas" value={sum(series.proposals)} />
+    <div className="home-overview" style={{ "--home-red": dashboardColors.red, "--home-red-light": dashboardColors.redLight } as CSSProperties}>
+      <PageHeader
+        title="Visão geral"
+        description={`Sua operação comercial em perspectiva · ${formatDate(data.now.toISOString())}`}
+        actions={<div className="home-period-controls">
+          <span className="home-period-dates"><CalendarDays size={14} aria-hidden />{formatShort(new Date(overview.start))} — {formatShort(new Date(overview.end - 1))}</span>
+          <Segmented label="Período da visão geral" value={range} onChange={setRange} options={RANGE_OPTIONS.map((item) => ({ value: item.value, label: item.label, title: item.description }))} />
+        </div>}
+      />
+
+      <div className="home-kpis">
+        <HomeKpi title="Leads captados" metric={metrics.leads} icon={UsersRound} href="/leads" note="Novos registros no período" featured index={0} />
+        <HomeKpi title="Contatos realizados" metric={metrics.contacts} icon={MessageCircle} href="/leads" note="Atividades de contato concluídas" index={1} />
+        <HomeKpi title="Propostas enviadas" metric={metrics.proposals} icon={FileText} href="/propostas" note="Envios registrados no período" index={2} />
+        <HomeKpi title="Vendas fechadas" metric={metrics.sales} icon={Handshake} href="/clientes" note={overview.conversion === null ? "Conversão acumulada sem base" : `${formatPercent(overview.conversion, 1)} de conversão acumulada`} info={overview.undatedWon ? `${overview.undatedWon} ganho(s) sem data de fechamento registrada ficam fora da contagem por período. Não usamos a data de edição do lead como fechamento.` : "Ganhos no período, pelo histórico de etapa ou pela aprovação da proposta. Cada lead é contado uma vez."} index={3} />
+      </div>
+
+      <div className="home-analytics">
+        <DashboardCard index={4} title="Evolução comercial" description={rangeInfo.description} className="home-trend-card" actions={<span className="home-chart-period">{rangeInfo.label}</span>}>
+          <div className="home-chart-legend">
+            <LegendStat color={dashboardColors.red} label="Leads captados" value={metrics.leads.value} />
+            <LegendStat color={dashboardColors.steel} label="Contatos realizados" value={metrics.contacts.value} />
+            <LegendStat color={dashboardColors.redLight} label="Propostas enviadas" value={metrics.proposals.value} />
           </div>
           <NeonLineChart
-            height={250}
-            labels={series.buckets.map((b) => b.label)}
-            longLabels={series.buckets.map((b) => b.longLabel)}
+            className="home-trend-plot"
+            touchTooltip
+            height={244}
+            labels={series.buckets.map((bucket) => bucket.label)}
+            longLabels={series.buckets.map((bucket) => bucket.longLabel)}
             series={[
-              { key: "leads", label: "Leads captados", color: "#bb6ba5", values: series.leads },
-              { key: "contatos", label: "Contatos", color: "#a891d1", values: series.contacts },
-              { key: "propostas", label: "Propostas enviadas", color: "#5fbf9f", values: series.proposals },
+              { key: "leads", label: "Leads captados", color: dashboardColors.red, values: series.leads },
+              { key: "contatos", label: "Contatos realizados", color: dashboardColors.steel, values: series.contacts },
+              { key: "propostas", label: "Propostas enviadas", color: dashboardColors.redLight, values: series.proposals },
             ]}
-            summary={`Evolução comercial, ${rangeInfo.description}: ${sum(series.leads)} leads captados, ${sum(series.contacts)} contatos e ${sum(series.proposals)} propostas enviadas`}
+            summary={`Evolução comercial, ${rangeInfo.description}: ${metrics.leads.value} leads captados, ${metrics.contacts.value} contatos e ${metrics.proposals.value} propostas enviadas`}
           />
         </DashboardCard>
 
-        {/* Fontes de leads */}
-        <DashboardCard index={1} className="col-span-12 xl:col-span-4" title="Fontes de leads" description={`${db.leads.length} leads cadastrados`}>
-          <ul className="flex flex-1 flex-col justify-between gap-3">
-            {data.sources.map((s) => {
-              const meta = leadSourceMeta[s.source];
-              return (
-                <li key={s.source} className="flex items-center gap-3">
-                  <IconTile>
-                    <SourceIcon source={s.source} />
-                  </IconTile>
-                  <div className="min-w-0 flex-1">
-                    <div className="mb-1.5 flex items-baseline justify-between gap-2">
-                      <span className="truncate text-[13.5px] text-ink">{meta.label}</span>
-                      <span className="tnum shrink-0 text-[13px] text-ink-faint">
-                        <span className="font-bold text-ink">{s.count}</span> · {formatPercent(s.share)}
-                      </span>
-                    </div>
-                    <SegmentedBar size="sm" value={(s.share ?? 0) / 100} color={tone[meta.tone]} label={`${meta.label}: participação`} valueText={`${s.count} leads, ${formatPercent(s.share)}`} />
+        <DashboardCard index={5} title="Fontes de leads" description={`${metrics.leads.value} captados no período selecionado`} className="home-sources-card">
+          <ul className="home-sources">
+            {overview.sources.map((source) => {
+              const meta = leadSourceMeta[source.source];
+              return <li key={source.source} className="home-source-row">
+                <span className="home-source-icon"><SourceIcon source={source.source} className="size-4" /></span>
+                <div className="min-w-0 flex-1">
+                  <div className="home-source-heading">
+                    <span className="truncate text-[12.5px] font-medium text-ink">{meta.label}</span>
+                    <span className="tnum flex shrink-0 items-center gap-2 text-[11.5px] text-ink-faint"><strong className="text-[12.5px] font-semibold text-ink">{source.count}</strong>{formatPercent(source.share)}</span>
                   </div>
-                </li>
-              );
-            })}
-          </ul>
-          <Link href="/leads" className="mt-4 inline-flex items-center gap-1 self-start text-[12.5px] font-semibold text-interactive hover:text-ink">
-            Ver todos os leads <ArrowUpRight className="size-3.5" aria-hidden />
-          </Link>
-        </DashboardCard>
-
-        {/* Funil */}
-        <DashboardCard index={2} className="col-span-12 md:col-span-6 lg:col-span-4" title="Visão do funil" description="Acumulado de todos os leads">
-          <ul className="flex flex-col divide-y divide-[var(--seam)]">
-            {data.funnel.steps.map((step, i) => {
-              const Icon = funnelIcons[i];
-              return (
-                <li key={step.key} className="flex items-center gap-3 py-2.5 first:pt-0">
-                  <IconTile>
-                    <Icon aria-hidden />
-                  </IconTile>
-                  <span className="flex-1 text-[13.5px] text-ink-soft">{step.label}</span>
-                  <AnimatedCounter value={step.value} className="text-[15px] font-bold text-ink" />
-                </li>
-              );
-            })}
-            <li className="flex items-center gap-3 pt-2.5">
-              <IconTile className="text-mint">
-                <Percent aria-hidden />
-              </IconTile>
-              <span className="flex-1 text-[13.5px] text-ink-soft">
-                Taxa de conversão
-                <span className="block text-[11.5px] text-ink-faint">Vendas ÷ leads cadastrados</span>
-              </span>
-              <span className="tnum text-[15px] font-bold text-mint">{formatPercent(data.funnel.conversion, 1)}</span>
-            </li>
-          </ul>
-        </DashboardCard>
-
-        {/* Heatmap */}
-        <DashboardCard index={3} className="col-span-12 md:col-span-6 lg:col-span-4" title="Atividades comerciais" description="Contatos e follow-ups concluídos · 12 semanas">
-          <Heatmap
-            rows={DAYS}
-            columns={data.heat.weekStarts.map((d) => formatShort(d))}
-            grid={data.heat.grid.map((row) => row.map((c) => ({ count: c.count, future: c.future, label: formatDate(c.date.toISOString()) })))}
-            max={data.heat.max}
-            unit="atividades"
-            columnEvery={3}
-            summary={`Atividades comerciais por dia nas últimas 12 semanas. Máximo diário: ${data.heat.max}`}
-          />
-        </DashboardCard>
-
-        {/* Radar */}
-        <DashboardCard index={4} className="col-span-12 lg:col-span-4" title="Performance comercial" description="Índices normalizados 0–100 · 30 dias">
-          <RadarChart axes={data.radar} summary={`Performance comercial: ${data.radar.map((a) => `${a.label} ${a.value ?? "sem base"}`).join(", ")}`} />
-        </DashboardCard>
-
-        {/* Pipeline */}
-        <DashboardCard
-          index={5}
-          className="col-span-12 lg:col-span-7"
-          title="Pipeline comercial"
-          description={`${data.openTotal} leads em aberto, por etapa`}
-          actions={
-            <Link href="/leads?visao=kanban" className="pill-group inline-flex h-8 items-center gap-1 px-3.5 text-[12.5px] font-semibold text-ink-soft hover:text-ink">
-              Abrir Kanban <ArrowUpRight className="size-3.5" aria-hidden />
-            </Link>
-          }
-        >
-          <ul className="flex flex-col gap-3">
-            {data.stages.map(({ stage, count }) => {
-              const meta = leadStageMeta[stage];
-              const share = data.openTotal ? count / data.openTotal : 0;
-              return (
-                <li key={stage}>
-                  <div className="mb-1.5 flex items-baseline justify-between text-[13px]">
-                    <span className="flex items-center gap-2 text-ink">
-                      <span className="size-2 rounded-full" style={{ background: tone[meta.tone] }} aria-hidden />
-                      {meta.label}
-                    </span>
-                    <span className="tnum text-ink-faint">
-                      <span className="font-bold text-ink">{count}</span> · {formatPercent(share * 100)}
-                    </span>
-                  </div>
-                  <SegmentedBar value={share} color={tone[meta.tone]} label={`Etapa ${meta.label}`} valueText={`${count} leads`} />
-                </li>
-              );
-            })}
-          </ul>
-        </DashboardCard>
-
-        {/* Próximas ações */}
-        <DashboardCard index={6} className="col-span-12 lg:col-span-5" title="Próximas ações" description="Derivadas dos registros; clique para ver a lista">
-          <ul className="flex flex-col gap-1.5">
-            {data.actions.map((a) => {
-              const Icon = ACTION_ICONS[a.key as keyof typeof ACTION_ICONS] ?? BadgeCheck;
-              return (
-                <li key={a.key}>
-                  <Link href={a.href} className="group flex items-center gap-3 rounded-2xl border border-seam bg-white/[0.015] px-3 py-2.5 transition-colors hover:border-seam-strong hover:bg-white/[0.035]">
-                    <IconTile>
-                      <Icon aria-hidden />
-                    </IconTile>
-                    <span className="min-w-0 flex-1">
-                      <span className="block text-[13.5px] text-ink">{a.label}</span>
-                      <span className="block text-[11.5px] text-ink-faint">{a.hint}</span>
-                    </span>
-                    <span className="tnum text-[17px] font-bold" style={{ color: a.count > 0 ? tone[a.tone] : "var(--ink-faint)" }}>
-                      {a.count}
-                    </span>
-                    <ArrowUpRight className="size-4 text-ink-faint transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5" aria-hidden />
-                  </Link>
-                </li>
-              );
+                  <SegmentedBar size="sm" value={(source.share ?? 0) / 100} color={tone[meta.tone]} label={`${meta.label}: participação`} valueText={`${source.count} leads, ${formatPercent(source.share)}`} />
+                </div>
+              </li>;
             })}
           </ul>
         </DashboardCard>
       </div>
-    </>
+
+      <RecentCommercialActivities rows={overview.recent} range={range} />
+
+      <details className="home-secondary">
+        <summary>
+          <span><strong>Análises complementares</strong><span className="home-secondary-hint">Performance, pipeline e próximas ações</span></span>
+          <ChevronDown className="home-secondary-chevron" size={17} aria-hidden />
+        </summary>
+        <div className="home-secondary-grid">
+          <DashboardCard index={7} title="Performance comercial" description="Índices normalizados 0–100 · 30 dias">
+            <RadarChart axes={data.radar} summary={`Performance comercial: ${data.radar.map((axis) => `${axis.label} ${axis.value ?? "sem base"}`).join(", ")}`} />
+          </DashboardCard>
+          <DashboardCard index={8} title="Pipeline comercial" description={`${data.openTotal} leads em aberto · acumulado`} actions={<Link href="/leads?visao=kanban" className="home-secondary-link" aria-label="Abrir Kanban"><ArrowUpRight size={16} aria-hidden /></Link>}>
+            <ul className="flex flex-col gap-3">
+              {data.stages.map(({ stage, count }) => {
+                const meta = leadStageMeta[stage];
+                const share = data.openTotal ? count / data.openTotal : 0;
+                return <li key={stage}>
+                  <div className="mb-1.5 flex items-baseline justify-between gap-2 text-[12px]">
+                    <span className="flex items-center gap-1.5 text-ink"><span className="size-2 rounded-full" style={{ background: tone[meta.tone] }} aria-hidden />{meta.label}</span>
+                    <span className="tnum whitespace-nowrap text-ink-faint"><strong className="font-semibold text-ink">{count}</strong> · {formatPercent(share * 100)}</span>
+                  </div>
+                  <SegmentedBar size="sm" value={share} color={tone[meta.tone]} label={`Etapa ${meta.label}`} valueText={`${count} leads`} />
+                </li>;
+              })}
+            </ul>
+          </DashboardCard>
+          <DashboardCard index={9} title="Próximas ações" description="Pendências atuais, derivadas dos registros">
+            <ul className="flex flex-col gap-2">
+              {data.actions.map((action) => {
+                const Icon = ACTION_ICONS[action.key as keyof typeof ACTION_ICONS] ?? BadgeCheck;
+                return <li key={action.key}><Link href={action.href} className="home-next-action">
+                  <IconTile><Icon aria-hidden /></IconTile>
+                  <span className="min-w-0 flex-1"><strong className="block text-[12px] font-medium text-ink">{action.label}</strong><span className="block text-[10.5px] text-ink-faint">{action.hint}</span></span>
+                  <span className="tnum text-[15px] font-bold" style={{ color: action.count > 0 ? tone[action.tone] : "var(--ink-faint)" }}>{action.count}</span>
+                  <ArrowUpRight size={13} className="shrink-0 text-ink-faint" aria-hidden />
+                </Link></li>;
+              })}
+            </ul>
+          </DashboardCard>
+        </div>
+      </details>
+    </div>
   );
 }

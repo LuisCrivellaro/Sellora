@@ -11,6 +11,7 @@ import { formatDate, formatRelative, fromInputDate } from "@/lib/dates";
 import { activityInputSchema, fieldErrors } from "@/lib/schemas";
 import type { Activity, ActivityType, ID } from "@/lib/types";
 import { cn } from "@/lib/utils";
+import { dashboardColors } from "@/lib/visualization";
 
 const TYPES: ActivityType[] = ["whatsapp", "ligacao", "email", "visita", "reuniao", "follow_up", "nota"];
 
@@ -100,7 +101,7 @@ export function ActivityPanel({ target, activities }: { target: { leadId?: ID | 
             {done.map((a) => (
               <li key={a.id} className="relative">
                 <span className="absolute top-1 -left-[27px] grid size-3.5 place-items-center rounded-full bg-facade">
-                  {a.type === "etapa" ? <GitCommitHorizontal className="size-3.5 text-lilac" aria-hidden /> : <CheckCircle2 className="size-3.5 text-mint" aria-hidden />}
+                  {a.type === "etapa" ? <GitCommitHorizontal className="size-3.5" style={{ color: dashboardColors.steelLight }} aria-hidden /> : <CheckCircle2 className="size-3.5 text-mint" aria-hidden />}
                 </span>
                 <p className="text-[13px] text-ink">{a.description}</p>
                 <p className="text-[11.5px] text-ink-faint">

@@ -6,18 +6,19 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { SegmentedBar } from "@/components/charts/segmented-bar";
 import { ActivityPanel } from "@/components/shared/activity-panel";
-import { StatusBadge, TonePill } from "@/components/ui/badge";
+import { StatusBadge, TonePill } from "@/components/ui/dashboard-badge";
 import { Button } from "@/components/ui/button";
 import { Select } from "@/components/ui/field";
 import { ConfirmDialog, Modal } from "@/components/ui/overlay";
 import { useToast } from "@/components/ui/toast";
-import { LEAD_STAGES, leadSourceMeta, leadStageMeta, priorityMeta, segmentMeta, temperatureMeta, tone, websiteSituationMeta } from "@/lib/constants";
+import { LEAD_STAGES, leadSourceMeta, leadStageMeta, priorityMeta, segmentMeta, temperatureMeta, websiteSituationMeta } from "@/lib/constants";
 import { convertLeadToClient, deleteLead, moveLeadStage } from "@/lib/data/repository";
 import { useStore } from "@/lib/data/store";
 import { formatDate, formatRelative } from "@/lib/dates";
 import { leadScore, temperatureOf } from "@/lib/metrics/leads";
 import type { Lead } from "@/lib/types";
 import { Money } from "@/components/ui/money";
+import { dashboardTone as tone } from "@/lib/visualization";
 
 function Info({ label, children }: { label: string; children: React.ReactNode }) {
   return (

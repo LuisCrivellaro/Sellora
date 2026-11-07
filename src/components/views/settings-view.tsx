@@ -3,7 +3,8 @@
 import { Database as DbIcon, Download, Eraser, Mail, MapPin, MessageCircle, Camera, RotateCcw, Upload } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { Avatar } from "@/components/ui/avatar";
-import { DemoBadge, StatusBadge } from "@/components/ui/badge";
+import { DemoBadge } from "@/components/ui/badge";
+import { StatusBadge } from "@/components/ui/dashboard-badge";
 import { Button } from "@/components/ui/button";
 import { DashboardCard } from "@/components/ui/card";
 import { Field, TextInput } from "@/components/ui/field";
@@ -12,7 +13,7 @@ import { IconTile, PageHeader } from "@/components/ui/page-header";
 import { Segmented } from "@/components/ui/segmented";
 import { PageSkeleton } from "@/components/ui/states";
 import { useToast } from "@/components/ui/toast";
-import { LEAD_STAGES, leadStageMeta, packageOrder, tone } from "@/lib/constants";
+import { LEAD_STAGES, leadStageMeta, packageOrder } from "@/lib/constants";
 import { exportDatabase, resetDemoData, startFromScratch, updateSettings } from "@/lib/data/repository";
 import { checkConnection, importLocalData } from "@/lib/data/actions";
 import { checkImportFile } from "@/lib/data/import";
@@ -21,6 +22,7 @@ import { formatDate } from "@/lib/dates";
 import { fieldErrors, packageSchema, profileSchema } from "@/lib/schemas";
 import type { Database, Density, MotionPreference, PackageConfig } from "@/lib/types";
 import { Money } from "@/components/ui/money";
+import { dashboardTone as tone } from "@/lib/visualization";
 
 const INTEGRATIONS = [
   { key: "maps", name: "Google Maps", icon: MapPin, purpose: "Pesquisa assistida de estabelecimentos", status: "Disponível futuramente" },

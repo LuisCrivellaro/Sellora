@@ -2,6 +2,7 @@
 
 import { useRef, useState, type KeyboardEvent } from "react";
 import { cn } from "@/lib/utils";
+import { dashboardColors } from "@/lib/visualization";
 
 export interface HeatCell {
   count: number;
@@ -23,14 +24,15 @@ interface Props {
 
 function cellStyle(count: number, max: number, future?: boolean) {
   if (future) return { background: "transparent", border: "1px dashed rgba(236,228,255,0.06)" };
-  if (count === 0 || max === 0) return { background: "rgba(120,100,170,0.10)" };
+  if (count === 0 || max === 0) return { background: dashboardColors.graphite };
   const t = count / max;
-  // violeta escuro → violeta neon → lilás brilhante
+  // Vermelho fechado → vermelho principal → vermelho claro.
   const alpha = 0.25 + t * 0.75;
-  const color = t > 0.66 ? `rgba(178,150,214,${alpha})` : t > 0.33 ? `rgba(146,112,196,${alpha})` : `rgba(118,92,176,${alpha})`;
+  const shade = t > 0.66 ? dashboardColors.redLight : t > 0.33 ? dashboardColors.red : dashboardColors.redDark;
+  const color = `color-mix(in srgb, ${shade} ${alpha * 100}%, transparent)`;
   return {
     background: color,
-    boxShadow: t > 0.5 ? `0 0 ${4 + t * 5}px -2px rgba(170,140,210,${0.2 + t * 0.25}), inset 0 1px 0 rgba(255,255,255,0.18)` : "inset 0 1px 0 rgba(255,255,255,0.06)",
+    boxShadow: t > 0.5 ? `0 0 ${4 + t * 5}px -2px color-mix(in srgb, ${dashboardColors.redLight} ${(0.2 + t * 0.25) * 100}%, transparent), inset 0 1px 0 rgba(255,255,255,0.18)` : "inset 0 1px 0 rgba(255,255,255,0.06)",
   };
 }
 

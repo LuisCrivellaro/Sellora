@@ -10,7 +10,7 @@ import { ClientDetail } from "@/components/clients/client-detail";
 import { ClientForm } from "@/components/clients/client-form";
 import { useUrlParams } from "@/components/shared/use-url-state";
 import { Avatar } from "@/components/ui/avatar";
-import { StatusBadge } from "@/components/ui/badge";
+import { StatusBadge } from "@/components/ui/dashboard-badge";
 import { Button } from "@/components/ui/button";
 import { DashboardCard, LegendStat } from "@/components/ui/card";
 import { DataTable, type Column } from "@/components/ui/data-table";
@@ -18,7 +18,7 @@ import { SearchInput } from "@/components/ui/field";
 import { PageHeader } from "@/components/ui/page-header";
 import { Segmented } from "@/components/ui/segmented";
 import { EmptyState, PageSkeleton } from "@/components/ui/states";
-import { clientStatusMeta, SEGMENTS, segmentMeta, tone } from "@/lib/constants";
+import { clientStatusMeta, SEGMENTS, segmentMeta } from "@/lib/constants";
 import { useStore } from "@/lib/data/store";
 import { buildBuckets, countByBucket, formatRelative, RANGE_OPTIONS, type RangeKey } from "@/lib/dates";
 import { clientsNeedingAttention } from "@/lib/metrics/clients";
@@ -26,6 +26,7 @@ import { siteDelivery } from "@/lib/metrics/projects";
 import type { Client, ClientStatus } from "@/lib/types";
 import { matchesQuery, sum } from "@/lib/utils";
 import { Money } from "@/components/ui/money";
+import { dashboardCategoryColors, dashboardColors, dashboardTone as tone } from "@/lib/visualization";
 
 export function ClientsView() {
   const { db } = useStore();
@@ -116,16 +117,16 @@ export function ClientsView() {
           actions={<Segmented label="Período" value={range} onChange={setRange} options={RANGE_OPTIONS.map((r) => ({ value: r.value, label: r.label, title: r.description }))} />}
         >
           <div className="mb-3 flex flex-wrap gap-x-6 gap-y-1.5">
-            <LegendStat color={tone.magenta} label="Novos clientes" value={sum(data.newClients)} />
-            <LegendStat color={tone.mint} label="Sites publicados" value={sum(data.published)} />
+            <LegendStat color={dashboardColors.red} label="Novos clientes" value={sum(data.newClients)} />
+            <LegendStat color={dashboardColors.steel} label="Sites publicados" value={sum(data.published)} />
           </div>
           <NeonLineChart
             height={250}
             labels={data.buckets.map((b) => b.label)}
             longLabels={data.buckets.map((b) => b.longLabel)}
             series={[
-              { key: "clientes", label: "Novos clientes", color: "#bb6ba5", values: data.newClients },
-              { key: "publicados", label: "Sites publicados", color: "#5fbf9f", values: data.published },
+              { key: "clientes", label: "Novos clientes", color: dashboardColors.red, values: data.newClients },
+              { key: "publicados", label: "Sites publicados", color: dashboardColors.steel, values: data.published },
             ]}
             summary={`Evolução de clientes, ${rangeInfo.description}: ${sum(data.newClients)} novos clientes e ${sum(data.published)} sites publicados`}
           />
@@ -133,7 +134,7 @@ export function ClientsView() {
 
         <DashboardCard index={1} className="col-span-12 xl:col-span-4" title="Clientes por segmento" description={`${db.clients.length} clientes`}>
           {data.bySegment.length ? (
-            <HatchedColumns height={270} data={data.bySegment} colors={["#bb6ba5", "#8866bd", "#a891d1", "#7473c4", "#5fbf9f"]} summary={`Clientes por segmento: ${data.bySegment.map((s) => `${s.label} ${s.value}`).join(", ")}`} />
+            <HatchedColumns height={270} data={data.bySegment} colors={dashboardCategoryColors} summary={`Clientes por segmento: ${data.bySegment.map((s) => `${s.label} ${s.value}`).join(", ")}`} />
           ) : (
             <EmptyState title="Sem clientes ainda" description="Converta um lead ganho para começar." />
           )}
@@ -142,9 +143,9 @@ export function ClientsView() {
         <DashboardCard index={2} className="col-span-12 lg:col-span-5" title="Sites contratados" description={`${data.delivery.total} projetos de site`}>
           <ul className="flex flex-1 flex-col justify-around gap-4">
             {[
-              { label: "Em desenvolvimento", value: data.delivery.desenvolvimento, color: tone.violet, hint: "Briefing, design ou desenvolvimento" },
-              { label: "Em revisão", value: data.delivery.revisao, color: tone.magenta, hint: "QA e ajustes com o cliente" },
-              { label: "Publicados", value: data.delivery.publicados, color: tone.indigo, hint: "Com endereço publicado registrado" },
+              { label: "Em desenvolvimento", value: data.delivery.desenvolvimento, color: dashboardColors.red, hint: "Briefing, design ou desenvolvimento" },
+              { label: "Em revisão", value: data.delivery.revisao, color: dashboardColors.steel, hint: "QA e ajustes com o cliente" },
+              { label: "Publicados", value: data.delivery.publicados, color: dashboardColors.steelLight, hint: "Com endereço publicado registrado" },
               { label: "Entregues", value: data.delivery.entregues, color: tone.mint, hint: "Etapa de entrega concluída" },
             ].map((row) => (
               <li key={row.label}>

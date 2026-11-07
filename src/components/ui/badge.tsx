@@ -2,8 +2,7 @@ import { tone as toneVar, type Tone } from "@/lib/constants";
 import { cn } from "@/lib/utils";
 
 /** Status com ponto luminoso + texto (nunca só cor). */
-export function StatusBadge({ tone, label, className, size = "md" }: { tone: Tone; label: React.ReactNode; className?: string; size?: "sm" | "md" }) {
-  const color = toneVar[tone];
+export function StatusBadge({ tone, label, className, size = "md", color = toneVar[tone] }: { tone: Tone; label: React.ReactNode; className?: string; size?: "sm" | "md"; color?: string }) {
   return (
     <span className={cn("inline-flex items-center gap-1.5 whitespace-nowrap font-medium text-ink", size === "sm" ? "text-[12px]" : "text-[13px]", className)}>
       <span className="size-2 shrink-0 rounded-full" style={{ background: color, boxShadow: tone === "ghost" ? undefined : `0 0 4px ${color}` }} aria-hidden />
@@ -13,8 +12,7 @@ export function StatusBadge({ tone, label, className, size = "md" }: { tone: Ton
 }
 
 /** Etiqueta em pill com contorno tingido. */
-export function TonePill({ tone, children, className }: { tone: Tone; children: React.ReactNode; className?: string }) {
-  const color = toneVar[tone];
+export function TonePill({ tone, children, className, color = toneVar[tone] }: { tone: Tone; children: React.ReactNode; className?: string; color?: string }) {
   return (
     <span
       className={cn("inline-flex items-center rounded-full border px-2 py-0.5 text-[11.5px] font-semibold whitespace-nowrap", className)}

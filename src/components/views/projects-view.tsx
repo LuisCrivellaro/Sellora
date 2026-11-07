@@ -10,7 +10,7 @@ import { ProjectDetail } from "@/components/projects/project-detail";
 import { ProjectForm } from "@/components/projects/project-form";
 import { useUrlParams } from "@/components/shared/use-url-state";
 import { Avatar } from "@/components/ui/avatar";
-import { StatusBadge } from "@/components/ui/badge";
+import { StatusBadge } from "@/components/ui/dashboard-badge";
 import { Button } from "@/components/ui/button";
 import { DashboardCard } from "@/components/ui/card";
 import { DataTable, type Column } from "@/components/ui/data-table";
@@ -18,13 +18,14 @@ import { SearchInput } from "@/components/ui/field";
 import { FilterPopover, type FilterValue } from "@/components/ui/filter-popover";
 import { PageHeader } from "@/components/ui/page-header";
 import { EmptyState, PageSkeleton } from "@/components/ui/states";
-import { PROJECT_STAGES, projectStageMeta, projectStatusMeta, siteTypeMeta, tone } from "@/lib/constants";
+import { PROJECT_STAGES, projectStageMeta, projectStatusMeta, siteTypeMeta } from "@/lib/constants";
 import { useStore } from "@/lib/data/store";
 import { addMonths, formatDate, formatMonth, formatRelative, formatShort } from "@/lib/dates";
 import { activityHeatmap } from "@/lib/metrics/leads";
 import { projectDeadline, projectProgress, projectStatus, statusCounts } from "@/lib/metrics/projects";
 import type { Project, ProjectStatus } from "@/lib/types";
 import { cn, matchesQuery } from "@/lib/utils";
+import { dashboardProgressColor, dashboardProjectStageColors, dashboardProjectStatusColors } from "@/lib/visualization";
 
 const DAYS = ["Seg", "Ter", "Qua", "Qui", "Sex", "Sáb", "Dom"];
 
@@ -114,7 +115,7 @@ export function ProjectsView() {
       sortValue: (p) => projectProgress(p),
       cell: (p) => (
         <span className="flex w-[150px] items-center gap-2.5">
-          <SegmentedBar size="sm" value={projectProgress(p) / 100} color={tone.violet} label={`Progresso ${p.title}`} />
+          <SegmentedBar size="sm" value={projectProgress(p) / 100} color={dashboardProgressColor(projectProgress(p))} label={`Progresso ${p.title}`} />
           <span className="tnum w-9 text-right text-[12px] font-bold text-ink">{projectProgress(p)}%</span>
         </span>
       ),
@@ -123,12 +124,12 @@ export function ProjectsView() {
       key: "status",
       header: "Status",
       sortValue: (p) => projectStatus(p),
-      cell: (p) => <StatusBadge tone={projectStatusMeta[projectStatus(p)].tone} label={projectStatusMeta[projectStatus(p)].label} />,
+      cell: (p) => <StatusBadge tone={projectStatusMeta[projectStatus(p)].tone} color={statusColors[projectStatus(p)]} label={projectStatusMeta[projectStatus(p)].label} />,
     },
   ];
 
   const statusKeys = Object.keys(projectStatusMeta) as ProjectStatus[];
-  const statusColors: Record<ProjectStatus, string> = { nao_iniciado: "#7473c4", em_desenvolvimento: "#8866bd", em_revisao: "#bb6ba5", concluido: "#5fbf9f" };
+  const statusColors = dashboardProjectStatusColors;
 
   return (
     <>
@@ -146,7 +147,7 @@ export function ProjectsView() {
           <div className="mb-2 flex flex-wrap gap-x-3 gap-y-1">
             {PROJECT_STAGES.map((s) => (
               <span key={s} className="flex items-center gap-1.5 text-[11.5px] text-ink-soft">
-                <span className="size-2 rounded-full" style={{ background: tone[projectStageMeta[s].tone] }} aria-hidden />
+                <span className="size-2 rounded-full" style={{ background: dashboardProjectStageColors[s] }} aria-hidden />
                 {projectStageMeta[s].label}
               </span>
             ))}
@@ -154,7 +155,7 @@ export function ProjectsView() {
           <StackedRibbonChart
             height={220}
             columns={data.columns}
-            keys={PROJECT_STAGES.map((s) => ({ key: s, label: projectStageMeta[s].label, color: tone[projectStageMeta[s].tone] }))}
+            keys={PROJECT_STAGES.map((s) => ({ key: s, label: projectStageMeta[s].label, color: dashboardProjectStageColors[s] }))}
             summary={`Projetos iniciados por mês: ${data.columns.map((c) => `${c.label} ${c.segments.reduce((a, b) => a + b.value, 0)}`).join(", ")}`}
           />
         </DashboardCard>
@@ -220,10 +221,10 @@ export function ProjectsView() {
                       {clientName(p.clientId)} · prazo {formatDate(p.dueDate)}
                     </span>
                   </span>
-                  <StatusBadge size="sm" tone={projectStatusMeta[projectStatus(p)].tone} label={projectStatusMeta[projectStatus(p)].label} />
+                  <StatusBadge size="sm" tone={projectStatusMeta[projectStatus(p)].tone} color={statusColors[projectStatus(p)]} label={projectStatusMeta[projectStatus(p)].label} />
                 </span>
                 <span className="flex items-center gap-2.5">
-                  <SegmentedBar size="sm" value={projectProgress(p) / 100} color={tone.violet} label={`Progresso ${p.title}`} />
+                  <SegmentedBar size="sm" value={projectProgress(p) / 100} color={dashboardProgressColor(projectProgress(p))} label={`Progresso ${p.title}`} />
                   <span className="tnum text-[12px] font-bold text-ink">{projectProgress(p)}%</span>
                 </span>
               </span>

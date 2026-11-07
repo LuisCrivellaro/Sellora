@@ -22,11 +22,13 @@ interface Props {
   /** Resumo textual para leitores de tela. */
   summary: string;
   className?: string;
+  /** Mantém o ponto selecionado ao tocar; opcional para preservar os usos existentes. */
+  touchTooltip?: boolean;
 }
 
 const PAD = { top: 16, right: 12, bottom: 28, left: 40 };
 
-export function NeonLineChart({ labels, longLabels, series, height = 230, format = (n) => String(Math.round(n)), summary, className }: Props) {
+export function NeonLineChart({ labels, longLabels, series, height = 230, format = (n) => String(Math.round(n)), summary, className, touchTooltip = false }: Props) {
   const uid = useId().replace(/:/g, "");
   const [ref, { width }] = useElementSize<HTMLDivElement>();
   const enabled = useMotionEnabled();
@@ -158,7 +160,14 @@ export function NeonLineChart({ labels, longLabels, series, height = 230, format
               height={height}
               fill="transparent"
               onPointerMove={(e) => onMove(e.clientX, (e.currentTarget.ownerSVGElement as SVGSVGElement).getBoundingClientRect())}
-              onPointerLeave={() => setActive(null)}
+              onPointerDown={touchTooltip ? (e) => {
+                if (e.pointerType === "mouse") return;
+                ref.current?.focus({ preventScroll: true });
+                onMove(e.clientX, (e.currentTarget.ownerSVGElement as SVGSVGElement).getBoundingClientRect());
+              } : undefined}
+              onPointerLeave={(e) => {
+                if (!touchTooltip || e.pointerType === "mouse") setActive(null);
+              }}
             />
           </svg>
         )}
