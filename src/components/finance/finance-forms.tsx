@@ -13,7 +13,7 @@ import { addDays, formatDate, fromInputDate, isoDate } from "@/lib/dates";
 import { openAmount, paidAmount } from "@/lib/metrics/finance";
 import { paymentInputSchema, transactionInputSchema } from "@/lib/schemas";
 import type { Transaction, TransactionKind } from "@/lib/types";
-import { formatBRL } from "@/lib/utils";
+import { Money } from "@/components/ui/money";
 
 type TxValues = { kind: TransactionKind; clientId: string; projectId: string; description: string; amount: string; dueDate: string };
 
@@ -67,7 +67,7 @@ export function TransactionForm({
     notify({
       kind: "success",
       title: values.kind === "receita" ? "Recebível lançado" : paidNow ? "Despesa registrada como paga" : "Despesa lançada a pagar",
-      description: `${data.description} · ${formatBRL(data.amount)}`,
+      description: <>{data.description} · <Money value={data.kind === "custo" ? -data.amount : data.amount} /></>,
     });
     onOpenChange(false);
   };
@@ -122,7 +122,7 @@ export function TransactionForm({
           {(p) => <TextInput {...p} value={values.description} onChange={(e) => set("description", e.target.value)} placeholder={values.kind === "receita" ? "Ex.: Saldo 50% — entrega do site" : "Ex.: Registro de domínio"} />}
         </Field>
         <Field label="Valor (R$)" error={errors.amount}>
-          {(p) => <TextInput {...p} inputMode="decimal" value={values.amount} onChange={(e) => set("amount", e.target.value)} placeholder="0,00" />}
+          {(p) => <TextInput {...p} moneySign={values.kind === "custo" ? -1 : 1} inputMode="decimal" value={values.amount} onChange={(e) => set("amount", e.target.value)} placeholder="0,00" />}
         </Field>
         <Field label={values.kind === "custo" && paidNow ? "Data do pagamento" : "Vencimento"} error={errors.dueDate}>
           {(p) => <TextInput {...p} type="date" value={values.dueDate} onChange={(e) => set("dueDate", e.target.value)} />}
@@ -160,7 +160,7 @@ export function PaymentForm({ tx, onOpenChange }: { tx: Transaction | null; onOp
     try {
       addPayment(tx.id, parsed.data);
       const partial = parsed.data.amount < remaining - 0.001;
-      notify({ kind: "success", title: partial ? "Pagamento parcial registrado" : "Recebimento registrado", description: `${formatBRL(parsed.data.amount)} em ${formatDate(parsed.data.date)}` });
+      notify({ kind: "success", title: partial ? "Pagamento parcial registrado" : "Recebimento registrado", description: <><Money value={tx.kind === "custo" ? -parsed.data.amount : parsed.data.amount} /> em {formatDate(parsed.data.date)}</> });
       onOpenChange(false);
     } catch (err) {
       setErrors({ amount: err instanceof Error ? err.message : "Valor inválido" });
@@ -172,7 +172,7 @@ export function PaymentForm({ tx, onOpenChange }: { tx: Transaction | null; onOp
       open={!!tx}
       onOpenChange={onOpenChange}
       title="Registrar recebimento"
-      description={`${tx.description} · total ${formatBRL(tx.amount)} · já recebido ${formatBRL(paidAmount(tx))} · em aberto ${formatBRL(remaining)}`}
+      description={<>{tx.description} · total <Money value={tx.kind === "custo" ? -tx.amount : tx.amount} /> · já recebido <Money value={tx.kind === "custo" ? -paidAmount(tx) : paidAmount(tx)} /> · em aberto <Money value={tx.kind === "custo" ? -remaining : remaining} /></>}
       footer={
         <>
           <Button variant="secondary" onClick={() => onOpenChange(false)}>
@@ -186,7 +186,7 @@ export function PaymentForm({ tx, onOpenChange }: { tx: Transaction | null; onOp
     >
       <form id="payment-form" onSubmit={submit} noValidate className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <Field label="Valor recebido (R$)" error={errors.amount} hint="Valores menores que o saldo ficam como pagamento parcial.">
-          {(p) => <TextInput {...p} inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value)} />}
+          {(p) => <TextInput {...p} moneySign={tx.kind === "custo" ? -1 : 1} inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value)} />}
         </Field>
         <Field label="Data do pagamento" error={errors.date}>
           {(p) => <TextInput {...p} type="date" value={date} onChange={(e) => setDate(e.target.value)} />}

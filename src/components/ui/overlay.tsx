@@ -7,7 +7,7 @@ import { cn } from "@/lib/utils";
 import { Button } from "./button";
 
 const overlayCls =
-  "fixed inset-0 z-[60] bg-[rgba(4,3,8,0.66)] backdrop-blur-[3px] data-[state=open]:animate-[fade-in_180ms_var(--ease-out)] data-[state=closed]:animate-[fade-out_120ms_var(--ease-in)]";
+  "fixed inset-0 z-[60] bg-[var(--overlay)] backdrop-blur-[3px] data-[state=open]:animate-[fade-in_180ms_var(--ease-out)] data-[state=closed]:animate-[fade-out_120ms_var(--ease-in)]";
 
 interface ModalProps {
   open: boolean;

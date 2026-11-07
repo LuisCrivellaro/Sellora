@@ -97,14 +97,14 @@ export function DataTable<T>({
   return (
     <div className="flex min-w-0 flex-col">
       {/* Desktop/tablet */}
-      <div className="hidden overflow-x-auto md:block">
+      <div className="relative hidden min-w-0 max-w-full overflow-x-auto md:block">
         <table className="w-full border-separate border-spacing-0 text-left">
           <caption className="sr-only">{caption}</caption>
           <thead>
             <tr className="text-[12.5px] text-ink-faint">
               {selectable && (
-                <th scope="col" className="w-10 rounded-l-xl border-y border-l border-seam bg-facade-raised/70 py-2.5 pl-4">
-                  <input type="checkbox" checked={!!allSelected} onChange={toggleAll} aria-label="Selecionar todos desta página" className="size-4 accent-[var(--neon-violet)]" />
+                <th scope="col" className="w-10 rounded-l-xl border-y border-l border-table-line bg-facade-raised/70 py-2.5 pl-4">
+                  <input type="checkbox" checked={!!allSelected} onChange={toggleAll} aria-label="Selecionar todos desta página" className="size-4 accent-[var(--primary)]" />
                 </th>
               )}
               {columns.map((c, i) => {
@@ -115,7 +115,7 @@ export function DataTable<T>({
                     scope="col"
                     aria-sort={isSorted ? (sort!.dir === "asc" ? "ascending" : "descending") : c.sortValue ? "none" : undefined}
                     className={cn(
-                      "border-y border-seam bg-facade-raised/70 px-3 py-2.5 font-medium whitespace-nowrap first:pl-4",
+                      "border-y border-table-line bg-facade-raised/70 px-3 py-2.5 font-medium whitespace-nowrap first:pl-4",
                       i === 0 && !selectable && "rounded-l-xl border-l",
                       i === columns.length - 1 && !rowActions && "rounded-r-xl border-r pr-4",
                       c.align === "right" && "text-right",
@@ -135,7 +135,7 @@ export function DataTable<T>({
                 );
               })}
               {rowActions && (
-                <th scope="col" className="w-12 rounded-r-xl border-y border-r border-seam bg-facade-raised/70 pr-3">
+                <th scope="col" className="w-12 rounded-r-xl border-y border-r border-table-line bg-facade-raised/70 pr-3">
                   <span className="sr-only">Ações</span>
                 </th>
               )}
@@ -154,18 +154,18 @@ export function DataTable<T>({
                     if (target.closest("button, a, input, [role=menuitem]")) return;
                     onOpen(row);
                   }}
-                  className={cn("group text-[13.5px] transition-colors", onOpen && "cursor-pointer", isSel ? "bg-violet/[0.08]" : "hover:bg-white/[0.025]")}
+                  className={cn("group text-[13.5px] transition-colors", onOpen && "cursor-pointer", isSel ? "bg-selected" : "hover:bg-white/[0.025]")}
                 >
                   {selectable && (
-                    <td className="border-b border-seam py-3 pl-4">
-                      <input type="checkbox" checked={!!isSel} onChange={() => toggleRow(id)} aria-label={`Selecionar ${getRowLabel(row)}`} className="size-4 accent-[var(--neon-violet)]" />
+                    <td className="border-b border-table-line py-3 pl-4">
+                      <input type="checkbox" checked={!!isSel} onChange={() => toggleRow(id)} aria-label={`Selecionar ${getRowLabel(row)}`} className="size-4 accent-[var(--primary)]" />
                     </td>
                   )}
                   {columns.map((c, i) => (
                     <td
                       key={c.key}
                       className={cn(
-                        "border-b border-seam px-3 py-3 align-middle text-ink-soft first:pl-4",
+                        "border-b border-table-line px-3 py-3 align-middle text-ink-soft first:pl-4",
                         i === 0 && "text-ink",
                         c.align === "right" && "text-right",
                         c.hideBelow && hideCls[c.hideBelow],
@@ -181,7 +181,7 @@ export function DataTable<T>({
                       )}
                     </td>
                   ))}
-                  {rowActions && <td className="border-b border-seam pr-3 text-right">{rowActions(row)}</td>}
+                  {rowActions && <td className="border-b border-table-line pr-3 text-right">{rowActions(row)}</td>}
                 </tr>
               );
             })}
@@ -194,10 +194,10 @@ export function DataTable<T>({
         {visible.map((row) => {
           const id = getRowId(row);
           return (
-            <li key={id} className="relative rounded-2xl border border-seam bg-white/[0.02] p-3.5">
+            <li key={id} className="relative rounded-2xl border border-table-line bg-white/[0.02] p-3.5">
               <div className="flex items-start gap-3">
                 {selectable && (
-                  <input type="checkbox" checked={!!selected?.has(id)} onChange={() => toggleRow(id)} aria-label={`Selecionar ${getRowLabel(row)}`} className="mt-1 size-4 accent-[var(--neon-violet)]" />
+                  <input type="checkbox" checked={!!selected?.has(id)} onChange={() => toggleRow(id)} aria-label={`Selecionar ${getRowLabel(row)}`} className="mt-1 size-4 accent-[var(--primary)]" />
                 )}
                 <div className="min-w-0 flex-1">
                   {onOpen ? (

@@ -88,7 +88,7 @@ export function GlobalSearch({ open, onOpenChange }: { open: boolean; onOpenChan
       }}
     >
       <Dialog.Portal>
-        <Dialog.Overlay className="fixed inset-0 z-[60] bg-[rgba(4,3,8,0.66)] backdrop-blur-[3px] data-[state=open]:animate-[fade-in_160ms_var(--ease-out)]" />
+        <Dialog.Overlay className="fixed inset-0 z-[60] bg-[var(--overlay)] backdrop-blur-[3px] data-[state=open]:animate-[fade-in_160ms_var(--ease-out)]" />
         <Dialog.Content className="facade fixed top-[12vh] left-1/2 z-[70] w-[min(620px,calc(100vw-24px))] -translate-x-1/2 overflow-hidden border-seam-strong outline-none data-[state=open]:animate-[pop-in_180ms_var(--ease-out)]">
           <Dialog.Title className="sr-only">Busca global</Dialog.Title>
           <Dialog.Description className="sr-only">Pesquise leads, clientes, projetos e propostas. Use as setas e Enter para abrir.</Dialog.Description>
@@ -134,10 +134,10 @@ export function GlobalSearch({ open, onOpenChange }: { open: boolean; onOpenChan
                     aria-selected={i === cursor}
                     onClick={() => go(r)}
                     onPointerMove={() => setCursor(i)}
-                    className={cn("flex cursor-pointer items-center gap-3 rounded-xl px-3 py-2.5", i === cursor ? "bg-white/[0.07]" : "")}
+                    className={cn("flex cursor-pointer items-center gap-3 rounded-xl px-3 py-2.5", i === cursor ? "bg-selected" : "")}
                   >
                     <span className="tile grid size-8 place-items-center">
-                      <Icon className="size-4 text-lilac" aria-hidden />
+                      <Icon className="size-4 text-interactive" aria-hidden />
                     </span>
                     <span className="min-w-0 flex-1">
                       <span className="block truncate text-[13.5px] font-semibold text-ink">{r.title}</span>

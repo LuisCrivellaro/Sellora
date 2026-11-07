@@ -15,7 +15,7 @@ import { useStore } from "@/lib/data/store";
 import { formatDate } from "@/lib/dates";
 import { isExpired, proposalSubtotal, proposalTotal } from "@/lib/metrics/proposals";
 import type { Proposal } from "@/lib/types";
-import { formatBRL } from "@/lib/utils";
+import { Money } from "@/components/ui/money";
 
 export function ProposalDetail({
   proposal,
@@ -46,7 +46,7 @@ export function ProposalDetail({
             <TonePill tone={proposalStatusMeta[proposal.status].tone}>{proposalStatusMeta[proposal.status].label}</TonePill>
             {expired && <TonePill tone="danger">Validade vencida</TonePill>}
             {lead && (
-              <Link href={`/leads?id=${lead.id}`} className="text-[12px] font-semibold text-lilac hover:text-ink">
+              <Link href={`/leads?id=${lead.id}`} className="text-[12px] font-semibold text-interactive hover:text-ink">
                 Ver lead
               </Link>
             )}
@@ -96,31 +96,31 @@ export function ProposalDetail({
         </div>
 
         {/* Documento imprimível */}
-        <article className="print-area mt-5 rounded-2xl bg-[#f7f5fb] p-6 text-[#17131f] shadow-[0_20px_60px_-30px_rgba(0,0,0,0.9)] sm:p-8" aria-label="Pré-visualização da proposta">
-          <header className="flex items-start justify-between gap-4 border-b border-[#ddd6ea] pb-4">
+        <article className="print-area mt-5 rounded-2xl bg-paper p-6 text-paper-ink shadow-[0_20px_60px_-30px_rgba(0,0,0,0.9)] sm:p-8" aria-label="Pré-visualização da proposta">
+          <header className="flex items-start justify-between gap-4 border-b border-paper-border pb-4">
             <div className="flex items-center gap-2.5">
-              <span className="grid size-10 place-items-center rounded-xl bg-[#17131f]">
+              <span className="grid size-10 place-items-center rounded-xl bg-paper-ink">
                 <LogoMark className="size-6" />
               </span>
               <div>
                 <p className="text-[16px] font-extrabold tracking-[-0.02em]">Sellora</p>
-                <p className="text-[11.5px] text-[#6b6480]">Sites profissionais para estabelecimentos</p>
+                <p className="text-[11.5px] text-paper-muted">Sites profissionais para estabelecimentos</p>
               </div>
             </div>
-            <div className="text-right text-[11.5px] text-[#6b6480]">
+            <div className="text-right text-[11.5px] text-paper-muted">
               <p>Proposta comercial</p>
               <p>Emitida em {formatDate(proposal.createdAt)}</p>
               <p>Válida até {formatDate(proposal.validUntil)}</p>
             </div>
           </header>
           <h3 className="mt-5 text-[20px] font-bold tracking-[-0.02em]">{proposal.title}</h3>
-          <p className="mt-1 text-[13px] text-[#4b4560]">
+          <p className="mt-1 text-[13px] text-paper-soft">
             Para: <strong>{proposal.recipientName}</strong> · Pacote {pkg?.name ?? proposal.packageId}
           </p>
 
           <table className="mt-5 w-full text-left text-[13px]">
             <thead>
-              <tr className="border-b border-[#ddd6ea] text-[11.5px] text-[#6b6480]">
+              <tr className="border-b border-paper-border text-[11.5px] text-paper-muted">
                 <th scope="col" className="py-2 font-semibold">Item</th>
                 <th scope="col" className="py-2 text-right font-semibold">Qtd.</th>
                 <th scope="col" className="py-2 text-right font-semibold">Unitário</th>
@@ -129,52 +129,52 @@ export function ProposalDetail({
             </thead>
             <tbody>
               {proposal.items.map((i) => (
-                <tr key={i.id} className="border-b border-[#ebe6f3]">
+                <tr key={i.id} className="border-b border-paper-line">
                   <td className="py-2.5">{i.description}</td>
                   <td className="tnum py-2.5 text-right">{i.quantity}</td>
-                  <td className="tnum py-2.5 text-right">{formatBRL(i.unitPrice)}</td>
-                  <td className="tnum py-2.5 text-right">{formatBRL(i.quantity * i.unitPrice)}</td>
+                  <td className="tnum py-2.5 text-right"><Money value={i.unitPrice} /></td>
+                  <td className="tnum py-2.5 text-right"><Money value={i.quantity * i.unitPrice} /></td>
                 </tr>
               ))}
             </tbody>
             <tfoot className="tnum">
               <tr>
-                <td colSpan={3} className="pt-3 text-right text-[#6b6480]">Subtotal</td>
-                <td className="pt-3 text-right">{formatBRL(proposalSubtotal(proposal))}</td>
+                <td colSpan={3} className="pt-3 text-right text-paper-muted">Subtotal</td>
+                <td className="pt-3 text-right"><Money value={proposalSubtotal(proposal)} /></td>
               </tr>
               {proposal.discount > 0 && (
                 <tr>
-                  <td colSpan={3} className="text-right text-[#6b6480]">Desconto</td>
-                  <td className="text-right">− {formatBRL(proposal.discount)}</td>
+                  <td colSpan={3} className="text-right text-paper-muted">Desconto</td>
+                  <td className="text-right"><Money value={-proposal.discount} /></td>
                 </tr>
               )}
               <tr>
                 <td colSpan={3} className="pt-1 text-right font-bold">Total</td>
-                <td className="pt-1 text-right text-[17px] font-extrabold">{formatBRL(proposalTotal(proposal))}</td>
+                <td className="pt-1 text-right text-[17px] font-extrabold"><Money value={proposalTotal(proposal)} /></td>
               </tr>
             </tfoot>
           </table>
 
           <dl className="mt-6 grid grid-cols-1 gap-4 text-[13px] sm:grid-cols-3">
             <div>
-              <dt className="text-[11.5px] font-semibold text-[#6b6480]">Prazo de entrega</dt>
+              <dt className="text-[11.5px] font-semibold text-paper-muted">Prazo de entrega</dt>
               <dd>{proposal.deadlineDays} dias após briefing e conteúdo recebidos</dd>
             </div>
             <div>
-              <dt className="text-[11.5px] font-semibold text-[#6b6480]">Revisões incluídas</dt>
+              <dt className="text-[11.5px] font-semibold text-paper-muted">Revisões incluídas</dt>
               <dd>{proposal.revisions} rodadas</dd>
             </div>
             <div>
-              <dt className="text-[11.5px] font-semibold text-[#6b6480]">Pagamento</dt>
+              <dt className="text-[11.5px] font-semibold text-paper-muted">Pagamento</dt>
               <dd>{proposal.paymentTerms || "A combinar"}</dd>
             </div>
           </dl>
           {proposal.exclusions && (
-            <p className="mt-5 rounded-xl bg-[#ece7f5] px-4 py-3 text-[12.5px] text-[#4b4560]">
+            <p className="mt-5 rounded-xl bg-paper-inset px-4 py-3 text-[12.5px] text-paper-soft">
               <strong>Não incluso:</strong> {proposal.exclusions}
             </p>
           )}
-          <p className="mt-6 text-[11.5px] text-[#6b6480]">
+          <p className="mt-6 text-[11.5px] text-paper-muted">
             Proposta sujeita a confirmação de escopo. Sem garantia de resultados de vendas ou posicionamento em buscadores. Aceite por escrito antes do início.
           </p>
         </article>

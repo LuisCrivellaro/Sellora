@@ -124,7 +124,7 @@ export function CapsuleBarChart({
       )}
       {active !== null && data[active] && (
         <div
-          className="pointer-events-none absolute z-10 -translate-x-1/2 rounded-xl border border-seam-strong bg-[rgba(22,18,31,0.94)] px-3 py-1.5 text-[12px] shadow-xl"
+          className="pointer-events-none absolute z-10 -translate-x-1/2 rounded-xl border border-seam-strong bg-facade-raised px-3 py-1.5 text-[12px] shadow-xl"
           style={{ left: Math.min(Math.max(pad.left + slot * active + slot / 2, 60), width - 60), top: 0 }}
         >
           <span className="text-ink-faint">{data[active].longLabel ?? data[active].label}: </span>

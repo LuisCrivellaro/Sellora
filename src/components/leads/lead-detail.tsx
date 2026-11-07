@@ -17,7 +17,7 @@ import { useStore } from "@/lib/data/store";
 import { formatDate, formatRelative } from "@/lib/dates";
 import { leadScore, temperatureOf } from "@/lib/metrics/leads";
 import type { Lead } from "@/lib/types";
-import { formatBRL } from "@/lib/utils";
+import { Money } from "@/components/ui/money";
 
 function Info({ label, children }: { label: string; children: React.ReactNode }) {
   return (
@@ -84,10 +84,10 @@ export function LeadDetail({ lead, open, onOpenChange, onEdit }: { lead: Lead | 
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-[1fr_200px]">
             <dl className="grid grid-cols-2 gap-x-4 gap-y-3 rounded-2xl border border-seam p-4">
               <Info label="Origem">{leadSourceMeta[lead.source].label}</Info>
-              <Info label="Valor potencial">{formatBRL(lead.potentialValue)}</Info>
+              <Info label="Valor potencial"><Money value={lead.potentialValue} /></Info>
               <Info label="Website">
                 {lead.website ? (
-                  <a href={lead.website} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-lilac hover:text-ink">
+                  <a href={lead.website} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-interactive hover:text-ink">
                     {lead.website.replace(/^https?:\/\//, "")} <ExternalLink className="size-3" aria-hidden />
                   </a>
                 ) : null}

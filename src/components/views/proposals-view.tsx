@@ -23,6 +23,7 @@ import { formatDate, formatRelative, RANGE_OPTIONS, type RangeKey } from "@/lib/
 import { approvalRate, isExpired, proposalsByStatus, proposalSeries, proposalTotal } from "@/lib/metrics/proposals";
 import type { Proposal, ProposalStatus } from "@/lib/types";
 import { cn, formatBRL, formatPercent, matchesQuery, sum } from "@/lib/utils";
+import { Money } from "@/components/ui/money";
 
 type StatusFilter = ProposalStatus | "todas" | "aguardando";
 
@@ -70,7 +71,7 @@ export function ProposalsView() {
       ),
     },
     { key: "package", header: "Pacote", sortValue: (p) => p.packageId, cell: (p) => <TonePill tone={p.packageId === "personalizado" ? "magenta" : p.packageId === "profissional" ? "violet" : "lilac"}>{pkgName(p.packageId)}</TonePill> },
-    { key: "value", header: "Valor", align: "right", sortValue: (p) => proposalTotal(p), cell: (p) => <span className="tnum font-semibold text-ink">{formatBRL(proposalTotal(p))}</span> },
+    { key: "value", header: "Valor", align: "right", sortValue: (p) => proposalTotal(p), cell: (p) => <span className="tnum font-semibold text-ink"><Money value={proposalTotal(p)} /></span> },
     { key: "created", header: "Criação", hideBelow: "lg", sortValue: (p) => p.createdAt, cell: (p) => <span className="tnum">{formatDate(p.createdAt)}</span> },
     {
       key: "valid",
@@ -136,7 +137,7 @@ export function ProposalsView() {
                   <span className="text-[13.5px] font-semibold text-ink">
                     {proposalStatusMeta[s.status].label} <span className="text-[11.5px] font-normal text-ink-faint">· {s.count}</span>
                   </span>
-                  <span className="tnum text-[13.5px] font-bold text-ink">{formatBRL(s.value)}</span>
+                  <span className="tnum text-[13.5px] font-bold text-ink"><Money value={s.value} /></span>
                 </div>
                 <SegmentedBar value={s.value / maxValue} color={colors[s.status]} label={`Valor ${proposalStatusMeta[s.status].label}`} valueText={formatBRL(s.value)} />
               </li>
@@ -191,7 +192,7 @@ export function ProposalsView() {
                       {pkgName(p.packageId)} · válida {formatRelative(p.validUntil)}
                     </span>
                   </span>
-                  <span className="tnum text-[14px] font-bold text-ink">{formatBRL(proposalTotal(p))}</span>
+                  <span className="tnum text-[14px] font-bold text-ink"><Money value={proposalTotal(p)} /></span>
                 </span>
                 <StatusBadge size="sm" tone={proposalStatusMeta[p.status].tone} label={proposalStatusMeta[p.status].label} />
               </span>

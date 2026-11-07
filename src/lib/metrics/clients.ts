@@ -10,6 +10,7 @@ export interface AttentionItem {
   projectId: string | null;
   projectTitle: string;
   issue: string;
+  amount?: number;
   tone: Tone;
   lastActivityAt: string | null;
   nextAction: string;
@@ -31,7 +32,7 @@ export function clientsNeedingAttention(db: Database, now = new Date()): Attenti
     const overdueTx = db.transactions.find((t) => t.clientId === c.id && t.kind === "receita" && transactionStatus(t, now) === "vencido");
     if (overdueTx) {
       const p = projects.find((x) => x.id === overdueTx.projectId);
-      out.push({ ...base, projectId: p?.id ?? null, projectTitle: p?.title ?? "—", issue: `Pagamento vencido há ${-daysBetween(now, overdueTx.dueDate)} dias (${openAmount(overdueTx).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })})`, tone: "danger", nextAction: "Cobrar saldo com cordialidade", weight: 3 });
+      out.push({ ...base, projectId: p?.id ?? null, projectTitle: p?.title ?? "—", issue: `Pagamento vencido há ${-daysBetween(now, overdueTx.dueDate)} dias`, amount: openAmount(overdueTx), tone: "danger", nextAction: "Cobrar saldo com cordialidade", weight: 3 });
     }
     for (const p of projects) {
       const d = projectDeadline(p, now);

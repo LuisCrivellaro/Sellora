@@ -13,7 +13,8 @@ import { useStore } from "@/lib/data/store";
 import { addDays, fromInputDate, isoDate, toInputDate } from "@/lib/dates";
 import { proposalInputSchema } from "@/lib/schemas";
 import type { PackageId, Proposal, ProposalStatus } from "@/lib/types";
-import { cn, formatBRL, uid } from "@/lib/utils";
+import { cn, uid } from "@/lib/utils";
+import { Money } from "@/components/ui/money";
 
 interface ItemValue {
   id: string;
@@ -146,7 +147,7 @@ export function ProposalForm({
     setSaving(true);
     try {
       const saved = proposal ? updateProposal(proposal.id, data) : createProposal(data);
-      notify({ kind: "success", title: proposal ? "Proposta atualizada" : "Proposta criada", description: `${saved.title} · ${formatBRL(total)}` });
+      notify({ kind: "success", title: proposal ? "Proposta atualizada" : "Proposta criada", description: <>{saved.title} · <Money value={total} /></> });
       onSaved?.(saved);
       onOpenChange(false);
     } catch (err) {
@@ -166,7 +167,7 @@ export function ProposalForm({
       footer={
         <>
           <span className="tnum mr-auto text-[13px] text-ink-soft">
-            Total <span className="text-[17px] font-bold text-ink">{formatBRL(total)}</span>
+            Total <span className="text-[17px] font-bold text-ink"><Money value={total} /></span>
           </span>
           <Button variant="secondary" onClick={() => onOpenChange(false)}>
             Cancelar
@@ -211,9 +212,9 @@ export function ProposalForm({
                 >
                   <span className="flex items-baseline justify-between gap-2">
                     <span className="text-[14px] font-bold text-ink">{pkg.name}</span>
-                    <span className="tnum text-[13px] font-semibold text-lilac">
+                    <span className="tnum text-[13px] font-semibold text-interactive">
                       {id === "personalizado" ? "a partir de " : ""}
-                      {formatBRL(pkg.price)}
+                      <Money value={pkg.price} />
                     </span>
                   </span>
                   <span className="mt-1 block text-[12px] leading-snug text-ink-faint">{pkg.description}</span>
@@ -238,8 +239,8 @@ export function ProposalForm({
                   {errors[`items.${idx}.description`] && <p className="mt-1 text-[11.5px] text-danger">{errors[`items.${idx}.description`]}</p>}
                 </div>
                 <TextInput aria-label={`Quantidade do item ${idx + 1}`} inputMode="numeric" value={item.quantity} onChange={(e) => updateItem(item.id, { quantity: e.target.value })} />
-                <TextInput aria-label={`Preço unitário do item ${idx + 1}`} inputMode="decimal" value={item.unitPrice} onChange={(e) => updateItem(item.id, { unitPrice: e.target.value })} />
-                <span className="tnum self-center text-right text-[13px] font-semibold text-ink">{formatBRL(num(item.quantity) * num(item.unitPrice))}</span>
+                <TextInput aria-label={`Preço unitário do item ${idx + 1}`} moneySign={1} inputMode="decimal" value={item.unitPrice} onChange={(e) => updateItem(item.id, { unitPrice: e.target.value })} />
+                <span className="tnum self-center text-right text-[13px] font-semibold text-ink"><Money value={num(item.quantity) * num(item.unitPrice)} /></span>
                 <Button type="button" variant="ghost" size="icon-sm" disabled={values.items.length === 1} onClick={() => set("items", values.items.filter((i) => i.id !== item.id))} aria-label={`Remover item ${idx + 1}`} className="self-center">
                   <Trash2 aria-hidden />
                 </Button>
@@ -253,7 +254,7 @@ export function ProposalForm({
 
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-6">
           <Field label="Desconto (R$)" error={errors.discount} className="sm:col-span-2">
-            {(p) => <TextInput {...p} inputMode="decimal" value={values.discount} onChange={(e) => set("discount", e.target.value)} />}
+            {(p) => <TextInput {...p} moneySign={-1} inputMode="decimal" value={values.discount} onChange={(e) => set("discount", e.target.value)} />}
           </Field>
           <Field label="Prazo (dias)" error={errors.deadlineDays} className="sm:col-span-2">
             {(p) => <TextInput {...p} inputMode="numeric" value={values.deadlineDays} onChange={(e) => set("deadlineDays", e.target.value)} />}

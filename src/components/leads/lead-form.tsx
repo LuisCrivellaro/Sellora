@@ -145,7 +145,7 @@ export function LeadForm({ open, onOpenChange, lead, onSaved }: { open: boolean;
           {(p) => <TextInput {...p} value={values.instagram} onChange={(e) => set("instagram", e.target.value)} placeholder="@perfil" />}
         </Field>
         <Field label="Valor potencial (R$)" error={errors.potentialValue} className="sm:col-span-2">
-          {(p) => <TextInput {...p} inputMode="decimal" value={values.potentialValue} onChange={(e) => set("potentialValue", e.target.value)} />}
+          {(p) => <TextInput {...p} moneySign={1} inputMode="decimal" value={values.potentialValue} onChange={(e) => set("potentialValue", e.target.value)} />}
         </Field>
         <Field label="Próxima ação" optional className="sm:col-span-2">
           {(p) => <TextInput {...p} value={values.nextAction} onChange={(e) => set("nextAction", e.target.value)} />}

@@ -35,6 +35,8 @@ const intFmt = new Intl.NumberFormat("pt-BR");
 
 export const formatBRL = (value: number) => brl.format(value);
 export const formatBRLCompact = (value: number) => (Math.abs(value) < 10000 ? brl.format(value) : brlCompact.format(value));
+export const moneyColor = (value: number) =>
+  value > 0 ? "var(--money-positive)" : value < 0 ? "var(--money-negative)" : "var(--data-muted)";
 export const formatInt = (value: number) => intFmt.format(Math.round(value));
 export const formatPercent = (value: number | null, digits = 0) =>
   value === null || Number.isNaN(value) ? "—" : `${value.toFixed(digits).replace(".", ",")}%`;

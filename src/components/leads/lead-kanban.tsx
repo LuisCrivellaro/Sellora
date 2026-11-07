@@ -10,7 +10,8 @@ import { LEAD_STAGES, leadStageMeta, priorityMeta, tone } from "@/lib/constants"
 import { moveLeadStage } from "@/lib/data/repository";
 import { formatRelative } from "@/lib/dates";
 import type { Lead, LeadStage } from "@/lib/types";
-import { cn, formatBRLCompact } from "@/lib/utils";
+import { cn } from "@/lib/utils";
+import { Money } from "@/components/ui/money";
 
 /**
  * Pipeline Kanban. Arrastar e soltar com mouse/toque; alternativa acessível
@@ -52,7 +53,7 @@ export function LeadKanban({ leads, onOpen }: { leads: Lead[]; onOpen: (l: Lead)
               }}
               className={cn(
                 "flex w-[256px] shrink-0 snap-start flex-col rounded-2xl border bg-white/[0.015] transition-colors",
-                over === stage ? "border-seam-lit bg-violet/[0.06]" : "border-seam",
+                over === stage ? "border-seam-lit bg-selected" : "border-seam",
               )}
             >
               <header className="flex items-center justify-between gap-2 border-b border-seam px-3.5 py-3">
@@ -61,7 +62,7 @@ export function LeadKanban({ leads, onOpen }: { leads: Lead[]; onOpen: (l: Lead)
                   {meta.label}
                   <span className="tnum rounded-full bg-white/[0.06] px-1.5 text-[11.5px] text-ink-soft">{items.length}</span>
                 </span>
-                <span className="tnum text-[11.5px] text-ink-faint">{formatBRLCompact(total)}</span>
+                <span className="tnum text-[11.5px] text-ink-faint"><Money value={total} compact /></span>
               </header>
               <ul className="flex max-h-[560px] min-h-[120px] flex-col gap-2 overflow-y-auto p-2">
                 {items.length === 0 && <li className="px-2 py-6 text-center text-[12px] text-ink-faint">Solte um lead aqui</li>}
@@ -103,7 +104,7 @@ export function LeadKanban({ leads, onOpen }: { leads: Lead[]; onOpen: (l: Lead)
                     </div>
                     <div className="mt-2.5 flex items-center justify-between gap-2">
                       <TonePill tone={priorityMeta[lead.priority].tone}>{priorityMeta[lead.priority].label}</TonePill>
-                      <span className="tnum text-[12px] font-semibold text-ink-soft">{formatBRLCompact(lead.potentialValue)}</span>
+                      <span className="tnum text-[12px] font-semibold text-ink-soft"><Money value={lead.potentialValue} compact /></span>
                     </div>
                     {lead.nextActionAt && (
                       <p className={cn("mt-2 flex items-center gap-1 text-[11.5px]", new Date(lead.nextActionAt) < new Date(new Date().toDateString()) ? "text-danger" : "text-ink-faint")}>

@@ -5,7 +5,8 @@ import { useId, useMemo, useState, type KeyboardEvent } from "react";
 import { labelEvery, smoothPath, useElementSize } from "@/components/charts/chart-utils";
 import type { Bucket } from "@/lib/dates";
 import { motionTokens, useMotionEnabled } from "@/lib/motion";
-import { formatBRL, formatBRLCompact } from "@/lib/utils";
+import { formatBRL, formatBRLCompact, moneyColor } from "@/lib/utils";
+import { Money } from "@/components/ui/money";
 
 export type FlowMode = "tudo" | "entradas" | "saidas" | "saldo";
 
@@ -22,7 +23,7 @@ interface Props {
 
 const PAD = { top: 18, right: 14, bottom: 30, left: 62 };
 const GREEN = "var(--fin-in)";
-const NEUTRAL = "var(--fin-out)";
+const RED = "var(--fin-out)";
 
 function scaleFor(values: number[]) {
   const max = Math.max(0, ...values);
@@ -39,7 +40,7 @@ function scaleFor(values: number[]) {
 }
 
 /**
- * Fluxo financeiro: área com linha suave (entradas em verde, saídas em cinza)
+ * Fluxo financeiro: área com linha suave (entradas em verde, saídas em vermelho)
  * ou saldo acumulado isolado — séries de natureza diferente não se misturam.
  */
 export function CashFlowChart({ buckets, inflow, outflow, balance, mode, animationKey, height = 330 }: Props) {
@@ -52,7 +53,7 @@ export function CashFlowChart({ buckets, inflow, outflow, balance, mode, animati
     if (mode === "saldo") return [{ key: "saldo", label: "Saldo acumulado", color: GREEN, values: balance, fill: 0.12 }];
     const out = [];
     if (mode !== "saidas") out.push({ key: "entradas", label: "Entradas", color: GREEN, values: inflow, fill: 0.2 });
-    if (mode !== "entradas") out.push({ key: "saidas", label: "Saídas", color: NEUTRAL, values: outflow, fill: 0.1 });
+    if (mode !== "entradas") out.push({ key: "saidas", label: "Saídas", color: RED, values: outflow, fill: 0.1 });
     return out;
   }, [mode, inflow, outflow, balance]);
 
@@ -125,8 +126,8 @@ export function CashFlowChart({ buckets, inflow, outflow, balance, mode, animati
             {scale.ticks.map((v) => (
               <g key={v}>
                 <line x1={PAD.left} x2={width - PAD.right} y1={y(v)} y2={y(v)} stroke={v === 0 ? "rgba(255,255,255,0.14)" : "rgba(255,255,255,0.05)"} strokeDasharray={v === 0 ? undefined : "2 6"} />
-                <text x={PAD.left - 12} y={y(v)} dy="0.32em" textAnchor="end" className="tnum fill-[var(--fin-neutral)] text-[11px]">
-                  {formatBRLCompact(v).replace(",00", "")}
+                <text x={PAD.left - 12} y={y(v)} dy="0.32em" textAnchor="end" className="tnum text-[11px]" fill={moneyColor(mode === "saidas" ? -v : v)}>
+                  {formatBRLCompact(mode === "saidas" ? -v : v).replace(",00", "")}
                 </text>
               </g>
             ))}
@@ -191,28 +192,28 @@ export function CashFlowChart({ buckets, inflow, outflow, balance, mode, animati
             animate={{ opacity: 1, y: 0, scale: 1, left: tipLeft, top: tipTop }}
             exit={{ opacity: 0, transition: { duration: 0.1 } }}
             transition={{ duration: 0.18, ease: motionTokens.ease }}
-            className="pointer-events-none absolute z-10 rounded-[18px] px-4 py-3.5 text-[var(--fin-on-accent)] shadow-[0_18px_40px_-16px_rgba(0,0,0,0.85)]"
-            style={{ width: TIP_W, background: "var(--fin-in)", translateY: below ? 0 : "-100%" }}
+            className="pointer-events-none absolute z-10 rounded-[18px] border border-seam-strong bg-facade-raised px-4 py-3.5 text-ink shadow-[0_18px_40px_-16px_rgba(0,0,0,0.85)]"
+            style={{ width: TIP_W, translateY: below ? 0 : "-100%" }}
           >
             <p className="text-[11.5px] font-semibold opacity-75">{buckets[active].longLabel}</p>
             {mode === "saldo" ? (
-              <p className="tnum mt-1 text-[20px] leading-tight font-extrabold">{formatBRL(balance[active])}</p>
+              <p className="tnum mt-1 text-[20px] leading-tight font-extrabold"><Money value={balance[active]} /></p>
             ) : (
-              <p className="tnum mt-1 text-[20px] leading-tight font-extrabold">{formatBRL(net)}</p>
+              <p className="tnum mt-1 text-[20px] leading-tight font-extrabold"><Money value={net} /></p>
             )}
             <p className="text-[11px] font-semibold opacity-70">{mode === "saldo" ? "Saldo de caixa acumulado" : "Resultado líquido do período"}</p>
-            <dl className="mt-2.5 space-y-1 border-t border-[rgba(12,26,18,0.18)] pt-2 text-[12px]">
+            <dl className="mt-2.5 space-y-1 border-t border-seam-strong pt-2 text-[12px]">
               <div className="flex items-center justify-between">
                 <dt className="flex items-center gap-1.5">
-                  <span className="size-2 rounded-full bg-[var(--fin-on-accent)]" aria-hidden /> Recebido
+                  <span className="size-2 rounded-full bg-[var(--fin-in)]" aria-hidden /> Recebido
                 </dt>
-                <dd className="tnum font-bold">{formatBRL(inflow[active])}</dd>
+                <dd className="tnum font-bold"><Money value={inflow[active]} /></dd>
               </div>
               <div className="flex items-center justify-between">
                 <dt className="flex items-center gap-1.5">
-                  <span className="size-2 rounded-full border border-[var(--fin-on-accent)]" aria-hidden /> Pago
+                  <span className="size-2 rounded-full bg-[var(--fin-out)]" aria-hidden /> Pago
                 </dt>
-                <dd className="tnum font-bold">{formatBRL(outflow[active])}</dd>
+                <dd className="tnum font-bold"><Money value={-outflow[active]} /></dd>
               </div>
             </dl>
           </motion.div>

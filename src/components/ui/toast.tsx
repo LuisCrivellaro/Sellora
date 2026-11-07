@@ -10,7 +10,7 @@ interface ToastItem {
   id: number;
   kind: ToastKind;
   title: string;
-  description?: string;
+  description?: ReactNode;
 }
 
 const ToastCtx = createContext<{ notify: (t: Omit<ToastItem, "id">) => void } | null>(null);

@@ -15,7 +15,8 @@ import { useStore } from "@/lib/data/store";
 import { formatDate, formatRelative } from "@/lib/dates";
 import { projectDeadline, projectProgress, projectStatus } from "@/lib/metrics/projects";
 import type { Project, ProjectStage } from "@/lib/types";
-import { cn, formatBRL } from "@/lib/utils";
+import { cn } from "@/lib/utils";
+import { Money } from "@/components/ui/money";
 
 export function ProjectDetail({ project, open, onOpenChange, onEdit }: { project: Project | null; open: boolean; onOpenChange: (o: boolean) => void; onEdit: (p: Project) => void }) {
   const { db } = useStore();
@@ -51,7 +52,7 @@ export function ProjectDetail({ project, open, onOpenChange, onEdit }: { project
           <TonePill tone={deadline.overdue ? "danger" : deadline.soon ? "warn" : "ghost"}>
             {deadline.done ? `Entregue em ${formatDate(project.deliveredAt)}` : `Prazo ${formatDate(project.dueDate)} (${formatRelative(project.dueDate)})`}
           </TonePill>
-          <span className="tnum text-[12.5px] text-ink-faint">{formatBRL(project.contractValue)}</span>
+          <span className="tnum text-[12.5px] text-ink-faint"><Money value={project.contractValue} /></span>
         </div>
         <div className="flex flex-wrap gap-2">
           <Button size="sm" variant="secondary" onClick={() => onEdit(project)}>
@@ -107,7 +108,7 @@ export function ProjectDetail({ project, open, onOpenChange, onEdit }: { project
               <dt className="text-[11.5px] text-ink-faint">{label}</dt>
               <dd className="mt-1 truncate text-[13.5px]">
                 {url ? (
-                  <a href={url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-lilac hover:text-ink">
+                  <a href={url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-interactive hover:text-ink">
                     {url.replace(/^https?:\/\//, "")} <ExternalLink className="size-3" aria-hidden />
                   </a>
                 ) : (

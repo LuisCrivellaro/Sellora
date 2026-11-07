@@ -2,7 +2,8 @@
 
 import { MotionConfig, motion } from "motion/react";
 import { usePathname } from "next/navigation";
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { Dialog } from "radix-ui";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { TooltipProvider } from "@/components/ui/overlay";
 import { ToastProvider } from "@/components/ui/toast";
 import { Button } from "@/components/ui/button";
@@ -10,10 +11,10 @@ import { ErrorState, PageSkeleton } from "@/components/ui/states";
 import { reloadFromServer, useStore } from "@/lib/data/store";
 import { motionTokens, useMotionEnabled } from "@/lib/motion";
 import { GlobalSearch } from "./global-search";
-import { MobileNav, NotificationsButton, SearchButton, SettingsShortcut, UserMenu } from "./header-actions";
-import { Logo } from "./logo";
+import { NotificationsButton, SearchButton, SettingsShortcut, UserMenu } from "./header-actions";
+import { isActive, NAV_ITEMS, NAV_SECTIONS } from "./nav-config";
+import { Sidebar, SidebarTrigger } from "./sidebar";
 import { SyncStatus } from "./sync-status";
-import { TopNavigation } from "./top-navigation";
 
 function MotionSync() {
   const { db } = useStore();
@@ -52,6 +53,13 @@ function PanelShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const enabled = useMotionEnabled();
   const [searchOpen, setSearchOpen] = useState(false);
+  const [sidebarExpanded, setSidebarExpanded] = useState(false);
+  const [drawer, setDrawer] = useState({ open: false, pathname });
+  if (drawer.pathname !== pathname) setDrawer({ open: false, pathname });
+  const setDrawerOpen = useCallback((open: boolean) => setDrawer({ open, pathname }), [pathname]);
+  const closeDrawer = useCallback(() => setDrawer((current) => ({ ...current, open: false })), []);
+  const currentPage = NAV_ITEMS.find((item) => isActive(pathname, item.href));
+  const currentSection = NAV_SECTIONS.find((section) => section.items.some((item) => item.href === currentPage?.href));
   const mainRef = useRef<HTMLElement>(null);
   const first = useRef(true);
   const pref = db?.settings.appearance.motion ?? "system";
@@ -77,74 +85,80 @@ function PanelShell({ children }: { children: ReactNode }) {
       <TooltipProvider>
         <ToastProvider>
           <MotionSync />
-          <a href="#conteudo" className="sr-only z-[100] rounded-full bg-violet px-4 py-2 font-semibold text-white focus:not-sr-only focus:fixed focus:top-3 focus:left-3">
+          <a href="#conteudo" className="sr-only z-[100] rounded-full bg-primary px-4 py-2 font-semibold text-primary-ink focus:not-sr-only focus:fixed focus:top-3 focus:left-3">
             Pular para o conteúdo
           </a>
-          <div className="mx-auto flex min-h-dvh w-full max-w-[1600px] flex-col px-3 pt-3 pb-6 sm:px-5 sm:pt-5">
-            <motion.header
-              initial={enabled ? { opacity: 0, y: -8 } : false}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.4, ease: motionTokens.ease }}
-              className="relative z-40 flex items-center gap-2.5 sm:gap-3"
-            >
-              <Logo />
-              <TopNavigation />
-              <div className="flex-1 md:hidden" />
-              <SearchButton onOpen={() => setSearchOpen(true)} />
-              <div className="pill-group flex items-center gap-0.5 p-0.5">
-                <NotificationsButton />
-                <span className="hidden sm:contents">
-                  <SettingsShortcut />
-                </span>
-              </div>
-              <UserMenu />
-              <MobileNav />
-            </motion.header>
-
-            {db?.demo && (
-              <p className="mt-3 text-[12px] text-ink-faint xl:hidden">
-                Dados fictícios, salvos só neste navegador.
-              </p>
-            )}
-            {storageError && (
-              <p role="alert" className="mt-3 rounded-2xl border border-[rgba(217,103,123,0.4)] bg-[rgba(217,103,123,0.08)] px-4 py-2.5 text-[13px] text-ink">
-                {storageError}
-              </p>
-            )}
-            <SyncStatus />
-
-            <main ref={mainRef} id="conteudo" tabIndex={-1} className="mt-4 flex-1 outline-none sm:mt-5">
-              {mode === "supabase" && status === "loading" && !db ? (
-                <PageSkeleton />
-              ) : status === "error" ? (
-                <div className="facade">
-                  <ErrorState
-                    title="Não foi possível carregar os dados"
-                    description={`${loadError ?? "Erro desconhecido."} Nada foi alterado no banco.`}
-                    action={
-                      <Button variant="primary" onClick={reloadFromServer}>
-                        Tentar novamente
-                      </Button>
-                    }
-                  />
-                </div>
-              ) : (
-                <motion.div
-                  key={pathname}
-                  initial={enabled ? { opacity: 0, y: 6 } : false}
+          <Dialog.Root open={drawer.open && drawer.pathname === pathname} onOpenChange={setDrawerOpen}>
+            <div className="sellora-shell" data-sidebar-expanded={sidebarExpanded}>
+              <Sidebar expanded={sidebarExpanded} onExpandedChange={setSidebarExpanded} onDrawerClose={closeDrawer} />
+              <div className="sellora-workspace">
+                <motion.header
+                  initial={enabled ? { opacity: 0, y: -8 } : false}
                   animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: motionTokens.ui, ease: motionTokens.ease }}
+                  transition={{ duration: 0.4, ease: motionTokens.ease }}
+                  className="shell-header"
                 >
-                  {children}
-                </motion.div>
-              )}
-            </main>
+                  <SidebarTrigger />
+                  <p className="shell-location truncate">
+                    <span className="shell-location-section">{currentSection?.label} <span className="mx-2 text-ink-ghost" aria-hidden>/</span></span>
+                    {currentPage?.label ?? "Sellora"}
+                  </p>
+                  <SearchButton onOpen={() => setSearchOpen(true)} />
+                  <div className="pill-group flex items-center gap-0.5 p-0.5">
+                    <NotificationsButton />
+                    <span className="hidden sm:contents">
+                      <SettingsShortcut />
+                    </span>
+                  </div>
+                  <UserMenu />
+                </motion.header>
 
-            <footer className="mt-8 flex flex-wrap items-center justify-between gap-2 border-t border-seam pt-4 text-[12px] text-ink-faint">
-              <span>Sellora v0.1 · painel interno</span>
-              <span>{footer}</span>
-            </footer>
-          </div>
+                {db?.demo && (
+                  <p className="mt-3 text-[12px] text-ink-faint xl:hidden">
+                    Dados fictícios, salvos só neste navegador.
+                  </p>
+                )}
+                {storageError && (
+                  <p role="alert" className="mt-3 rounded-2xl border border-[rgba(217,103,123,0.4)] bg-[rgba(217,103,123,0.08)] px-4 py-2.5 text-[13px] text-ink">
+                    {storageError}
+                  </p>
+                )}
+                <SyncStatus />
+
+                <main ref={mainRef} id="conteudo" tabIndex={-1} className="mt-4 flex-1 outline-none sm:mt-5">
+                  {mode === "supabase" && status === "loading" && !db ? (
+                    <PageSkeleton />
+                  ) : status === "error" ? (
+                    <div className="facade">
+                      <ErrorState
+                        title="Não foi possível carregar os dados"
+                        description={`${loadError ?? "Erro desconhecido."} Nada foi alterado no banco.`}
+                        action={
+                          <Button variant="primary" onClick={reloadFromServer}>
+                            Tentar novamente
+                          </Button>
+                        }
+                      />
+                    </div>
+                  ) : (
+                    <motion.div
+                      key={pathname}
+                      initial={enabled ? { opacity: 0, y: 6 } : false}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ duration: motionTokens.ui, ease: motionTokens.ease }}
+                    >
+                      {children}
+                    </motion.div>
+                  )}
+                </main>
+
+                <footer className="mt-8 flex flex-wrap items-center justify-between gap-2 border-t border-seam pt-4 text-[12px] text-ink-faint">
+                  <span>Sellora v0.1 · painel interno</span>
+                  <span>{footer}</span>
+                </footer>
+              </div>
+            </div>
+          </Dialog.Root>
           <GlobalSearch open={searchOpen} onOpenChange={setSearchOpen} />
         </ToastProvider>
       </TooltipProvider>

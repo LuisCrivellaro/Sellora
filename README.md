@@ -29,8 +29,12 @@ Next.js 16.4 (App Router) · React 19.3 · TypeScript 5.9 · Tailwind CSS 4.3 ·
 
 Busca global: **Ctrl/⌘ + K**. Detalhes têm deep link (`?id=`).
 
+Navegação compartilhada em **sidebar BranchedMenu**: Visão geral, Comercial e Gestão. Fixa no desktop (264px), recolhível no tablet (76px/264px) e drawer lateral no celular, com overlay, Escape e foco contido. O header preserva busca, notificações, configurações rápidas e perfil; o item ativo acompanha a URL, refresh e histórico.
+
+Tema **Premium Monochrome Dark**: estrutura em preto/grafite/cinza, com tokens independentes das cores dos gráficos, status e indicadores. Valores positivos continuam verdes, negativos vermelhos e zero neutro. Layout e animações são mantidos.
+
 ## Modo demonstração (importante)
-Sem Supabase configurado, os dados ficam **apenas no `localStorage` deste navegador** (chave `sellora.db.v1`): não há backup, sincronização nem login. Os registros iniciais são **fictícios** e o header mostra o selo **Demonstração**. Em Configurações › Sistema é possível exportar JSON, restaurar a demonstração ou **começar do zero** (o selo passa a "Dados locais"). Nenhum envio de mensagem, pagamento, publicação ou integração é simulado.
+Sem Supabase configurado, os dados ficam **apenas no `localStorage` deste navegador** (chave `sellora.db.v1`): não há backup, sincronização nem login. Os registros iniciais são **fictícios** e a sidebar expandida/drawer mostra o selo **Demonstração**. Em Configurações › Sistema é possível exportar JSON, restaurar a demonstração ou **começar do zero** (o selo passa a "Dados locais"). Nenhum envio de mensagem, pagamento, publicação ou integração é simulado.
 
 ## Modo Supabase (dados reais)
 Com `NEXT_PUBLIC_SUPABASE_URL` e `NEXT_PUBLIC_SUPABASE_ANON_KEY` em `.env.local`, o painel exige login em `/entrar` (e-mail e senha) e grava no Postgres com RLS. Cada operação atualiza a tela na hora e envia ao servidor só o que mudou, numa transação (função `apply_changes`), depois de validar com Zod. Um aviso "Salvando…" aparece durante a gravação. Se ela falhar, uma faixa oferece **Tentar novamente** ou **Descartar**: nada se perde em silêncio. Dados de demonstração nunca vão ao banco. Em Configurações › Sistema há **Importar dados locais (JSON)**, que aceita só exports com dados reais e pede confirmação.
@@ -75,7 +79,7 @@ npm run build
 ## Estrutura
 ```
 src/app/                 rotas (7 páginas) + layout + tokens (globals.css)
-src/components/shell/    AppShell, navegação em pill, busca global, notificações, menu do usuário
+src/components/shell/    AppShell, sidebar BranchedMenu, busca global, notificações, menu do usuário
 src/components/ui/       card, botão, campos, select, modal/sheet, popover, menu, tabela, estados, toast
 src/components/charts/   linha neon, barras, empilhadas, segmentada, heatmap, donut, radar (SVG)
 src/components/<módulo>/ formulários e detalhes de leads, clientes, projetos, propostas, financeiro

@@ -251,7 +251,7 @@ export function LeadsView() {
               </button>
             )}
             {selected.size > 0 && view === "tabela" && (
-              <div className="ml-auto flex flex-wrap items-center gap-2 rounded-full border border-seam-strong bg-violet/[0.08] py-1 pr-1 pl-3.5">
+              <div className="ml-auto flex flex-wrap items-center gap-2 rounded-full border border-seam-strong bg-selected py-1 pr-1 pl-3.5">
                 <span className="tnum text-[12.5px] font-semibold text-ink">{selected.size} selecionados</span>
                 <div className="w-[190px]">
                   <Select<LeadStage | "">

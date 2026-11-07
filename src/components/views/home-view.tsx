@@ -109,7 +109,7 @@ export function HomeView() {
               );
             })}
           </ul>
-          <Link href="/leads" className="mt-4 inline-flex items-center gap-1 self-start text-[12.5px] font-semibold text-lilac hover:text-ink">
+          <Link href="/leads" className="mt-4 inline-flex items-center gap-1 self-start text-[12.5px] font-semibold text-interactive hover:text-ink">
             Ver todos os leads <ArrowUpRight className="size-3.5" aria-hidden />
           </Link>
         </DashboardCard>

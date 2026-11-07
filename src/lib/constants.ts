@@ -24,7 +24,7 @@ export const tone = {
   indigo: "var(--neon-indigo)",
   warn: "var(--signal-warn)",
   danger: "var(--signal-danger)",
-  ghost: "var(--ink-faint)",
+  ghost: "var(--data-muted)",
 } as const;
 
 export type Tone = keyof typeof tone;

@@ -9,7 +9,7 @@ import { cn } from "@/lib/utils";
 export function EmptyState({ title, description, action, icon, className }: { title: string; description?: string; action?: ReactNode; icon?: ReactNode; className?: string }) {
   return (
     <div className={cn("flex flex-col items-center justify-center gap-2 px-6 py-10 text-center", className)}>
-      <div className="tile mb-1 grid size-11 place-items-center text-lilac">{icon ?? <Inbox className="size-5" aria-hidden />}</div>
+      <div className="tile mb-1 grid size-11 place-items-center text-interactive">{icon ?? <Inbox className="size-5" aria-hidden />}</div>
       <p className="text-[14px] font-semibold text-ink">{title}</p>
       {description && <p className="max-w-[360px] text-[13px] text-ink-faint">{description}</p>}
       {action && <div className="mt-2">{action}</div>}

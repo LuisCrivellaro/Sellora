@@ -14,7 +14,7 @@ import { DataTable, type Column } from "@/components/ui/data-table";
 import { SearchInput } from "@/components/ui/field";
 import { Menu, Modal } from "@/components/ui/overlay";
 import { Segmented } from "@/components/ui/segmented";
-import { AnimatedCounter, EmptyState, PageSkeleton } from "@/components/ui/states";
+import { EmptyState, PageSkeleton } from "@/components/ui/states";
 import { useToast } from "@/components/ui/toast";
 import { transactionStatusMeta } from "@/lib/constants";
 import { setTransactionCancelled } from "@/lib/data/repository";
@@ -23,7 +23,8 @@ import { formatDate, formatRelative, RANGE_OPTIONS, type RangeKey } from "@/lib/
 import { cashFlow, cashMovements, financeSummary, lastPaymentDate, openAmount, paidAmount, projectResults, receivablesAging, transactionStatus, upcomingReceivables, variation } from "@/lib/metrics/finance";
 import { cardEntrance, motionTokens, useMotionEnabled } from "@/lib/motion";
 import type { Transaction } from "@/lib/types";
-import { cn, formatBRL, formatBRLCompact, formatPercent, matchesQuery } from "@/lib/utils";
+import { cn, formatBRL, formatPercent, matchesQuery } from "@/lib/utils";
+import { Money } from "@/components/ui/money";
 
 type StatusFilter = "todos" | "pendente" | "vencido" | "pago" | "custo";
 
@@ -85,7 +86,7 @@ export function FinanceView() {
   const columns: Column<Transaction>[] = [
     { key: "client", header: "Cliente", sortValue: (t) => clientName(t.clientId), cell: (t) => <span className="font-semibold">{clientName(t.clientId)}</span> },
     { key: "desc", header: "Descrição", sortValue: (t) => t.description, cell: (t) => <span className="block max-w-[240px] truncate">{t.description}</span> },
-    { key: "amount", header: "Valor", align: "right", sortValue: (t) => t.amount, cell: (t) => <span className="tnum font-semibold text-ink">{t.kind === "custo" ? "− " : ""}{formatBRL(t.amount)}</span> },
+    { key: "amount", header: "Valor", align: "right", sortValue: (t) => t.kind === "custo" ? -t.amount : t.amount, cell: (t) => <Money value={t.kind === "custo" ? -t.amount : t.amount} className="font-semibold" /> },
     { key: "due", header: "Vencimento", sortValue: (t) => t.dueDate, cell: (t) => <span className="tnum">{formatDate(t.dueDate)}</span> },
     { key: "paid", header: "Pagamento", hideBelow: "lg", sortValue: (t) => lastPaymentDate(t) ?? "", cell: (t) => <span className="tnum">{formatDate(lastPaymentDate(t))}</span> },
     { key: "status", header: "Status", sortValue: (t) => transactionStatus(t), cell: (t) => (t.kind === "custo" ? <StatusBadge tone="indigo" label={t.cancelled ? "Cancelada" : "Despesa"} /> : <StatusBadge tone={transactionStatusMeta[transactionStatus(t)].tone} label={transactionStatusMeta[transactionStatus(t)].label} />) },
@@ -115,7 +116,7 @@ export function FinanceView() {
         </div>
         <div>
           <FinLabel>Saldo de caixa registrado</FinLabel>
-          <AnimatedCounter value={flow.cashBalance} format={formatBRL} className="mt-1 block text-[36px] leading-none font-extrabold tracking-[-0.03em] text-ink sm:text-[42px]" />
+          <Money animated value={flow.cashBalance} className="mt-1 block text-[36px] leading-none font-extrabold tracking-[-0.03em] sm:text-[42px]" />
           <p className="mt-2 text-[12px] text-[var(--fin-neutral)]">Entradas − saídas registradas. Sem saldo bancário inicial informado.</p>
         </div>
         <div className="grid gap-4">
@@ -126,7 +127,7 @@ export function FinanceView() {
             <div key={m.label}>
               <div className="mb-1.5 flex items-baseline justify-between gap-3">
                 <FinLabel>{m.label}</FinLabel>
-                <span className="tnum text-[17px] font-bold text-ink">{formatBRL(m.value)}</span>
+                <Money value={m.inverse ? -m.value : m.value} className="text-[17px] font-bold" />
               </div>
               <GrowBar value={m.value / flowMax} color={m.color} label={m.label} valueText={formatBRL(m.value)} />
               <div className="mt-1 flex justify-between">
@@ -140,12 +141,12 @@ export function FinanceView() {
 
       {/* B + C — cards à esquerda e gráfico principal */}
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-[300px_1fr]">
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-3 xl:grid-cols-1">
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-3 xl:grid-cols-1">
           <FinCard index={1} interactive label="Receita contratada">
             <FinLabel>Receita contratada</FinLabel>
             <div className="mt-2 flex items-center justify-between gap-3">
               <div className="min-w-0">
-                <AnimatedCounter value={flow.period.contracted} format={formatBRL} className="block text-[24px] leading-tight font-bold text-ink" />
+                <Money animated value={flow.period.contracted} className="block text-[24px] leading-tight font-bold" />
                 <p className="mt-1 text-[11.5px] text-[var(--fin-neutral)]">Projetos criados · {rangeInfo.label}</p>
               </div>
               {contractedVar !== null ? (
@@ -164,8 +165,8 @@ export function FinanceView() {
             <FinLabel>Recebimentos</FinLabel>
             <div className="mt-2 flex items-center justify-between gap-3">
               <div className="min-w-0">
-                <AnimatedCounter value={summary.received} format={formatBRL} className="block text-[24px] leading-tight font-bold text-ink" />
-                <p className="mt-1 text-[11.5px] text-[var(--fin-neutral)]">Acumulado · de {formatBRL(summary.invoiced)} faturados</p>
+                <Money animated value={summary.received} className="block text-[24px] leading-tight font-bold" />
+                <p className="mt-1 text-[11.5px] text-[var(--fin-neutral)]">Acumulado · de <Money value={summary.invoiced} /> faturados</p>
               </div>
               <RingIndicator value={receivedShare} label={`${formatPercent(receivedShare * 100)} dos recebíveis lançados já quitados`}>
                 {Math.round(receivedShare * 100)}%
@@ -179,7 +180,7 @@ export function FinanceView() {
               <FinLabel>Pagamentos pendentes</FinLabel>
               {aging.overdueCount > 0 && <span className="rounded-full bg-[rgba(217,103,123,0.14)] px-2 py-0.5 text-[11px] font-semibold text-[#ff8da2]">{aging.overdueCount} vencida{aging.overdueCount > 1 ? "s" : ""}</span>}
             </div>
-            <AnimatedCounter value={aging.total} format={formatBRL} className="mt-2 block text-[24px] leading-tight font-bold text-ink" />
+            <Money animated value={aging.total} className="mt-2 block text-[24px] leading-tight font-bold" />
             <p className="mt-1 mb-3 text-[11.5px] text-[var(--fin-neutral)]">{aging.count} parcelas em aberto, por vencimento</p>
             <MiniBars items={aging.buckets.map((b) => ({ ...b, tone: b.key === "vencido" ? ("danger" as const) : ("default" as const) }))} format={formatBRL} />
           </FinCard>
@@ -203,15 +204,15 @@ export function FinanceView() {
           <div className="mb-2 flex flex-wrap items-center gap-x-5 gap-y-1 text-[12.5px] text-ink-soft">
             {mode !== "saldo" && mode !== "saidas" && (
               <span className="flex items-center gap-2">
-                <span className="h-0.5 w-4 rounded bg-[var(--fin-in)]" aria-hidden /> Entradas <b className="tnum text-ink">{formatBRLCompact(flow.period.inflow)}</b>
+                <span className="h-0.5 w-4 rounded bg-[var(--fin-in)]" aria-hidden /> Entradas <b className="tnum text-ink"><Money value={flow.period.inflow} compact /></b>
               </span>
             )}
             {mode !== "saldo" && mode !== "entradas" && (
               <span className="flex items-center gap-2">
-                <span className="h-0.5 w-4 rounded bg-[var(--fin-out)]" aria-hidden /> Saídas <b className="tnum text-ink">{formatBRLCompact(flow.period.outflow)}</b>
+                <span className="h-0.5 w-4 rounded bg-[var(--fin-out)]" aria-hidden /> Saídas <b><Money value={-flow.period.outflow} compact /></b>
               </span>
             )}
-            {mode === "saldo" && <span>Saldo acumulado a partir de {formatBRL(flow.openingBalance)} registrados antes do período</span>}
+            {mode === "saldo" && <span>Saldo acumulado a partir de <Money value={flow.openingBalance} /> registrados antes do período</span>}
             <span className="ml-auto text-[var(--fin-neutral)]">{rangeInfo.description}</span>
           </div>
           <CashFlowChart buckets={flow.buckets} inflow={flow.inflow} outflow={flow.outflow} balance={flow.balance} mode={mode} animationKey={`${range}-${mode}`} height={390} />
@@ -240,7 +241,7 @@ export function FinanceView() {
                     </p>
                   </div>
                   <div className="text-right">
-                    <p className="tnum text-[13.5px] font-bold text-ink">{formatBRL(open)}</p>
+                    <p className="tnum text-[13.5px] font-bold text-ink"><Money value={open} /></p>
                     <StatusBadge size="sm" tone={transactionStatusMeta[st].tone} label={transactionStatusMeta[st].label} />
                   </div>
                   <Button size="icon-sm" variant="ghost" aria-label={`Registrar recebimento de ${clientName(tx.clientId)}`} onClick={() => setPaying(tx)}>
@@ -264,14 +265,14 @@ export function FinanceView() {
                     <span className="flex items-baseline justify-between gap-2">
                       <span className="truncate text-[13px] font-semibold text-ink">{r.project.title}</span>
                       <span className="tnum shrink-0 text-[12px] text-[var(--fin-neutral)]">
-                        <b className="text-ink">{formatBRL(r.received)}</b> / {formatBRL(r.contracted)}
+                        <b className="text-ink"><Money value={r.received} /></b> / <Money value={r.contracted} />
                       </span>
                     </span>
                     <span className="mt-1.5 block">
                       <GrowBar value={r.receivedShare} color="var(--fin-in)" label={`${r.project.title}: recebido sobre contratado`} valueText={`${formatPercent(r.receivedShare * 100)}`} />
                     </span>
                     <span className="mt-1 block text-[11px] text-[var(--fin-neutral)]">
-                      {r.result === null ? "Sem custos registrados — resultado não calculado" : `Custos ${formatBRL(r.costs)} · resultado realizado ${formatBRL(r.result)}`}
+                      {r.result === null ? "Sem custos registrados — resultado não calculado" : <>Custos <Money value={-r.costs} /> · resultado realizado <Money value={r.result} /></>}
                     </span>
                   </button>
                 </li>
@@ -303,8 +304,8 @@ export function FinanceView() {
                     </p>
                   </div>
                   <div className="text-right">
-                    <p className={cn("tnum text-[13.5px] font-bold", m.kind === "entrada" ? "text-[var(--fin-in)]" : "text-ink")}>
-                      {m.kind === "entrada" ? "+" : "−"} {formatBRL(m.amount)}
+                    <p className="tnum text-[13.5px] font-bold">
+                      <Money value={m.kind === "entrada" ? m.amount : -m.amount} showPlus />
                     </p>
                     <p className="text-[11px] text-[var(--fin-neutral)]">{m.kind === "entrada" ? "Recebimento" : "Despesa paga"}</p>
                   </div>
@@ -328,7 +329,7 @@ export function FinanceView() {
                     <span className="block truncate text-[13.5px] font-semibold text-ink">{clientName(tx.clientId)} — {tx.description}</span>
                     <span className="block text-[12px] text-[var(--fin-neutral)]">vence {formatDate(tx.dueDate)} · {transactionStatusMeta[st].label}</span>
                   </span>
-                  <span className="tnum text-[14px] font-bold text-ink">{formatBRL(open)}</span>
+                  <span className="tnum text-[14px] font-bold text-ink"><Money value={open} /></span>
                 </button>
               </li>
             ))}
@@ -385,7 +386,7 @@ export function FinanceView() {
                 <span className="block truncate text-[14px] font-semibold text-ink">{clientName(t.clientId)}</span>
                 <span className="block truncate text-[12px] text-ink-faint">{t.description} · vence {formatDate(t.dueDate)}</span>
               </span>
-              <span className="tnum text-[14px] font-bold text-ink">{formatBRL(t.amount)}</span>
+              <Money value={t.kind === "custo" ? -t.amount : t.amount} className="text-[14px] font-bold" />
             </span>
           )}
           empty={<EmptyState title="Nenhuma transação com esses filtros" description="Ajuste a busca ou o status." />}
@@ -397,15 +398,15 @@ export function FinanceView() {
         {selectedProject && (
           <div className="flex flex-col gap-4">
             <dl className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-              {[
-                ["Contratado", formatBRL(selectedProject.contracted)],
-                ["Recebido", formatBRL(selectedProject.received)],
-                ["Custos", formatBRL(selectedProject.costs)],
-                ["Resultado", selectedProject.result === null ? "—" : formatBRL(selectedProject.result)],
-              ].map(([k, v]) => (
+              {([
+                ["Contratado", selectedProject.contracted],
+                ["Recebido", selectedProject.received],
+                ["Custos", -selectedProject.costs],
+                ["Resultado", selectedProject.result],
+              ] as const).map(([k, v]) => (
                 <div key={k} className="rounded-2xl border border-[var(--fin-border-strong)] p-3">
                   <dt className="text-[11.5px] text-[var(--fin-neutral)]">{k}</dt>
-                  <dd className="tnum mt-1 text-[15px] font-bold text-ink">{v}</dd>
+                  <dd className="tnum mt-1 text-[15px] font-bold text-ink">{typeof v === "number" ? <Money value={v} /> : "—"}</dd>
                 </div>
               ))}
             </dl>
@@ -428,10 +429,10 @@ export function FinanceView() {
                     <span className="min-w-0 flex-1">
                       <span className="block truncate text-[13px] font-semibold text-ink">{t.description}</span>
                       <span className="block text-[11.5px] text-[var(--fin-neutral)]">
-                        vence {formatDate(t.dueDate)} · pago {formatBRL(paidAmount(t))}
+                        vence {formatDate(t.dueDate)} · pago <Money value={t.kind === "custo" ? -paidAmount(t) : paidAmount(t)} />
                       </span>
                     </span>
-                    <span className="tnum text-[13px] font-bold text-ink">{t.kind === "custo" ? "− " : ""}{formatBRL(t.amount)}</span>
+                    <Money value={t.kind === "custo" ? -t.amount : t.amount} className="text-[13px] font-bold" />
                     {openAmount(t) > 0 && !t.cancelled && (
                       <Button size="sm" variant="outline" onClick={() => setPaying(t)}>
                         Registrar

@@ -1,34 +1,66 @@
 @import "tailwindcss";
 
 /*
- * Sellora — "vitrine acesa à noite".
- * Fachadas escuras sobre a rua (night), letreiros em neon com significado fixo.
+ * Sellora — Premium Monochrome Dark.
+ * Superfícies neutras; as cores dos dados permanecem independentes do tema.
  * Ver docs/DESIGN_SYSTEM.md.
  */
 :root {
   color-scheme: dark;
 
-  /* Superfícies: mesma matiz violeta, passos curtos de luminosidade */
-  --night: #101014;
-  --facade: #1a1920;
-  --facade-top: #1e1c24;
-  --facade-raised: #24222b;
-  --facade-hover: #2a2832;
-  --facade-inset: #141318;
+  /* Estrutura: preto e grafite, sem compartilhar acentos com os gráficos. */
+  --night: #111111;
+  --sidebar-surface: #141414;
+  --header-surface: #141414;
+  --facade: #1c1c1c;
+  --facade-top: var(--facade);
+  --facade-raised: #202020;
+  --facade-hover: #292929;
+  --facade-inset: #171717;
+  --selected: #303030;
+  --primary: #e5e5e5;
+  --primary-ink: #171717;
+  --primary-hover: #f5f5f5;
+  --secondary: #272727;
+  --secondary-hover: #343434;
+  --interactive: #d4d4d4;
+  --nav-accent: #f5f5f5;
+  --nav-line: #3a3a3a;
+  --overlay: rgba(0, 0, 0, 0.66);
+  --focus-ring: rgba(245, 245, 245, 0.15);
+  --brand-start: #f5f5f5;
+  --brand-end: #a3a3a3;
+  --brand-dot: #a3a3a3;
+  --avatar-1: #545454;
+  --avatar-2: #353535;
+  --avatar-3: #666666;
+  --avatar-4: #454545;
+
+  /* Documento imprimível: papel e tinta também neutros. */
+  --paper: #fafafa;
+  --paper-ink: #171717;
+  --paper-muted: #666666;
+  --paper-soft: #454545;
+  --paper-border: #dddddd;
+  --paper-line: #e8e8e8;
+  --paper-inset: #eeeeee;
 
   /* Texto */
-  --ink: #eae8ef;
-  --ink-soft: #a6a2b0;
-  --ink-faint: #908c9c;
-  --ink-ghost: #3a3741;
+  --ink: #f5f5f5;
+  --ink-soft: #a3a3a3;
+  /* Um pouco mais claro que #777 para manter leitura dos metadados pequenos. */
+  --ink-faint: #999999;
+  --ink-ghost: #666666;
 
   /* Bordas */
-  --seam: rgba(236, 228, 255, 0.075);
-  --seam-strong: rgba(236, 228, 255, 0.14);
-  --seam-lit: rgba(236, 232, 245, 0.5);
-  --focus: #b9a2df;
+  --seam: #262626;
+  --seam-strong: #303030;
+  --seam-lit: #454545;
+  --table-line: #292929;
+  --border-hover: #454545;
+  --focus: #a3a3a3;
 
-  /* Neon com significado */
+  /* Dados e sinais: paleta preservada, inclusive o estado semântico neutro. */
   --neon-violet: #8866bd;
   --neon-lilac: #a891d1;
   --neon-magenta: #bb6ba5;
@@ -36,6 +68,9 @@
   --neon-indigo: #7473c4;
   --signal-warn: #d8a75a;
   --signal-danger: #d9677b;
+  --money-positive: var(--neon-mint);
+  --money-negative: #ef7a85;
+  --data-muted: #908c9c;
 
   --radius-card: 18px;
   --radius-tile: 10px;
@@ -58,6 +93,22 @@
   --color-seam-strong: var(--seam-strong);
   --color-seam-lit: var(--seam-lit);
   --color-focus: var(--focus);
+  --color-selected: var(--selected);
+  --color-primary: var(--primary);
+  --color-primary-ink: var(--primary-ink);
+  --color-primary-hover: var(--primary-hover);
+  --color-secondary: var(--secondary);
+  --color-secondary-hover: var(--secondary-hover);
+  --color-interactive: var(--interactive);
+  --color-table-line: var(--table-line);
+  --color-border-hover: var(--border-hover);
+  --color-paper: var(--paper);
+  --color-paper-ink: var(--paper-ink);
+  --color-paper-muted: var(--paper-muted);
+  --color-paper-soft: var(--paper-soft);
+  --color-paper-border: var(--paper-border);
+  --color-paper-line: var(--paper-line);
+  --color-paper-inset: var(--paper-inset);
   --color-violet: var(--neon-violet);
   --color-lilac: var(--neon-lilac);
   --color-magenta: var(--neon-magenta);
@@ -87,10 +138,7 @@
     font-family: var(--font-sans);
     font-size: 14px;
     line-height: 1.5;
-    background:
-      radial-gradient(1100px 520px at 18% -8%, rgba(136, 102, 189, 0.06), transparent 70%),
-      radial-gradient(900px 480px at 92% 0%, rgba(187, 107, 165, 0.03), transparent 70%),
-      var(--night);
+    background: var(--night);
     background-attachment: fixed;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
@@ -98,7 +146,7 @@
   }
 
   ::selection {
-    background: rgba(136, 102, 189, 0.45);
+    background: var(--selected);
     color: #fff;
   }
 
@@ -133,45 +181,39 @@
     position: relative;
     border-radius: var(--radius-card);
     border: 1px solid var(--seam);
-    background: linear-gradient(180deg, var(--facade-top) 0%, var(--facade) 42%);
+    background: var(--facade);
     box-shadow:
-      inset 0 1px 0 rgba(255, 255, 255, 0.045),
-      0 10px 30px -18px rgba(0, 0, 0, 0.8);
+      inset 0 1px 0 rgba(255, 255, 255, 0.02),
+      0 10px 30px -18px rgba(0, 0, 0, 0.35);
   }
 
-  /* Fachada iluminada: card de gráfico principal com brilho interno violeta/magenta */
+  /* Card principal: mesma superfície neutra, sem interferir nas séries. */
   .facade-lit {
-    background:
-      radial-gradient(120% 90% at 35% 100%, rgba(136, 102, 189, 0.16), transparent 62%),
-      radial-gradient(70% 70% at 78% 85%, rgba(187, 107, 165, 0.08), transparent 70%),
-      linear-gradient(180deg, #1f1b28 0%, #1a1920 55%);
-    border-color: rgba(170, 150, 210, 0.16);
+    background: var(--facade);
+    border-color: var(--seam);
   }
 
   /* Grupo em pill (navegação, segmented, ações) */
   .pill-group {
     border-radius: 999px;
     border: 1px solid var(--seam);
-    background: linear-gradient(180deg, rgba(30, 25, 42, 0.9), rgba(17, 14, 24, 0.9));
-    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+    background: var(--secondary);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.02);
   }
 
-  /* Estado ativo: contorno claro + brilho interno */
+  /* Seleção estrutural neutra, independente dos estados de negócio. */
   .pill-active {
     border-radius: 999px;
     border: 1px solid var(--seam-lit);
-    background: linear-gradient(180deg, rgba(64, 56, 82, 0.75), rgba(32, 27, 44, 0.85));
-    box-shadow:
-      inset 0 1px 0 rgba(255, 255, 255, 0.14),
-      inset 0 0 10px rgba(176, 156, 214, 0.06),
-      0 0 10px -6px rgba(168, 145, 209, 0.22);
+    background: var(--selected);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
   }
 
   .tile {
     border-radius: var(--radius-tile);
     border: 1px solid var(--seam-strong);
-    background: linear-gradient(180deg, #1d1829, #120f1a);
-    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+    background: var(--facade-raised);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.02);
   }
 
   .inset-field {
@@ -184,14 +226,14 @@
   }
 
   .inset-field:hover {
-    border-color: rgba(236, 228, 255, 0.22);
+    border-color: var(--border-hover);
   }
 
   .inset-field:focus-within,
   .inset-field:focus-visible {
     outline: none;
     border-color: var(--focus);
-    box-shadow: 0 0 0 3px rgba(185, 162, 223, 0.18);
+    box-shadow: 0 0 0 3px var(--focus-ring);
   }
 
   .inset-field[aria-invalid="true"] {
@@ -339,12 +381,12 @@ html[data-density="compacta"] main .gap-3\.5 {
   border-radius: 999px;
 }
 
-/* ───── Financeiro: mesma paleta da Sellora (entradas em lilás, saídas em magenta) ───── */
+/* ───── Financeiro: entradas positivas em verde, saídas negativas em vermelho ───── */
 :root {
-  --fin-in: var(--neon-lilac);
-  --fin-out: var(--neon-magenta);
+  --fin-in: var(--money-positive);
+  --fin-out: var(--money-negative);
   --fin-accent-deep: var(--neon-violet);
-  --fin-on-accent: #17131f;
+  --fin-on-accent: #171717;
   --fin-neutral: var(--ink-faint);
   --fin-surface: var(--facade);
   --fin-surface-2: var(--facade-raised);
@@ -356,8 +398,8 @@ html[data-density="compacta"] main .gap-3\.5 {
   .fin-card {
     border-radius: 26px;
     border: 1px solid var(--fin-border);
-    background: linear-gradient(180deg, var(--facade-top) 0%, var(--facade) 42%);
-    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.045);
+    background: var(--facade);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.02);
     transition:
       border-color 180ms var(--ease-out),
       background-color 180ms var(--ease-out);

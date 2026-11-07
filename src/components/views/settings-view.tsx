@@ -20,7 +20,7 @@ import { reloadFromServer, useStore } from "@/lib/data/store";
 import { formatDate } from "@/lib/dates";
 import { fieldErrors, packageSchema, profileSchema } from "@/lib/schemas";
 import type { Database, Density, MotionPreference, PackageConfig } from "@/lib/types";
-import { formatBRL } from "@/lib/utils";
+import { Money } from "@/components/ui/money";
 
 const INTEGRATIONS = [
   { key: "maps", name: "Google Maps", icon: MapPin, purpose: "Pesquisa assistida de estabelecimentos", status: "Disponível futuramente" },
@@ -264,19 +264,19 @@ function SettingsPanel({ db }: { db: Database }) {
             <div className="grid grid-cols-1 gap-3 lg:grid-cols-3">
               {packages.map((p, i) => (
                 <fieldset key={p.id} className="rounded-2xl border border-seam p-4">
-                  <legend className="px-1 text-[12.5px] font-semibold text-lilac">Pacote {i + 1}</legend>
+                  <legend className="px-1 text-[12.5px] font-semibold text-ink-soft">Pacote {i + 1}</legend>
                   <div className="grid grid-cols-2 gap-3">
                     <Field label="Nome" error={pkgErrors[`${i}.name`]}>
                       {(f) => <TextInput {...f} value={p.name} onChange={(e) => setPackages(packages.map((x, j) => (j === i ? { ...x, name: e.target.value } : x)))} />}
                     </Field>
                     <Field label={p.id === "personalizado" ? "A partir de (R$)" : "Preço (R$)"} error={pkgErrors[`${i}.price`]}>
-                      {(f) => <TextInput {...f} inputMode="decimal" value={p.price} onChange={(e) => setPackages(packages.map((x, j) => (j === i ? { ...x, price: e.target.value } : x)))} />}
+                      {(f) => <TextInput {...f} moneySign={1} inputMode="decimal" value={p.price} onChange={(e) => setPackages(packages.map((x, j) => (j === i ? { ...x, price: e.target.value } : x)))} />}
                     </Field>
                     <Field label="Descrição" optional className="col-span-2">
                       {(f) => <TextInput {...f} value={p.description} onChange={(e) => setPackages(packages.map((x, j) => (j === i ? { ...x, description: e.target.value } : x)))} />}
                     </Field>
                   </div>
-                  <p className="tnum mt-2 text-[12px] text-ink-faint">Atual: {formatBRL(Number(p.price.replace(",", ".")) || 0)}</p>
+                  <p className="tnum mt-2 text-[12px] text-ink-faint">Atual: <Money value={Number(p.price.replace(",", ".")) || 0} /></p>
                 </fieldset>
               ))}
             </div>

@@ -30,7 +30,7 @@ export function FilterPopover({ groups, value, onChange }: { groups: FilterGroup
         <Button variant="secondary" aria-label={count ? `Filtros: ${count} ativos` : "Filtros"}>
           <SlidersHorizontal aria-hidden />
           Filtrar
-          {count > 0 && <span className="tnum grid size-5 place-items-center rounded-full bg-violet text-[11px] font-bold text-white">{count}</span>}
+          {count > 0 && <span className="tnum grid size-5 place-items-center rounded-full bg-selected text-[11px] font-bold text-white">{count}</span>}
         </Button>
       }
     >
@@ -43,7 +43,7 @@ export function FilterPopover({ groups, value, onChange }: { groups: FilterGroup
                 const checked = (value[g.key] ?? []).includes(o.value);
                 return (
                   <label key={o.value} className="flex h-8 cursor-pointer items-center gap-2.5 rounded-lg px-1.5 text-[13px] text-ink-soft hover:bg-white/[0.04] hover:text-ink">
-                    <input type="checkbox" checked={checked} onChange={() => toggle(g.key, o.value)} className="size-4 accent-[var(--neon-violet)]" />
+                    <input type="checkbox" checked={checked} onChange={() => toggle(g.key, o.value)} className="size-4 accent-[var(--primary)]" />
                     {o.label}
                   </label>
                 );

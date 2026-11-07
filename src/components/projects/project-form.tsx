@@ -129,7 +129,7 @@ export function ProjectForm({
             {(p) => <TextInput {...p} type="date" value={values.dueDate} onChange={(e) => set("dueDate", e.target.value)} />}
           </Field>
           <Field label="Valor contratado (R$)" error={errors.contractValue} className="sm:col-span-2">
-            {(p) => <TextInput {...p} inputMode="decimal" value={values.contractValue} onChange={(e) => set("contractValue", e.target.value)} />}
+            {(p) => <TextInput {...p} moneySign={1} inputMode="decimal" value={values.contractValue} onChange={(e) => set("contractValue", e.target.value)} />}
           </Field>
           <Field label="URL do preview" optional error={errors.previewUrl} className="sm:col-span-2">
             {(p) => <TextInput {...p} type="url" value={values.previewUrl} onChange={(e) => set("previewUrl", e.target.value)} placeholder="preview.exemplo.com" />}

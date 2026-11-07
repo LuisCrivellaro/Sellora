@@ -1,11 +1,11 @@
 import { cn, initials } from "@/lib/utils";
 
 const GRADIENTS = [
-  "linear-gradient(135deg,#bb6ba5,#8866bd)",
-  "linear-gradient(135deg,#8866bd,#7473c4)",
-  "linear-gradient(135deg,#5fbf9f,#7473c4)",
-  "linear-gradient(135deg,#d8a75a,#bb6ba5)",
-  "linear-gradient(135deg,#a891d1,#5fbf9f)",
+  "linear-gradient(135deg,var(--avatar-1),var(--avatar-2))",
+  "linear-gradient(135deg,var(--avatar-2),var(--avatar-4))",
+  "linear-gradient(135deg,var(--avatar-3),var(--avatar-2))",
+  "linear-gradient(135deg,var(--avatar-4),var(--avatar-1))",
+  "linear-gradient(135deg,var(--avatar-1),var(--avatar-3))",
 ];
 
 function hash(s: string) {

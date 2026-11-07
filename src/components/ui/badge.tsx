@@ -2,7 +2,7 @@ import { tone as toneVar, type Tone } from "@/lib/constants";
 import { cn } from "@/lib/utils";
 
 /** Status com ponto luminoso + texto (nunca só cor). */
-export function StatusBadge({ tone, label, className, size = "md" }: { tone: Tone; label: string; className?: string; size?: "sm" | "md" }) {
+export function StatusBadge({ tone, label, className, size = "md" }: { tone: Tone; label: React.ReactNode; className?: string; size?: "sm" | "md" }) {
   const color = toneVar[tone];
   return (
     <span className={cn("inline-flex items-center gap-1.5 whitespace-nowrap font-medium text-ink", size === "sm" ? "text-[12px]" : "text-[13px]", className)}>
@@ -35,7 +35,7 @@ export function DemoBadge({ demo, remote = false }: { demo: boolean; remote?: bo
         demo ? "border-[rgba(216,167,90,0.45)] bg-[rgba(216,167,90,0.1)] text-warn" : "border-seam-strong text-ink-soft",
       )}
     >
-      <span className={cn("size-1.5 rounded-full", demo ? "bg-warn" : remote ? "bg-mint" : "bg-ink-faint")} aria-hidden />
+      <span className={cn("size-1.5 rounded-full", demo ? "bg-warn" : remote ? "bg-mint" : "bg-[var(--data-muted)]")} aria-hidden />
       {demo ? "Demonstração" : remote ? "Banco Supabase" : "Dados locais"}
     </span>
   );

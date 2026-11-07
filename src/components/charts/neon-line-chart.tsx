@@ -169,7 +169,7 @@ export function NeonLineChart({ labels, longLabels, series, height = 230, format
 
       {idx !== null && (
         <div
-          className="pointer-events-none absolute z-10 min-w-[120px] -translate-x-1/2 rounded-xl border border-seam-strong bg-[rgba(22,18,31,0.92)] px-3 py-2 shadow-[0_12px_30px_-10px_rgba(0,0,0,0.9)] backdrop-blur-sm"
+          className="pointer-events-none absolute z-10 min-w-[120px] -translate-x-1/2 rounded-xl border border-seam-strong bg-facade-raised px-3 py-2 shadow-[0_12px_30px_-10px_rgba(0,0,0,0.9)] backdrop-blur-sm"
           style={{ left: tipLeft, top: 0 }}
         >
           <p className="text-[11.5px] text-ink-faint">{longLabels[idx]}</p>

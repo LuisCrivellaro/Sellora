@@ -1,12 +1,10 @@
 "use client";
 
-import { Dialog } from "radix-ui";
-import { Bell, ChevronDown, Download, LogOut, Menu as MenuIcon, RotateCcw, Search, Settings, X } from "lucide-react";
+import { Bell, ChevronDown, Download, LogOut, RotateCcw, Search, Settings } from "lucide-react";
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 import { Avatar } from "@/components/ui/avatar";
-import { DemoBadge } from "@/components/ui/badge";
 import { ConfirmDialog, Menu, Popover, Tooltip } from "@/components/ui/overlay";
 import { useToast } from "@/components/ui/toast";
 import { tone } from "@/lib/constants";
@@ -15,8 +13,6 @@ import { exportDatabase, resetDemoData } from "@/lib/data/repository";
 import { useStore } from "@/lib/data/store";
 import { nextActions } from "@/lib/metrics/home";
 import { cn } from "@/lib/utils";
-import { LogoMark } from "./logo";
-import { isActive, NAV_ITEMS } from "./nav-config";
 
 const circleBtn =
   "grid size-10 place-items-center rounded-full text-ink-soft transition-colors duration-150 hover:bg-white/[0.06] hover:text-ink";
@@ -161,62 +157,5 @@ export function SettingsShortcut() {
         <Settings className="size-[18px]" strokeWidth={1.8} aria-hidden />
       </Link>
     </Tooltip>
-  );
-}
-
-/** Menu compacto (< 768px) com acesso às 7 páginas. */
-export function MobileNav() {
-  const [open, setOpen] = useState(false);
-  const pathname = usePathname();
-  const { db, mode } = useStore();
-  return (
-    <Dialog.Root open={open} onOpenChange={setOpen}>
-      <Dialog.Trigger asChild>
-        <button type="button" className={cn("pill-group md:hidden", circleBtn, "size-11")} aria-label="Abrir menu de navegação">
-          <MenuIcon className="size-5" aria-hidden />
-        </button>
-      </Dialog.Trigger>
-      <Dialog.Portal>
-        <Dialog.Overlay className="fixed inset-0 z-[60] bg-black/60 backdrop-blur-[2px] data-[state=open]:animate-[fade-in_160ms_var(--ease-out)]" />
-        <Dialog.Content className="facade fixed inset-x-2 top-2 z-[70] p-3 outline-none data-[state=open]:animate-[pop-in_200ms_var(--ease-out)]">
-          <div className="flex items-center justify-between px-2 pb-2">
-            <Dialog.Title className="flex items-center gap-2 text-[15px] font-bold text-ink">
-              <LogoMark className="size-5" /> Sellora
-            </Dialog.Title>
-            <div className="flex items-center gap-2">
-              {db && <DemoBadge demo={db.demo} remote={mode === "supabase"} />}
-              <Dialog.Close className={circleBtn} aria-label="Fechar menu">
-                <X className="size-5" aria-hidden />
-              </Dialog.Close>
-            </div>
-          </div>
-          <Dialog.Description className="sr-only">Navegação principal</Dialog.Description>
-          <nav aria-label="Principal (móvel)">
-            <ul className="grid grid-cols-1 gap-1 min-[420px]:grid-cols-2">
-              {NAV_ITEMS.map((item) => {
-                const active = isActive(pathname, item.href);
-                const Icon = item.icon;
-                return (
-                  <li key={item.href}>
-                    <Link
-                      href={item.href}
-                      onClick={() => setOpen(false)}
-                      aria-current={active ? "page" : undefined}
-                      className={cn("flex min-h-12 items-center gap-3 rounded-2xl px-3.5 text-[14px] font-semibold", active ? "pill-active text-ink" : "text-ink-soft hover:bg-white/[0.04]")}
-                    >
-                      <Icon className="size-[18px]" strokeWidth={1.8} aria-hidden />
-                      <span>
-                        {item.label}
-                        <span className="block text-[11.5px] font-normal text-ink-faint">{item.description}</span>
-                      </span>
-                    </Link>
-                  </li>
-                );
-              })}
-            </ul>
-          </nav>
-        </Dialog.Content>
-      </Dialog.Portal>
-    </Dialog.Root>
   );
 }

@@ -24,7 +24,8 @@ import { buildBuckets, countByBucket, formatRelative, RANGE_OPTIONS, type RangeK
 import { clientsNeedingAttention } from "@/lib/metrics/clients";
 import { siteDelivery } from "@/lib/metrics/projects";
 import type { Client, ClientStatus } from "@/lib/types";
-import { formatBRL, matchesQuery, sum } from "@/lib/utils";
+import { matchesQuery, sum } from "@/lib/utils";
+import { Money } from "@/components/ui/money";
 
 export function ClientsView() {
   const { db } = useStore();
@@ -77,14 +78,14 @@ export function ClientsView() {
     { key: "contact", header: "Contato", hideBelow: "lg", sortValue: (c) => c.contactName, cell: (c) => c.contactName || <span className="text-ink-faint">—</span> },
     { key: "status", header: "Atendimento", sortValue: (c) => c.status, cell: (c) => <StatusBadge tone={clientStatusMeta[c.status].tone} label={clientStatusMeta[c.status].label} /> },
     { key: "projects", header: "Projetos", align: "right", sortValue: (c) => db.projects.filter((p) => p.clientId === c.id).length, cell: (c) => <span className="tnum">{db.projects.filter((p) => p.clientId === c.id).length}</span> },
-    { key: "value", header: "Contratado", align: "right", sortValue: (c) => contractedBy(c.id), cell: (c) => <span className="tnum font-semibold text-ink">{formatBRL(contractedBy(c.id))}</span> },
+    { key: "value", header: "Contratado", align: "right", sortValue: (c) => contractedBy(c.id), cell: (c) => <span className="tnum font-semibold text-ink"><Money value={contractedBy(c.id)} /></span> },
     {
       key: "site",
       header: "Site",
       hideBelow: "xl",
       cell: (c) =>
         c.siteUrl ? (
-          <a href={c.siteUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-lilac hover:text-ink">
+          <a href={c.siteUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-interactive hover:text-ink">
             {c.siteUrl.replace(/^https?:\/\/(www\.)?/, "")} <ExternalLink className="size-3" aria-hidden />
           </a>
         ) : (
@@ -188,7 +189,7 @@ export function ClientsView() {
                         <span className="block max-w-[200px] truncate text-[11.5px] text-ink-faint">{a.projectTitle}</span>
                       </td>
                       <td className="border-b border-seam px-3 py-2.5">
-                        <StatusBadge size="sm" tone={a.tone} label={a.issue} />
+                        <StatusBadge size="sm" tone={a.tone} label={<span>{a.issue}{a.amount !== undefined && <> (<Money value={a.amount} />)</>}</span>} />
                       </td>
                       <td className="hidden border-b border-seam px-3 py-2.5 text-ink-soft md:table-cell">{formatRelative(a.lastActivityAt)}</td>
                       <td className="border-b border-seam px-3 py-2.5 text-ink-soft">{a.nextAction}</td>
@@ -226,7 +227,7 @@ export function ClientsView() {
                 <span className="min-w-0 flex-1">
                   <span className="block truncate text-[14px] font-semibold text-ink">{c.name}</span>
                   <span className="block text-[12px] text-ink-faint">
-                    {c.city} · {formatBRL(contractedBy(c.id))}
+                    {c.city} · <Money value={contractedBy(c.id)} />
                   </span>
                 </span>
                 <StatusBadge size="sm" tone={clientStatusMeta[c.status].tone} label={clientStatusMeta[c.status].label} />

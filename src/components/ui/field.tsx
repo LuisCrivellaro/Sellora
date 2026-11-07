@@ -3,7 +3,7 @@
 import { Select as RSelect } from "radix-ui";
 import { Check, ChevronDown, Search, X } from "lucide-react";
 import { forwardRef, useId, type InputHTMLAttributes, type ReactNode, type TextareaHTMLAttributes } from "react";
-import { cn } from "@/lib/utils";
+import { cn, moneyColor } from "@/lib/utils";
 
 interface FieldProps {
   label: string;
@@ -39,8 +39,9 @@ export function Field({ label, error, hint, optional, className, children }: Fie
   );
 }
 
-export const TextInput = forwardRef<HTMLInputElement, InputHTMLAttributes<HTMLInputElement>>(function TextInput({ className, ...props }, ref) {
-  return <input ref={ref} className={cn("inset-field h-10 w-full px-3.5 text-[14px] text-ink placeholder:text-ink-faint", className)} {...props} />;
+export const TextInput = forwardRef<HTMLInputElement, InputHTMLAttributes<HTMLInputElement> & { moneySign?: 1 | -1 }>(function TextInput({ className, moneySign, style, ...props }, ref) {
+  const moneyStyle = moneySign === undefined ? undefined : { color: moneyColor(Number(String(props.value ?? "").replace(",", ".")) * moneySign) };
+  return <input ref={ref} className={cn("inset-field h-10 w-full px-3.5 text-[14px] text-ink placeholder:text-ink-faint", className)} style={{ ...style, ...moneyStyle }} {...props} />;
 });
 
 export const TextArea = forwardRef<HTMLTextAreaElement, TextareaHTMLAttributes<HTMLTextAreaElement>>(function TextArea({ className, ...props }, ref) {
@@ -98,7 +99,7 @@ export function Select<T extends string>({ id, value, onValueChange, options, pl
               >
                 <RSelect.ItemText>{o.label}</RSelect.ItemText>
                 <RSelect.ItemIndicator className="absolute right-2.5">
-                  <Check className="size-4 text-lilac" aria-hidden />
+                  <Check className="size-4 text-interactive" aria-hidden />
                 </RSelect.ItemIndicator>
               </RSelect.Item>
             ))}

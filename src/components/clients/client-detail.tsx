@@ -13,7 +13,8 @@ import { formatDate } from "@/lib/dates";
 import { openAmount, paidAmount } from "@/lib/metrics/finance";
 import { projectProgress } from "@/lib/metrics/projects";
 import type { Client } from "@/lib/types";
-import { formatBRL, sum } from "@/lib/utils";
+import { sum } from "@/lib/utils";
+import { Money } from "@/components/ui/money";
 
 export function ClientDetail({ client, open, onOpenChange, onEdit }: { client: Client | null; open: boolean; onOpenChange: (o: boolean) => void; onEdit: (c: Client) => void }) {
   const { db } = useStore();
@@ -33,7 +34,7 @@ export function ClientDetail({ client, open, onOpenChange, onEdit }: { client: C
           <TonePill tone={clientStatusMeta[client.status].tone}>{clientStatusMeta[client.status].label}</TonePill>
           <span className="text-[12px] text-ink-faint">Cliente desde {formatDate(client.createdAt)}</span>
           {lead && (
-            <Link href={`/leads?id=${lead.id}`} className="text-[12px] font-semibold text-lilac hover:text-ink">
+            <Link href={`/leads?id=${lead.id}`} className="text-[12px] font-semibold text-interactive hover:text-ink">
               Ver lead de origem
             </Link>
           )}
@@ -50,14 +51,14 @@ export function ClientDetail({ client, open, onOpenChange, onEdit }: { client: C
         </div>
 
         <dl className="grid grid-cols-3 gap-3">
-          {[
-            ["Contratado", formatBRL(contracted)],
-            ["Recebido", formatBRL(received)],
-            ["Em aberto", formatBRL(open_)],
-          ].map(([k, v]) => (
+          {([
+            ["Contratado", contracted],
+            ["Recebido", received],
+            ["Em aberto", open_],
+          ] as const).map(([k, v]) => (
             <div key={k} className="rounded-2xl border border-seam p-3">
               <dt className="text-[11.5px] text-ink-faint">{k}</dt>
-              <dd className="tnum mt-1 text-[15px] font-bold text-ink">{v}</dd>
+              <dd className="tnum mt-1 text-[15px] font-bold"><Money value={v} /></dd>
             </div>
           ))}
         </dl>
@@ -77,7 +78,7 @@ export function ClientDetail({ client, open, onOpenChange, onEdit }: { client: C
             <dt className="text-[11.5px] text-ink-faint">Site</dt>
             <dd className="mt-0.5 text-[13.5px]">
               {client.siteUrl ? (
-                <a href={client.siteUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-lilac hover:text-ink">
+                <a href={client.siteUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-interactive hover:text-ink">
                   {client.siteUrl.replace(/^https?:\/\//, "")} <ExternalLink className="size-3" aria-hidden />
                 </a>
               ) : (

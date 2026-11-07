@@ -134,8 +134,8 @@ export function DonutChart({ slices, centerLabel, centerValue, size = 190, varia
         <circle cx={cx} cy={cx} r={variant === "solid" ? r - stroke / 2 - 8 : size / 2 - stroke - 14} fill="url(#donut-core)" stroke="rgba(236,228,255,0.1)" />
         <defs>
           <radialGradient id="donut-core">
-            <stop offset="0%" stopColor="#1f1a2b" />
-            <stop offset="100%" stopColor="#120f19" />
+            <stop offset="0%" stopColor="var(--facade-raised)" />
+            <stop offset="100%" stopColor="var(--facade-inset)" />
           </radialGradient>
         </defs>
       </svg>
