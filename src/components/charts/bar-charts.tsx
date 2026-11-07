@@ -67,9 +67,9 @@ export function CapsuleBarChart({
         <svg width={width} height={height} aria-hidden className="block overflow-visible">
           <defs>
             <linearGradient id={`${uid}-hi`} x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="#c04dff" />
-              <stop offset="55%" stopColor="#f230d6" />
-              <stop offset="100%" stopColor="#f230d6" stopOpacity={0.85} />
+              <stop offset="0%" stopColor="#9b6bc9" />
+              <stop offset="55%" stopColor="#bb6ba5" />
+              <stop offset="100%" stopColor="#bb6ba5" stopOpacity={0.85} />
             </linearGradient>
             <pattern id={`${uid}-dots`} width="5" height="5" patternUnits="userSpaceOnUse">
               <circle cx="1.2" cy="1.2" r="0.9" fill="rgba(255,255,255,0.14)" />
@@ -110,7 +110,7 @@ export function CapsuleBarChart({
                   {isHi && <rect x={cx - barW / 2} y={top} width={barW} height={bh} rx={barW / 2} fill="none" stroke="rgba(255,255,255,0.35)" />}
                 </motion.g>
                 {d.value > 0 && (
-                  <circle cx={cx} cy={top - 7} r={3.4} fill={isHi ? "#d07bff" : "#f05fd8"} style={{ filter: "drop-shadow(0 0 4px rgba(242,48,214,0.8))" }} />
+                  <circle cx={cx} cy={top - 7} r={3.4} fill={isHi ? "#b08fd6" : "#c27ab0"} style={{ filter: "drop-shadow(0 0 2px rgba(187,107,165,0.5))" }} />
                 )}
                 {(i % every === 0 || isHi) && (
                   <text x={cx} y={height - 8} textAnchor="middle" className={cn("text-[11px]", isHi ? "fill-ink" : "fill-ink-faint")}>
@@ -179,7 +179,7 @@ export function HatchedColumns({
               >
                 <span
                   className="tnum absolute -top-3 left-1/2 z-10 -translate-x-1/2 rounded-full px-2.5 py-0.5 text-[12px] font-bold whitespace-nowrap text-white"
-                  style={{ background: `linear-gradient(180deg, ${color}, color-mix(in oklab, ${color} 70%, #000))`, boxShadow: `0 0 14px -2px ${color}` }}
+                  style={{ background: `linear-gradient(180deg, ${color}, color-mix(in oklab, ${color} 70%, #000))`, boxShadow: `0 0 6px -2px ${color}` }}
                 >
                   {format(d.value)}
                 </span>
@@ -188,7 +188,7 @@ export function HatchedColumns({
                   style={{
                     borderColor: `color-mix(in oklab, ${color} ${isPeak ? 85 : 55}%, transparent)`,
                     background: isPeak ? `linear-gradient(180deg, color-mix(in oklab, ${color} 40%, #1b1526), #16111f)` : "linear-gradient(180deg,#221c2e,#15111d)",
-                    boxShadow: isPeak ? `0 0 22px -8px ${color}, inset 0 1px 0 rgba(255,255,255,0.12)` : "inset 0 1px 0 rgba(255,255,255,0.05)",
+                    boxShadow: isPeak ? `0 0 12px -8px ${color}, inset 0 1px 0 rgba(255,255,255,0.12)` : "inset 0 1px 0 rgba(255,255,255,0.05)",
                   }}
                 />
               </motion.div>
@@ -264,7 +264,7 @@ export function StackedRibbonChart({
                   d={d}
                   fill={k.color}
                   initial={enabled ? { opacity: 0 } : false}
-                  animate={{ opacity: 0.13 }}
+                  animate={{ opacity: 0.09 }}
                   transition={{ duration: 0.8, delay: 0.5 }}
                 />
               );
@@ -289,7 +289,7 @@ export function StackedRibbonChart({
                     rx={5}
                     fill={keys[ki].color}
                     opacity={0.92}
-                    style={{ filter: `drop-shadow(0 0 6px ${keys[ki].color})` }}
+                    style={{ filter: `drop-shadow(0 0 2px ${keys[ki].color})` }}
                   >
                     <title>{`${c.label} · ${keys[ki].label}: ${seg.v}`}</title>
                   </rect>

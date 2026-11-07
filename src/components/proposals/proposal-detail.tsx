@@ -85,7 +85,7 @@ export function ProposalDetail({
             </div>
           </div>
           {proposal.status === "aprovada" && lead && !lead.clientId && (
-            <p className="rounded-2xl border border-[rgba(29,233,182,0.35)] bg-[rgba(29,233,182,0.06)] px-4 py-3 text-[13px] text-ink">
+            <p className="rounded-2xl border border-[rgba(95,191,159,0.35)] bg-[rgba(95,191,159,0.06)] px-4 py-3 text-[13px] text-ink">
               Proposta aprovada. Converta o lead em cliente na{" "}
               <Link href={`/leads?id=${lead.id}`} className="font-semibold text-mint underline-offset-2 hover:underline">
                 ficha do lead

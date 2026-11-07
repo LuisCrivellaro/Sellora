@@ -7,7 +7,7 @@ import type { RadarAxis } from "@/lib/metrics/home";
 import { useElementSize } from "./chart-utils";
 
 /** Radar com eixos normalizados 0–100; cada eixo é focável e explica a fórmula. */
-export function RadarChart({ axes, color = "#f230d6", summary }: { axes: RadarAxis[]; color?: string; summary: string }) {
+export function RadarChart({ axes, color = "#bb6ba5", summary }: { axes: RadarAxis[]; color?: string; summary: string }) {
   const enabled = useMotionEnabled();
   const [ref, { width }] = useElementSize<HTMLDivElement>();
   const [active, setActive] = useState<number | null>(null);
@@ -39,7 +39,7 @@ export function RadarChart({ axes, color = "#f230d6", summary }: { axes: RadarAx
               animate={{ scale: 1, opacity: 1 }}
               transition={{ duration: 0.8, delay: 0.25, ease: motionTokens.ease }}
             >
-              <polygon points={poly} fill={color} fillOpacity={0.22} stroke={color} strokeWidth={2} style={{ filter: `drop-shadow(0 0 8px ${color})` }} />
+              <polygon points={poly} fill={color} fillOpacity={0.15} stroke={color} strokeWidth={2} style={{ filter: `drop-shadow(0 0 3px ${color})` }} />
               {axes.map((a, i) => {
                 const [x, y] = pt(i, a.value ?? 0);
                 return <circle key={a.key} cx={x} cy={y} r={active === i ? 5.5 : 3.6} fill={active === i ? "#fff" : color} stroke={color} strokeWidth={2} />;

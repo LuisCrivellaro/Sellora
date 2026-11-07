@@ -73,7 +73,7 @@ export function DonutChart({ slices, centerLabel, centerValue, size = 190, varia
             aria-label={`${s.label}: ${format(s.value)} (${formatPercent(ratio(s.value, total))})`}
             className={cn("flex w-full items-center gap-2.5 rounded-lg px-1 py-0.5 text-left transition-opacity", hi && hi !== s.key && "opacity-45")}
           >
-            <span className="size-2.5 shrink-0 rounded-full" style={{ background: s.color, boxShadow: `0 0 8px ${s.color}` }} aria-hidden />
+            <span className="size-2.5 shrink-0 rounded-full" style={{ background: s.color, boxShadow: `0 0 4px ${s.color}` }} aria-hidden />
             <span className="min-w-0 flex-1 truncate text-[13px] text-ink-soft">{s.label}</span>
             <span className="tnum text-[13.5px] font-bold text-ink">{format(s.value)}</span>
           </button>
@@ -97,7 +97,7 @@ export function DonutChart({ slices, centerLabel, centerValue, size = 190, varia
                   stroke={s.color}
                   strokeWidth={hi === s.key ? stroke + 6 : stroke}
                   strokeLinecap="round"
-                  style={{ filter: `drop-shadow(0 0 ${hi === s.key ? 10 : 5}px ${s.color})`, transition: "stroke-width 160ms var(--ease-out)" }}
+                  style={{ filter: `drop-shadow(0 0 ${hi === s.key ? 5 : 2}px ${s.color})`, transition: "stroke-width 160ms var(--ease-out)" }}
                   opacity={hi && hi !== s.key ? 0.4 : 1}
                   initial={enabled ? { pathLength: 0 } : false}
                   animate={{ pathLength: 1 }}
@@ -123,7 +123,7 @@ export function DonutChart({ slices, centerLabel, centerValue, size = 190, varia
                 strokeWidth={3.2}
                 strokeLinecap="round"
                 opacity={hi && key !== hi ? 0.25 : 1}
-                style={{ filter: key ? `drop-shadow(0 0 3px ${tickColor(i)})` : undefined }}
+                style={{ filter: key ? `drop-shadow(0 0 1px ${tickColor(i)})` : undefined }}
                 initial={enabled ? { opacity: 0 } : false}
                 animate={{ opacity: hi && key !== hi ? 0.25 : 1 }}
                 transition={{ duration: 0.25, delay: enabled ? 0.1 + i * 0.012 : 0 }}

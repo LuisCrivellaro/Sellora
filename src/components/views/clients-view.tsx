@@ -123,8 +123,8 @@ export function ClientsView() {
             labels={data.buckets.map((b) => b.label)}
             longLabels={data.buckets.map((b) => b.longLabel)}
             series={[
-              { key: "clientes", label: "Novos clientes", color: "#f230d6", values: data.newClients },
-              { key: "publicados", label: "Sites publicados", color: "#1de9b6", values: data.published },
+              { key: "clientes", label: "Novos clientes", color: "#bb6ba5", values: data.newClients },
+              { key: "publicados", label: "Sites publicados", color: "#5fbf9f", values: data.published },
             ]}
             summary={`Evolução de clientes, ${rangeInfo.description}: ${sum(data.newClients)} novos clientes e ${sum(data.published)} sites publicados`}
           />
@@ -132,7 +132,7 @@ export function ClientsView() {
 
         <DashboardCard index={1} className="col-span-12 xl:col-span-4" title="Clientes por segmento" description={`${db.clients.length} clientes`}>
           {data.bySegment.length ? (
-            <HatchedColumns height={270} data={data.bySegment} colors={["#f230d6", "#8f4bff", "#b48cff", "#6f6cff", "#1de9b6"]} summary={`Clientes por segmento: ${data.bySegment.map((s) => `${s.label} ${s.value}`).join(", ")}`} />
+            <HatchedColumns height={270} data={data.bySegment} colors={["#bb6ba5", "#8866bd", "#a891d1", "#7473c4", "#5fbf9f"]} summary={`Clientes por segmento: ${data.bySegment.map((s) => `${s.label} ${s.value}`).join(", ")}`} />
           ) : (
             <EmptyState title="Sem clientes ainda" description="Converta um lead ganho para começar." />
           )}

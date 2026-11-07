@@ -90,12 +90,12 @@ export function NeonLineChart({ labels, longLabels, series, height = 230, format
             <defs>
               {series.map((s) => (
                 <linearGradient key={s.key} id={`${uid}-fill-${s.key}`} x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor={s.color} stopOpacity={0.32} />
+                  <stop offset="0%" stopColor={s.color} stopOpacity={0.18} />
                   <stop offset="100%" stopColor={s.color} stopOpacity={0} />
                 </linearGradient>
               ))}
               <filter id={`${uid}-glow`} x="-10%" y="-30%" width="120%" height="160%">
-                <feGaussianBlur stdDeviation="4" result="b" />
+                <feGaussianBlur stdDeviation="2" result="b" />
                 <feMerge>
                   <feMergeNode in="b" />
                   <feMergeNode in="SourceGraphic" />

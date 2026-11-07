@@ -128,7 +128,7 @@ export function ProjectsView() {
   ];
 
   const statusKeys = Object.keys(projectStatusMeta) as ProjectStatus[];
-  const statusColors: Record<ProjectStatus, string> = { nao_iniciado: "#6f6cff", em_desenvolvimento: "#8f4bff", em_revisao: "#f230d6", concluido: "#1de9b6" };
+  const statusColors: Record<ProjectStatus, string> = { nao_iniciado: "#7473c4", em_desenvolvimento: "#8866bd", em_revisao: "#bb6ba5", concluido: "#5fbf9f" };
 
   return (
     <>

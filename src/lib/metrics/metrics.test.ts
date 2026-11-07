@@ -206,3 +206,24 @@ describe("integridade da semente demonstrativa", () => {
     expect(createSeed(NOW).leads.map((l) => l.name)).toEqual(db.leads.map((l) => l.name));
   });
 });
+
+describe("fluxo de caixa do Financeiro", () => {
+  it("entradas e saídas vêm só de pagamentos e o saldo fecha", async () => {
+    const { cashFlow, cashMovements, receivablesAging, projectResults, variation } = await import("./finance");
+    const db = createSeed(NOW);
+    const flow = cashFlow(db, "1a", NOW);
+    const moves = cashMovements(db);
+    const inAll = moves.filter((m) => m.kind === "entrada").reduce((s, m) => s + m.amount, 0);
+    const outAll = moves.filter((m) => m.kind === "saida").reduce((s, m) => s + m.amount, 0);
+    expect(flow.cashBalance).toBeCloseTo(inAll - outAll, 2);
+    // Último ponto do saldo acumulado = saldo de caixa registrado (todos os movimentos estão no último ano).
+    expect(flow.balance.at(-1)).toBeCloseTo(flow.cashBalance, 2);
+    // Contratos não entram no caixa.
+    expect(flow.period.inflow).toBeLessThanOrEqual(financeSummary(db, NOW).received + 0.001);
+    const aging = receivablesAging(db, NOW);
+    expect(aging.buckets.reduce((s, b) => s + b.value, 0)).toBeCloseTo(aging.total, 2);
+    expect(variation(100, 0)).toBeNull();
+    expect(variation(150, 100)).toBe(50);
+    for (const r of projectResults(db)) if (r.costs === 0) expect(r.result).toBeNull();
+  });
+});

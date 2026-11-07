@@ -52,7 +52,7 @@ export function SegmentedBar({ value, color, label, valueText, size = "md", mark
               style={{
                 width: seg,
                 background: isMarker ? "#fff" : on ? color : "rgba(236,228,255,0.09)",
-                boxShadow: on || isMarker ? `0 0 6px ${isMarker ? "rgba(255,255,255,0.7)" : color}` : undefined,
+                boxShadow: on || isMarker ? `0 0 3px ${isMarker ? "rgba(255,255,255,0.4)" : color}` : undefined,
                 opacity: on ? 0.55 + 0.45 * (i / Math.max(1, lit)) : 1,
                 animation: on || isMarker ? `segment-on 420ms ${i * 9}ms both var(--ease-out)` : undefined,
               }}

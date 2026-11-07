@@ -17,13 +17,34 @@ import { formatBRL } from "@/lib/utils";
 
 type TxValues = { kind: TransactionKind; clientId: string; projectId: string; description: string; amount: string; dueDate: string };
 
-export function TransactionForm({ open, onOpenChange }: { open: boolean; onOpenChange: (o: boolean) => void }) {
+export function TransactionForm({
+  open,
+  onOpenChange,
+  defaultKind = "receita",
+  defaultProjectId,
+}: {
+  open: boolean;
+  onOpenChange: (o: boolean) => void;
+  defaultKind?: TransactionKind;
+  defaultProjectId?: string | null;
+}) {
   const { db } = useStore();
   const { notify } = useToast();
-  const initial: TxValues = { kind: "receita", clientId: "none", projectId: "none", description: "", amount: "", dueDate: isoDate(addDays(new Date(), 7)) };
+  const project = defaultProjectId ? db?.projects.find((p) => p.id === defaultProjectId) : null;
+  const initial: TxValues = {
+    kind: defaultKind,
+    clientId: project?.clientId ?? "none",
+    projectId: project?.id ?? "none",
+    description: "",
+    amount: "",
+    dueDate: isoDate(defaultKind === "custo" ? new Date() : addDays(new Date(), 7)),
+  };
   const { values, set, errors, reset, validate, formRef } = useForm<TxValues>(initial);
+  // Despesa já paga gera também o pagamento (saída de caixa) na mesma data.
+  const [paidNow, setPaidNow] = useState(true);
 
   useEffect(() => {
+    // O formulário é remontado por `key` a cada abertura; aqui só sincroniza os valores.
     if (open) reset(initial);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
@@ -41,8 +62,13 @@ export function TransactionForm({ open, onOpenChange }: { open: boolean; onOpenC
       dueDate: values.dueDate ? fromInputDate(values.dueDate) : "",
     });
     if (!data) return;
-    createTransaction(data);
-    notify({ kind: "success", title: values.kind === "receita" ? "Receita lançada" : "Custo lançado", description: `${data.description} · ${formatBRL(data.amount)}` });
+    const tx = createTransaction(data);
+    if (data.kind === "custo" && paidNow) addPayment(tx.id, { amount: data.amount, date: data.dueDate, note: "Despesa paga" });
+    notify({
+      kind: "success",
+      title: values.kind === "receita" ? "Recebível lançado" : paidNow ? "Despesa registrada como paga" : "Despesa lançada a pagar",
+      description: `${data.description} · ${formatBRL(data.amount)}`,
+    });
     onOpenChange(false);
   };
 
@@ -71,8 +97,8 @@ export function TransactionForm({ open, onOpenChange }: { open: boolean; onOpenC
             value={values.kind}
             onChange={(v) => set("kind", v)}
             options={[
-              { value: "receita", label: "Receita (a receber do cliente)" },
-              { value: "custo", label: "Custo" },
+              { value: "receita", label: "Recebível do cliente" },
+              { value: "custo", label: "Despesa" },
             ]}
           />
         </div>
@@ -98,9 +124,15 @@ export function TransactionForm({ open, onOpenChange }: { open: boolean; onOpenC
         <Field label="Valor (R$)" error={errors.amount}>
           {(p) => <TextInput {...p} inputMode="decimal" value={values.amount} onChange={(e) => set("amount", e.target.value)} placeholder="0,00" />}
         </Field>
-        <Field label="Vencimento" error={errors.dueDate}>
+        <Field label={values.kind === "custo" && paidNow ? "Data do pagamento" : "Vencimento"} error={errors.dueDate}>
           {(p) => <TextInput {...p} type="date" value={values.dueDate} onChange={(e) => set("dueDate", e.target.value)} />}
         </Field>
+        {values.kind === "custo" && (
+          <label className="flex cursor-pointer items-center gap-2.5 text-[13px] text-ink-soft sm:col-span-2">
+            <input type="checkbox" checked={paidNow} onChange={(e) => setPaidNow(e.target.checked)} className="size-4 accent-[var(--fin-green)]" />
+            Despesa já paga nesta data (gera saída de caixa)
+          </label>
+        )}
       </form>
     </Modal>
   );

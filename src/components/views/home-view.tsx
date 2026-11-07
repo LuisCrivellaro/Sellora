@@ -78,9 +78,9 @@ export function HomeView() {
             labels={series.buckets.map((b) => b.label)}
             longLabels={series.buckets.map((b) => b.longLabel)}
             series={[
-              { key: "leads", label: "Leads captados", color: "#f230d6", values: series.leads },
-              { key: "contatos", label: "Contatos", color: "#b48cff", values: series.contacts },
-              { key: "propostas", label: "Propostas enviadas", color: "#1de9b6", values: series.proposals },
+              { key: "leads", label: "Leads captados", color: "#bb6ba5", values: series.leads },
+              { key: "contatos", label: "Contatos", color: "#a891d1", values: series.contacts },
+              { key: "propostas", label: "Propostas enviadas", color: "#5fbf9f", values: series.proposals },
             ]}
             summary={`Evolução comercial, ${rangeInfo.description}: ${sum(series.leads)} leads captados, ${sum(series.contacts)} contatos e ${sum(series.proposals)} propostas enviadas`}
           />

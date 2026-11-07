@@ -21,6 +21,8 @@
 - 2026-11-07: **Tema claro adiado**: Configurações mostra "Claro (em breve)" desabilitado; só o tema escuro aprovado existe.
 - 2026-11-07: **Auditoria `npm audit`**: 8 alertas moderados em `@typescript-eslint/*` (dependência de lint, só desenvolvimento). Não aplicado `audit fix --force` por exigir mudanças incompatíveis; reavaliar ao atualizar `eslint-config-next`.
 - 2026-11-07: **`.claude/launch.json`** criado para o preview do Claude Code (`npm run dev -- --port 3100`).
+- 2026-11-07: **Financeiro redesenhado** em linguagem grafite + verde financeiro (tokens `--fin-*` escopados à página), mantendo navegação e identidade global. A imagem de referência citada no pedido **não foi anexada**; o layout seguiu a descrição textual (título à esquerda, saldo ao centro, entradas/saídas à direita, 3 cards + gráfico amplo, tooltip verde, 3 cards inferiores). Saldo exibido é "saldo de caixa registrado" (entradas − saídas registradas), nunca saldo bancário; contratado não entra no caixa; resultado por projeto só com custos registrados. "Registrar despesa" pode gerar a saída de caixa na mesma data. Zoom e período personalizado não implementados.
+- 2026-11-07: **Paleta refinada (menos saturação e brilho)**: fundo #101014, cards #1A1920, roxo #8866BD, magenta #BB6BA5, menta #5FBF9F, verde financeiro #67B99A, texto #EAE8EF/#A6A2B0; glows, blur e opacidades de áreas reduzidos. Layout, tipografia, componentes e animações preservados. Contraste medido: texto 4,8–15,6:1.
 - Pendente: onde ficará o código dos sites de clientes (mesmo repositório em pasta própria vs. um repositório por cliente).
 
 Acrescentar decisões novas com data, contexto, alternativas e motivo.

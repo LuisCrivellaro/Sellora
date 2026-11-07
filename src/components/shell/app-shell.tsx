@@ -78,7 +78,7 @@ export function AppShell({ children }: { children: ReactNode }) {
               </p>
             )}
             {storageError && (
-              <p role="alert" className="mt-3 rounded-2xl border border-[rgba(255,79,112,0.4)] bg-[rgba(255,79,112,0.08)] px-4 py-2.5 text-[13px] text-ink">
+              <p role="alert" className="mt-3 rounded-2xl border border-[rgba(217,103,123,0.4)] bg-[rgba(217,103,123,0.08)] px-4 py-2.5 text-[13px] text-ink">
                 {storageError}
               </p>
             )}

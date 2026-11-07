@@ -16,6 +16,12 @@ A Sellora leva estabelecimentos para a vitrine digital. O painel é a rua à noi
 
 **Assinatura:** barra segmentada "acendendo" (segmentos que acendem até o valor, marcador branco na fronteira). Aparece em origem de leads, pipeline, progresso de projetos, sites contratados, valores de propostas e recebimentos.
 
+## Refinamento de paleta (2026-11-07)
+Neon suavizado para uso prolongado: roxo #8866BD, lilás #A891D1, magenta #BB6BA5, menta #5FBF9F, índigo #7473C4, âmbar #D8A75A, vermelho #D9677B; superfícies grafite-roxo (#101014 → #1A1920 → #24222B). Glow apenas onde reforça hierarquia (item ativo, ponto selecionado), com blur curto e baixa opacidade.
+
+## Financeiro
+Página com linguagem própria dentro da Sellora: cards grafite (`.fin-card`, raio 26px, borda quase invisível), verde financeiro `--fin-green` (#67B99A) como destaque funcional de entradas/recebimentos, cinza neutro para saídas, pills claras para seleção e tooltip verde com texto escuro.
+
 ## Tokens (fonte: `src/app/globals.css`)
 - **Superfícies:** `--night` (fundo), `--facade` (card), `--facade-raised` (popover, cabeçalho de tabela), `--facade-inset` (inputs). Elevação = passos de luminosidade de poucos pontos, mesma matiz.
 - **Texto:** `--ink` (primário), `--ink-soft` (secundário), `--ink-faint` (terciário/eixos), `--ink-ghost` (segmentos apagados, desabilitado).

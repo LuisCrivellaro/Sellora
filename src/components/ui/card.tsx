@@ -50,7 +50,7 @@ export function DashboardCard({ title, description, actions, children, lit, inde
 export function LegendStat({ color, label, value, className }: { color: string; label: string; value?: ReactNode; className?: string }) {
   return (
     <span className={cn("inline-flex items-center gap-2 text-[14px]", className)}>
-      <span className="size-2.5 rounded-full" style={{ background: color, boxShadow: `0 0 10px ${color}` }} aria-hidden />
+      <span className="size-2.5 rounded-full" style={{ background: color, boxShadow: `0 0 5px ${color}` }} aria-hidden />
       <span className="text-ink-soft">{label}</span>
       {value !== undefined && <span className="tnum font-bold text-ink">{value}</span>}
     </span>

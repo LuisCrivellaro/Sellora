@@ -6,7 +6,7 @@ export function StatusBadge({ tone, label, className, size = "md" }: { tone: Ton
   const color = toneVar[tone];
   return (
     <span className={cn("inline-flex items-center gap-1.5 whitespace-nowrap font-medium text-ink", size === "sm" ? "text-[12px]" : "text-[13px]", className)}>
-      <span className="size-2 shrink-0 rounded-full" style={{ background: color, boxShadow: tone === "ghost" ? undefined : `0 0 8px ${color}` }} aria-hidden />
+      <span className="size-2 shrink-0 rounded-full" style={{ background: color, boxShadow: tone === "ghost" ? undefined : `0 0 4px ${color}` }} aria-hidden />
       {label}
     </span>
   );
@@ -32,7 +32,7 @@ export function DemoBadge({ demo }: { demo: boolean }) {
     <span
       className={cn(
         "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11.5px] font-semibold whitespace-nowrap",
-        demo ? "border-[rgba(246,181,74,0.45)] bg-[rgba(246,181,74,0.1)] text-warn" : "border-seam-strong text-ink-soft",
+        demo ? "border-[rgba(216,167,90,0.45)] bg-[rgba(216,167,90,0.1)] text-warn" : "border-seam-strong text-ink-soft",
       )}
     >
       <span className={cn("size-1.5 rounded-full", demo ? "bg-warn" : "bg-ink-faint")} aria-hidden />

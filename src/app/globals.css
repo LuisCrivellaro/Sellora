@@ -9,33 +9,33 @@
   color-scheme: dark;
 
   /* Superfícies: mesma matiz violeta, passos curtos de luminosidade */
-  --night: #07060b;
-  --facade: #110e18;
-  --facade-top: #16121f;
-  --facade-raised: #1b1726;
-  --facade-hover: #211c2e;
-  --facade-inset: #0b0910;
+  --night: #101014;
+  --facade: #1a1920;
+  --facade-top: #1e1c24;
+  --facade-raised: #24222b;
+  --facade-hover: #2a2832;
+  --facade-inset: #141318;
 
   /* Texto */
-  --ink: #f4f2f8;
-  --ink-soft: #b1aac3;
-  --ink-faint: #8a83a0;
-  --ink-ghost: #3b3548;
+  --ink: #eae8ef;
+  --ink-soft: #a6a2b0;
+  --ink-faint: #908c9c;
+  --ink-ghost: #3a3741;
 
   /* Bordas */
   --seam: rgba(236, 228, 255, 0.075);
   --seam-strong: rgba(236, 228, 255, 0.14);
-  --seam-lit: rgba(246, 240, 255, 0.62);
-  --focus: #c9a6ff;
+  --seam-lit: rgba(236, 232, 245, 0.5);
+  --focus: #b9a2df;
 
   /* Neon com significado */
-  --neon-violet: #8f4bff;
-  --neon-lilac: #b48cff;
-  --neon-magenta: #f230d6;
-  --neon-mint: #1de9b6;
-  --neon-indigo: #6f6cff;
-  --signal-warn: #f6b54a;
-  --signal-danger: #ff4f70;
+  --neon-violet: #8866bd;
+  --neon-lilac: #a891d1;
+  --neon-magenta: #bb6ba5;
+  --neon-mint: #5fbf9f;
+  --neon-indigo: #7473c4;
+  --signal-warn: #d8a75a;
+  --signal-danger: #d9677b;
 
   --radius-card: 18px;
   --radius-tile: 10px;
@@ -88,8 +88,8 @@
     font-size: 14px;
     line-height: 1.5;
     background:
-      radial-gradient(1100px 520px at 18% -8%, rgba(143, 75, 255, 0.13), transparent 70%),
-      radial-gradient(900px 480px at 92% 0%, rgba(242, 48, 214, 0.07), transparent 70%),
+      radial-gradient(1100px 520px at 18% -8%, rgba(136, 102, 189, 0.06), transparent 70%),
+      radial-gradient(900px 480px at 92% 0%, rgba(187, 107, 165, 0.03), transparent 70%),
       var(--night);
     background-attachment: fixed;
     -webkit-font-smoothing: antialiased;
@@ -98,7 +98,7 @@
   }
 
   ::selection {
-    background: rgba(143, 75, 255, 0.45);
+    background: rgba(136, 102, 189, 0.45);
     color: #fff;
   }
 
@@ -142,10 +142,10 @@
   /* Fachada iluminada: card de gráfico principal com brilho interno violeta/magenta */
   .facade-lit {
     background:
-      radial-gradient(120% 90% at 35% 100%, rgba(143, 75, 255, 0.34), transparent 62%),
-      radial-gradient(70% 70% at 78% 85%, rgba(242, 48, 214, 0.2), transparent 70%),
-      linear-gradient(180deg, #1a1226 0%, #120d1b 55%);
-    border-color: rgba(190, 140, 255, 0.16);
+      radial-gradient(120% 90% at 35% 100%, rgba(136, 102, 189, 0.16), transparent 62%),
+      radial-gradient(70% 70% at 78% 85%, rgba(187, 107, 165, 0.08), transparent 70%),
+      linear-gradient(180deg, #1f1b28 0%, #1a1920 55%);
+    border-color: rgba(170, 150, 210, 0.16);
   }
 
   /* Grupo em pill (navegação, segmented, ações) */
@@ -163,8 +163,8 @@
     background: linear-gradient(180deg, rgba(64, 56, 82, 0.75), rgba(32, 27, 44, 0.85));
     box-shadow:
       inset 0 1px 0 rgba(255, 255, 255, 0.14),
-      inset 0 0 14px rgba(196, 160, 255, 0.12),
-      0 0 18px -6px rgba(180, 140, 255, 0.45);
+      inset 0 0 10px rgba(176, 156, 214, 0.06),
+      0 0 10px -6px rgba(168, 145, 209, 0.22);
   }
 
   .tile {
@@ -191,7 +191,7 @@
   .inset-field:focus-visible {
     outline: none;
     border-color: var(--focus);
-    box-shadow: 0 0 0 3px rgba(201, 166, 255, 0.18);
+    box-shadow: 0 0 0 3px rgba(185, 162, 223, 0.18);
   }
 
   .inset-field[aria-invalid="true"] {
@@ -337,4 +337,32 @@ html[data-density="compacta"] main .gap-3\.5 {
   outline: 2px solid var(--focus);
   outline-offset: -2px;
   border-radius: 999px;
+}
+
+/* ───── Financeiro: linguagem grafite + verde financeiro (escopo da página) ───── */
+:root {
+  --fin-green: #67b99a;
+  --fin-green-deep: #275c42;
+  --fin-on-green: #0c1a12;
+  --fin-neutral: #929497;
+  --fin-surface: #19191c;
+  --fin-surface-2: #212125;
+  --fin-border: rgba(255, 255, 255, 0.06);
+  --fin-border-strong: rgba(255, 255, 255, 0.12);
+}
+
+@layer components {
+  .fin-card {
+    border-radius: 26px;
+    border: 1px solid var(--fin-border);
+    background: var(--fin-surface);
+    transition:
+      border-color 180ms var(--ease-out),
+      background-color 180ms var(--ease-out);
+  }
+
+  .fin-card-hover:hover {
+    border-color: var(--fin-border-strong);
+    background: #19191c;
+  }
 }

@@ -52,7 +52,7 @@ export function ProposalsView() {
   const detail = detailId ? (db.proposals.find((p) => p.id === detailId) ?? null) : null;
   const rangeInfo = RANGE_OPTIONS.find((r) => r.value === range)!;
   const maxValue = Math.max(1, ...data.byStatus.map((s) => s.value));
-  const colors: Record<ProposalStatus, string> = { rascunho: "#8a83a0", enviada: "#8f4bff", negociacao: "#f230d6", aprovada: "#1de9b6", recusada: "#6f6cff" };
+  const colors: Record<ProposalStatus, string> = { rascunho: "#8a83a0", enviada: "#8866bd", negociacao: "#bb6ba5", aprovada: "#5fbf9f", recusada: "#7473c4" };
 
   const columns: Column<Proposal>[] = [
     {
@@ -121,8 +121,8 @@ export function ProposalsView() {
             labels={data.series.buckets.map((b) => b.label)}
             longLabels={data.series.buckets.map((b) => b.longLabel)}
             series={[
-              { key: "criadas", label: "Criadas", color: "#f230d6", values: data.series.created },
-              { key: "enviadas", label: "Enviadas", color: "#b48cff", values: data.series.sent },
+              { key: "criadas", label: "Criadas", color: "#bb6ba5", values: data.series.created },
+              { key: "enviadas", label: "Enviadas", color: "#a891d1", values: data.series.sent },
             ]}
             summary={`Propostas, ${rangeInfo.description}: ${sum(data.series.created)} criadas e ${sum(data.series.sent)} enviadas`}
           />

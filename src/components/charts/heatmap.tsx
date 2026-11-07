@@ -23,14 +23,14 @@ interface Props {
 
 function cellStyle(count: number, max: number, future?: boolean) {
   if (future) return { background: "transparent", border: "1px dashed rgba(236,228,255,0.06)" };
-  if (count === 0 || max === 0) return { background: "rgba(122,80,200,0.10)" };
+  if (count === 0 || max === 0) return { background: "rgba(120,100,170,0.10)" };
   const t = count / max;
   // violeta escuro → violeta neon → lilás brilhante
   const alpha = 0.25 + t * 0.75;
-  const color = t > 0.66 ? `rgba(206,128,255,${alpha})` : t > 0.33 ? `rgba(160,90,255,${alpha})` : `rgba(130,70,230,${alpha})`;
+  const color = t > 0.66 ? `rgba(178,150,214,${alpha})` : t > 0.33 ? `rgba(146,112,196,${alpha})` : `rgba(118,92,176,${alpha})`;
   return {
     background: color,
-    boxShadow: t > 0.5 ? `0 0 ${6 + t * 10}px -2px rgba(200,120,255,${0.35 + t * 0.4}), inset 0 1px 0 rgba(255,255,255,0.18)` : "inset 0 1px 0 rgba(255,255,255,0.06)",
+    boxShadow: t > 0.5 ? `0 0 ${4 + t * 5}px -2px rgba(170,140,210,${0.2 + t * 0.25}), inset 0 1px 0 rgba(255,255,255,0.18)` : "inset 0 1px 0 rgba(255,255,255,0.06)",
   };
 }
 
