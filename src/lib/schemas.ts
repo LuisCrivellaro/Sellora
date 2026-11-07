@@ -88,23 +88,26 @@ export const clientInputSchema = z.object({
 });
 export type ClientInput = z.infer<typeof clientInputSchema>;
 
-export const projectInputSchema = z
-  .object({
-    clientId: z.string().min(1, "Selecione o cliente."),
-    title: requiredText("Projeto", 3, 100),
-    siteType: z.enum(["landing", "institucional", "personalizado"]),
-    stage: z.enum(PROJECT_STAGES),
-    startDate: z.string().min(1, "Informe a data de início."),
-    dueDate: z.string().min(1, "Informe o prazo."),
-    contractValue: money("Valor contratado"),
-    previewUrl: optionalUrl,
-    publishedUrl: optionalUrl,
-    notes: optionalText(2000),
-  })
-  .refine((v) => new Date(v.dueDate).getTime() >= new Date(v.startDate).getTime(), {
-    message: "O prazo deve ser igual ou posterior ao início.",
-    path: ["dueDate"],
-  });
+/** Objeto base (sem refinamento) para poder ser estendido pelos schemas de gravação no servidor. */
+export const projectInputBaseSchema = z.object({
+  clientId: z.string().min(1, "Selecione o cliente."),
+  title: requiredText("Projeto", 3, 100),
+  siteType: z.enum(["landing", "institucional", "personalizado"]),
+  stage: z.enum(PROJECT_STAGES),
+  startDate: z.string().min(1, "Informe a data de início."),
+  dueDate: z.string().min(1, "Informe o prazo."),
+  contractValue: money("Valor contratado"),
+  previewUrl: optionalUrl,
+  publishedUrl: optionalUrl,
+  notes: optionalText(2000),
+});
+
+export const projectDatesRefinement: [(v: { startDate: string; dueDate: string }) => boolean, { message: string; path: string[] }] = [
+  (v) => new Date(v.dueDate).getTime() >= new Date(v.startDate).getTime(),
+  { message: "O prazo deve ser igual ou posterior ao início.", path: ["dueDate"] },
+];
+
+export const projectInputSchema = projectInputBaseSchema.refine(...projectDatesRefinement);
 export type ProjectInput = z.infer<typeof projectInputSchema>;
 
 export const proposalItemSchema = z.object({

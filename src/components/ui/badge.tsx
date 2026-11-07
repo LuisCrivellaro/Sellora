@@ -26,8 +26,8 @@ export function TonePill({ tone, children, className }: { tone: Tone; children: 
   );
 }
 
-/** Selo permanente do modo demonstração. */
-export function DemoBadge({ demo }: { demo: boolean }) {
+/** Selo permanente da origem dos dados: demonstração, local ou banco (Supabase). */
+export function DemoBadge({ demo, remote = false }: { demo: boolean; remote?: boolean }) {
   return (
     <span
       className={cn(
@@ -35,8 +35,8 @@ export function DemoBadge({ demo }: { demo: boolean }) {
         demo ? "border-[rgba(216,167,90,0.45)] bg-[rgba(216,167,90,0.1)] text-warn" : "border-seam-strong text-ink-soft",
       )}
     >
-      <span className={cn("size-1.5 rounded-full", demo ? "bg-warn" : "bg-ink-faint")} aria-hidden />
-      {demo ? "Demonstração" : "Dados locais"}
+      <span className={cn("size-1.5 rounded-full", demo ? "bg-warn" : remote ? "bg-mint" : "bg-ink-faint")} aria-hidden />
+      {demo ? "Demonstração" : remote ? "Banco Supabase" : "Dados locais"}
     </span>
   );
 }

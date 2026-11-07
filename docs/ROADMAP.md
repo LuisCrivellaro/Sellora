@@ -1,7 +1,7 @@
 # Roadmap da Sellora
 
 ## Status em 2026-11-07
-Frontend das 7 páginas implementado em **modo demo isolado** (localStorage), cobrindo Entrega 0 e a parte de interface das Entregas 1 e 2. Lint, typecheck, 25 testes unitários e build passam; fluxos principais verificados manualmente no navegador. **Pendente:** Supabase/Auth/RLS (persistência real e login), testes e2e automatizados, Lighthouse/axe, Portfólio.
+Frontend das 7 páginas implementado em **modo demo isolado** (localStorage), cobrindo Entrega 0 e a parte de interface das Entregas 1 e 2. Lint, typecheck, 25 testes unitários e build passam; fluxos principais verificados manualmente no navegador. **Atualização 2026-11-07:** Supabase (Auth + Postgres + RLS) implementado, com o modo demo preservado. Unitários (56) e migration/RLS em PGlite passam. **Pendente:** validação no projeto Supabase real (credenciais), testes e2e, Lighthouse/axe, Portfólio.
 
 ## Entrega 0 — Fundamentos (primeira sessão) — concluída (sem sidebar: navegação superior aprovada)
 Auditar repo; criar Next.js e design system; layout, rotas, página overview com dados DEMO rotulados; configurar lint, build, typecheck. Não bloquear por Supabase ainda.

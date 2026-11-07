@@ -37,7 +37,7 @@ import type {
 } from "../types";
 import { uid } from "../utils";
 import { createEmptyDatabase, createSeed } from "./seed";
-import { commit, getDb } from "./store";
+import { commit, getDb, getMode } from "./store";
 
 /**
  * Operações de escrita. Toda entrada passa pelo schema Zod antes de gravar —
@@ -105,11 +105,14 @@ export function moveLeadStage(id: ID, stage: LeadStage) {
   });
 }
 
+/** Exclui o lead e solta os vínculos que apontavam para ele (cliente, propostas, atividades mantidas). */
 export function deleteLead(id: ID) {
   commit((db) => ({
     ...db,
     leads: db.leads.filter((l) => l.id !== id),
-    activities: db.activities.filter((a) => a.leadId !== id || a.clientId),
+    activities: db.activities.filter((a) => a.leadId !== id || a.clientId).map((a) => (a.leadId === id ? { ...a, leadId: null } : a)),
+    clients: db.clients.map((c) => (c.leadId === id ? { ...c, leadId: null } : c)),
+    proposals: db.proposals.map((p) => (p.leadId === id ? { ...p, leadId: null } : p)),
   }));
 }
 
@@ -365,7 +368,11 @@ export function duplicateProposal(id: ID): Proposal {
 }
 
 export function deleteProposal(id: ID) {
-  commit((db) => ({ ...db, proposals: db.proposals.filter((p) => p.id !== id) }));
+  commit((db) => ({
+    ...db,
+    proposals: db.proposals.filter((p) => p.id !== id),
+    projects: db.projects.map((p) => (p.proposalId === id ? { ...p, proposalId: null } : p)),
+  }));
 }
 
 /* ───────────────────────────── Financeiro ───────────────────────────── */
@@ -416,12 +423,15 @@ export function updateSettings(patch: Partial<Settings>) {
   commit((db) => ({ ...db, settings: { ...db.settings, ...patch } }));
 }
 
+/** Só no modo local: dados fictícios nunca vão para o banco real. */
 export function resetDemoData() {
+  if (getMode() !== "local") throw new Error("Dados de demonstração não podem ser gravados no banco real.");
   commit((db) => ({ ...createSeed(), settings: db.settings }));
 }
 
 /** Remove todos os registros (inclusive os fictícios) e passa a usar só dados digitados. */
 export function startFromScratch() {
+  if (getMode() !== "local") throw new Error("Limpeza total disponível só no modo local.");
   commit((db) => createEmptyDatabase(db.settings));
 }
 

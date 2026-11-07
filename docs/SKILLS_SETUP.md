@@ -1,6 +1,6 @@
 # Skills — locais e externas
 
-Inventário verificado em 2026-11-06. "Disponível" significa observado na listagem de skills da sessão do Claude desktop (Code tab) daquela data; outra máquina, o CLI puro ou outra conta podem não ter as mesmas skills. Nenhuma skill externa foi instalada no repositório.
+Inventário verificado em 2026-11-06. **Reverificado em 2026-11-07 (outra sessão do desktop):** `interface-design`, `ui-ux-pro-max`, `web-design-guidelines`, `webapp-testing`, `vercel-react-best-practices` e `humanizer` **não apareceram** na listagem. Estavam disponíveis `anthropic-skills:frontend-design`, `skill-creator`, `security-review`, `code-review`, `simplify`, `run` e o navegador embutido. A disponibilidade varia por sessão e conta: confira antes de citar uma skill. "Disponível" significa observado na listagem de skills da sessão do Claude desktop (Code tab) daquela data; outra máquina, o CLI puro ou outra conta podem não ter as mesmas skills. Nenhuma skill externa foi instalada no repositório.
 
 ## Skills locais (versionadas em `.claude/skills/`)
 

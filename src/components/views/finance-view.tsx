@@ -41,7 +41,7 @@ function Delta({ value, inverse = false }: { value: number | null; inverse?: boo
 }
 
 export function FinanceView() {
-  const { db } = useStore();
+  const { db, mode: dataMode } = useStore();
   const { params, setParams } = useUrlParams();
   const { notify } = useToast();
   const enabled = useMotionEnabled();
@@ -447,7 +447,7 @@ export function FinanceView() {
       <TransactionForm key={txForm ? `tx-${txForm.kind}-${txForm.projectId ?? ""}` : "tx-none"} open={!!txForm} onOpenChange={(o) => !o && setTxForm(null)} defaultKind={txForm?.kind ?? "receita"} defaultProjectId={txForm?.projectId ?? null} />
       <PaymentForm key={paying ? `pay-${paying.id}` : "pay-none"} tx={paying} onOpenChange={(o) => !o && setPaying(null)} />
       <p className="mt-6 text-[11.5px] text-[var(--fin-neutral)]" style={{ transitionDuration: `${motionTokens.ui}s` }}>
-        Valores {db.demo ? "fictícios do modo demonstração" : "registrados manualmente neste navegador"}. Nenhum banco, gateway ou emissão fiscal está conectado.
+        Valores {db.demo ? "fictícios do modo demonstração" : dataMode === "supabase" ? "registrados manualmente no banco de dados" : "registrados manualmente neste navegador"}. Nenhum banco, gateway ou emissão fiscal está conectado.
       </p>
     </>
   );

@@ -1,6 +1,6 @@
 # Handoff — continuação do projeto Sellora
 
-Documento para o próximo agente (ou outra conta) retomar o trabalho sem perder contexto. Atualizado em **2026-11-07**, último commit de referência `91c0bdb`.
+Documento para o próximo agente (ou outra conta) retomar o trabalho sem perder contexto. Atualizado em **2026-11-07**. A Entrega 1 (Supabase) está **implementada, mas não validada no projeto Supabase real**: veja §2 e §3.
 
 ---
 
@@ -17,9 +17,9 @@ Documento para o próximo agente (ou outra conta) retomar o trabalho sem perder 
 | Área | Situação |
 |---|---|
 | Frontend | 7 páginas funcionando: Home, Leads (tabela + Kanban), Clientes, Projetos, Propostas, Financeiro, Configurações |
-| Dados | **Modo demonstração** em `localStorage` (chave `sellora.db.v1`), dados fictícios rotulados. Sem backend. |
-| Login | **Não existe.** Não há autenticação nem RLS. |
-| Testes | `lint`, `typecheck`, 26 testes Vitest e `build` passam. Sem e2e automatizado, sem Lighthouse/axe. |
+| Dados | Duas origens: **modo demonstração** em `localStorage` (sem variáveis, igual a antes) e **modo Supabase** (com variáveis): Postgres + RLS, gravação por diff via server action e `apply_changes`. |
+| Login | `/entrar` (e-mail e senha), `src/proxy.ts` protege as rotas, "Sair" no menu do usuário. **Não testado com Supabase real** (faltam credenciais). |
+| Testes | `lint`, `typecheck`, 56 testes Vitest e `build` passam. Migration + RLS validados em PGlite (Postgres WASM, 22/22) fora do projeto. Sem e2e, sem Lighthouse/axe. |
 | Visual | Paleta suavizada aplicada globalmente; Financeiro usa a mesma paleta (entradas lilás, saídas magenta). |
 | Publicação | Nada publicado; sem deploy. |
 
@@ -40,7 +40,7 @@ Arquitetura relevante para o próximo passo:
 
 ## 3. Pendências conhecidas
 
-- Persistência real, login e RLS (**próximo passo**, abaixo).
+- Validar a Entrega 1 no Supabase real: aplicar a migration, criar usuários, rodar `scripts/rls-check.mjs` e o fluxo entrar → cadastrar → recarregar → sair (§5.9–5.10).
 - Financeiro: período personalizado e zoom do gráfico não implementados; a imagem de referência do redesign nunca foi anexada.
 - Testes e2e (Playwright), Lighthouse e axe não executados.
 - Portfólio (`/portfolio`) adiado.

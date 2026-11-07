@@ -1,7 +1,7 @@
 "use client";
 
 import { Dialog } from "radix-ui";
-import { Bell, ChevronDown, Download, Menu as MenuIcon, RotateCcw, Search, Settings, X } from "lucide-react";
+import { Bell, ChevronDown, Download, LogOut, Menu as MenuIcon, RotateCcw, Search, Settings, X } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
@@ -10,6 +10,7 @@ import { DemoBadge } from "@/components/ui/badge";
 import { ConfirmDialog, Menu, Popover, Tooltip } from "@/components/ui/overlay";
 import { useToast } from "@/components/ui/toast";
 import { tone } from "@/lib/constants";
+import { signOut } from "@/lib/auth/actions";
 import { exportDatabase, resetDemoData } from "@/lib/data/repository";
 import { useStore } from "@/lib/data/store";
 import { nextActions } from "@/lib/metrics/home";
@@ -69,10 +70,12 @@ export function NotificationsButton() {
 }
 
 export function UserMenu() {
-  const { db } = useStore();
+  const { db, mode, account, sync } = useStore();
   const router = useRouter();
   const { notify } = useToast();
   const [confirmReset, setConfirmReset] = useState(false);
+  const [leaving, setLeaving] = useState(false);
+  const remote = mode === "supabase";
   const name = db?.settings.profile.name ?? "Administrador";
   const role = db?.settings.profile.role || "Administrador";
 
@@ -84,8 +87,31 @@ export function UserMenu() {
     a.download = `sellora-dados-${new Date().toISOString().slice(0, 10)}.json`;
     a.click();
     URL.revokeObjectURL(url);
-    notify({ kind: "success", title: "Arquivo gerado", description: "Cópia dos dados deste navegador em JSON." });
+    notify({ kind: "success", title: "Arquivo gerado", description: remote ? "Cópia dos dados do banco em JSON." : "Cópia dos dados deste navegador em JSON." });
   };
+
+  const leave = async () => {
+    if (sync.pending > 0) {
+      notify({ kind: "error", title: "Ainda há alterações não salvas", description: "Aguarde salvar ou resolva o aviso no topo antes de sair." });
+      return;
+    }
+    setLeaving(true);
+    try {
+      const res = await signOut();
+      if (res.ok) {
+        // Recarga completa: limpa os dados desta sessão da memória do navegador.
+        // eslint-disable-next-line @next/next/no-location-assign-relative-destination -- recarga completa proposital: limpa os dados da sessão da memória
+        window.location.assign("/entrar");
+        return;
+      }
+      notify({ kind: "error", title: "Não foi possível sair", description: res.message });
+    } catch {
+      notify({ kind: "error", title: "Não foi possível sair", description: "Sem resposta do servidor. Tente novamente." });
+    }
+    setLeaving(false);
+  };
+
+  const heading = remote ? `Conectado · ${account?.email || "sessão ativa"}` : db?.demo ? "Modo demonstração · sem login" : "Dados locais · sem login";
 
   return (
     <>
@@ -102,24 +128,28 @@ export function UserMenu() {
           </button>
         }
         items={[
-          { heading: db?.demo ? "Modo demonstração · sem login" : "Dados locais · sem login" },
+          { heading },
           { label: "Perfil e preferências", icon: <Settings />, onSelect: () => router.push("/configuracoes") },
           { label: "Exportar dados (JSON)", icon: <Download />, onSelect: download },
           "separator",
-          { label: "Restaurar dados de demonstração", icon: <RotateCcw />, onSelect: () => setConfirmReset(true), destructive: true },
+          remote
+            ? { label: leaving ? "Saindo…" : "Sair", icon: <LogOut />, onSelect: () => void leave() }
+            : { label: "Restaurar dados de demonstração", icon: <RotateCcw />, onSelect: () => setConfirmReset(true), destructive: true },
         ]}
       />
-      <ConfirmDialog
-        open={confirmReset}
-        onOpenChange={setConfirmReset}
-        title="Restaurar dados de demonstração?"
-        description="Todos os registros deste navegador serão substituídos pelos dados fictícios iniciais. Suas configurações são mantidas. Esta ação não pode ser desfeita."
-        confirmLabel="Restaurar demonstração"
-        onConfirm={() => {
-          resetDemoData();
-          notify({ kind: "success", title: "Demonstração restaurada" });
-        }}
-      />
+      {!remote && (
+        <ConfirmDialog
+          open={confirmReset}
+          onOpenChange={setConfirmReset}
+          title="Restaurar dados de demonstração?"
+          description="Todos os registros deste navegador serão substituídos pelos dados fictícios iniciais. Suas configurações são mantidas. Esta ação não pode ser desfeita."
+          confirmLabel="Restaurar demonstração"
+          onConfirm={() => {
+            resetDemoData();
+            notify({ kind: "success", title: "Demonstração restaurada" });
+          }}
+        />
+      )}
     </>
   );
 }
@@ -138,7 +168,7 @@ export function SettingsShortcut() {
 export function MobileNav() {
   const [open, setOpen] = useState(false);
   const pathname = usePathname();
-  const { db } = useStore();
+  const { db, mode } = useStore();
   return (
     <Dialog.Root open={open} onOpenChange={setOpen}>
       <Dialog.Trigger asChild>
@@ -154,7 +184,7 @@ export function MobileNav() {
               <LogoMark className="size-5" /> Sellora
             </Dialog.Title>
             <div className="flex items-center gap-2">
-              {db && <DemoBadge demo={db.demo} />}
+              {db && <DemoBadge demo={db.demo} remote={mode === "supabase"} />}
               <Dialog.Close className={circleBtn} aria-label="Fechar menu">
                 <X className="size-5" aria-hidden />
               </Dialog.Close>

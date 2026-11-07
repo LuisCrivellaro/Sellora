@@ -16,7 +16,7 @@ Empresas locais de diferentes segmentos, com prioridade prática para um recorte
 5. Converter lead em projeto; entregar escopo contratado e documentar aprovação.
 
 ## Stack implementada
-Next.js 16.4 (App Router) · React 19.3 · TypeScript 5.9 · Tailwind CSS 4.3 · `radix-ui` (primitivos acessíveis, estilizados no padrão shadcn) · `motion` 14 · Lucide · Zod 4 · Vitest 5. Gráficos em SVG próprio (sem biblioteca). Supabase previsto para dados reais com RLS; **ainda não integrado** (ver "Modo demonstração"). Decisões em `docs/DECISIONS.md`.
+Next.js 16.4 (App Router) · React 19.3 · TypeScript 5.9 · Tailwind CSS 4.3 · `radix-ui` (primitivos acessíveis, estilizados no padrão shadcn) · `motion` 14 · Lucide · Zod 4 · Vitest 5. Gráficos em SVG próprio (sem biblioteca). Dados reais em **Supabase** (Auth + Postgres + RLS) via `@supabase/ssr` 0.12 e `@supabase/supabase-js` 2.119, ativados só quando as variáveis existem (ver "Modo Supabase"). Decisões em `docs/DECISIONS.md`.
 
 ## Módulos do dashboard (7 destinos)
 - **Home** (`/dashboard`): evolução comercial, fontes de leads, funil, heatmap de atividades, radar de performance normalizado, pipeline por etapa e próximas ações.
@@ -31,6 +31,15 @@ Busca global: **Ctrl/⌘ + K**. Detalhes têm deep link (`?id=`).
 
 ## Modo demonstração (importante)
 Sem Supabase configurado, os dados ficam **apenas no `localStorage` deste navegador** (chave `sellora.db.v1`): não há backup, sincronização nem login. Os registros iniciais são **fictícios** e o header mostra o selo **Demonstração**. Em Configurações › Sistema é possível exportar JSON, restaurar a demonstração ou **começar do zero** (o selo passa a "Dados locais"). Nenhum envio de mensagem, pagamento, publicação ou integração é simulado.
+
+## Modo Supabase (dados reais)
+Com `NEXT_PUBLIC_SUPABASE_URL` e `NEXT_PUBLIC_SUPABASE_ANON_KEY` em `.env.local`, o painel exige login em `/entrar` (e-mail e senha) e grava no Postgres com RLS. Cada operação atualiza a tela na hora e envia ao servidor só o que mudou, numa transação (função `apply_changes`), depois de validar com Zod. Um aviso "Salvando…" aparece durante a gravação. Se ela falhar, uma faixa oferece **Tentar novamente** ou **Descartar**: nada se perde em silêncio. Dados de demonstração nunca vão ao banco. Em Configurações › Sistema há **Importar dados locais (JSON)**, que aceita só exports com dados reais e pede confirmação.
+
+Configuração (uma vez):
+1. Crie o projeto no Supabase e copie a URL e a chave anon/publishable para `.env.local` (modelo em `.env.example`). **Nunca** use a `service_role` no app.
+2. Rode a migration `supabase/migrations/20261107120000_initial_schema.sql` no SQL Editor do painel. Alternativa: `npx supabase link` + `npx supabase db push`.
+3. Em Authentication › Providers › Email, desligue **Allow new users to sign up**. Crie os usuários em Authentication › Users.
+4. Opcional: o teste de RLS com dois usuários de teste é `node --env-file=.env.local scripts/rls-check.mjs` (variáveis no cabeçalho do script).
 
 ## Qualidade e segurança
 Aplicação autenticada; dados reais somente no backend; RLS; validação de formulários; sem chaves no Git; sem scraping agressivo; sem envios em massa; sem publicações ou cobranças automáticas. E2E nos fluxos essenciais, lint, typecheck e build antes da entrega.
@@ -52,14 +61,14 @@ Aplicação autenticada; dados reais somente no backend; RLS; validação de for
 O procedimento para incorporar novas instruções (antes previsto em `prompts/INTEGRATE_NEW_PROMPTS.md`) está em `docs/WORKFLOW.md` §3. O prompt de início do dashboard (`prompts/START_DASHBOARD.md`) ainda não existe; será gerado com a skill `prompt-architect` quando a implementação for autorizada.
 
 ## Rodar localmente
-Requisitos verificados: Node 24.15 e npm 11.12 (Windows). Nenhuma variável de ambiente é necessária no modo demonstração.
+Requisitos verificados: Node 24.15 e npm 11.12 (Windows). Nenhuma variável de ambiente é necessária no modo demonstração. As variáveis do Supabase são lidas no build e no `dev`: reinicie o servidor depois de alterá-las.
 
 ```bash
 npm install
 npm run dev        # http://localhost:3000
 npm run lint
 npm run typecheck
-npm run test       # Vitest: métricas, schemas, semente e repositório
+npm run test       # Vitest: métricas, schemas, repositório, diff/mapeadores, validação do servidor, fila do modo Supabase
 npm run build
 ```
 
@@ -71,7 +80,12 @@ src/components/ui/       card, botão, campos, select, modal/sheet, popover, men
 src/components/charts/   linha neon, barras, empilhadas, segmentada, heatmap, donut, radar (SVG)
 src/components/<módulo>/ formulários e detalhes de leads, clientes, projetos, propostas, financeiro
 src/components/views/    composição de cada página
-src/lib/data/            semente demo, armazenamento local e repositório (troca futura por Supabase)
+src/lib/data/            semente demo, store (local | Supabase), repositório, diff, mapeadores, validação e server actions
+src/lib/supabase/        configuração e cliente de servidor
+src/lib/auth/            login/logout (server actions)
+src/proxy.ts             proteção de rotas e renovação de sessão
+supabase/migrations/     esquema, FKs, índices, RLS e função apply_changes
+scripts/rls-check.mjs    teste de RLS contra o projeto real (dois usuários)
 src/lib/metrics/         regras de cálculo (testadas)
 src/lib/schemas.ts       validação Zod
 ```
