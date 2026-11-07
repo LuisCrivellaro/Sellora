@@ -35,10 +35,15 @@ Aplicação autenticada; dados reais somente no backend; RLS; validação de for
 - `docs/PRODUCT_CONTEXT.md`: visão, usuários, escopo e prioridades.
 - `docs/DASHBOARD_SPEC.md`: especificação funcional e visual do dashboard.
 - `docs/ROADMAP.md`: milestones e critérios de aceite.
-- `docs/DESIGN_SYSTEM.md`: direção visual.
+- `docs/DESIGN_SYSTEM.md`: direção visual do dashboard.
+- `docs/FRONTEND_PLAYBOOK.md`: princípios de UI/UX, formulários, estados, motion, scroll, acessibilidade e performance.
+- `docs/CLIENT_WEBSITES.md`: produção de sites de clientes (direção criativa, storytelling, segmentos, pré-publicação, referências).
+- `docs/WORKFLOW.md`: integração de novas instruções, padrão de prompts, quality gate e formato de relatório.
+- `docs/SKILLS_SETUP.md`: skills locais e externas, com status verificado.
+- `docs/DECISIONS.md`: registro de decisões.
 - `.claude/skills/*/SKILL.md`: habilidades reutilizáveis do projeto.
-- `prompts/START_DASHBOARD.md`: prompt para iniciar a implementação.
-- `prompts/INTEGRATE_NEW_PROMPTS.md`: procedimento para incorporar novas instruções anexadas.
+
+O procedimento para incorporar novas instruções (antes previsto em `prompts/INTEGRATE_NEW_PROMPTS.md`) está em `docs/WORKFLOW.md` §3. O prompt de início do dashboard (`prompts/START_DASHBOARD.md`) ainda não existe; será gerado com a skill `prompt-architect` quando a implementação for autorizada.
 
 ## Rodar localmente (depois da implementação)
 O Claude Code deve documentar aqui os comandos efetivamente utilizados (`npm install`, `npm run dev`, testes) e as variáveis de ambiente necessárias. Este pacote contém **contexto e skills**, não a aplicação implementada.
