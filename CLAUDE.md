@@ -24,6 +24,7 @@ Fases: (1) validação comercial — sites feitos com Claude Code sob supervisã
 | Integrar instruções, escrever prompts, quality gate, relatório | `docs/WORKFLOW.md` |
 | Skills locais e externas (status verificado) | `docs/SKILLS_SETUP.md` |
 | Decisões registradas | `docs/DECISIONS.md` |
+| Retomar o trabalho (estado atual e próximo passo) | `docs/HANDOFF.md` |
 
 ## Filosofia (inegociável)
 Originalidade sobre clonagem · propósito sobre efeitos · clareza sobre excesso · mobile e acessibilidade desde a origem · performance como parte do design · dados e integrações honestos · preservar o aprovado · testar e relatar com evidência · direção de arte adequada a cada marca · prompts reproduzíveis por qualquer agente.

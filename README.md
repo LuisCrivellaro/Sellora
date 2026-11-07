@@ -46,6 +46,7 @@ Aplicação autenticada; dados reais somente no backend; RLS; validação de for
 - `docs/WORKFLOW.md`: integração de novas instruções, padrão de prompts, quality gate e formato de relatório.
 - `docs/SKILLS_SETUP.md`: skills locais e externas, com status verificado.
 - `docs/DECISIONS.md`: registro de decisões.
+- `docs/HANDOFF.md`: estado atual, pendências e missão do próximo passo (para retomar o trabalho em outra sessão ou conta).
 - `.claude/skills/*/SKILL.md`: habilidades reutilizáveis do projeto.
 
 O procedimento para incorporar novas instruções (antes previsto em `prompts/INTEGRATE_NEW_PROMPTS.md`) está em `docs/WORKFLOW.md` §3. O prompt de início do dashboard (`prompts/START_DASHBOARD.md`) ainda não existe; será gerado com a skill `prompt-architect` quando a implementação for autorizada.
