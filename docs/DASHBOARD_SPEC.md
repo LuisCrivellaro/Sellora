@@ -1,16 +1,21 @@
 # Dashboard principal — especificação MVP
 
-## Navegação
-- `/dashboard`: indicadores e próximos passos
-- `/leads`: tabela e cadastro
-- `/pipeline`: etapas de venda
-- `/atividades`: tarefas e histórico
-- `/propostas`: propostas comerciais
+## Navegação (implementada em 2026-11-07 — 7 destinos, ver `docs/DECISIONS.md`)
+- `/dashboard` (Home): indicadores e próximas ações
+- `/leads`: CRM em tabela + **Kanban** (`?visao=kanban`); atividades e follow-ups no detalhe do lead
 - `/clientes`: clientes convertidos
 - `/projetos`: entrega dos websites
-- `/portfolio`: demonstrações e cases
-- `/configuracoes`: preços e preferências
-Ajustar rotas para estrutura existente sem gerar páginas vazias e sem CTA funcional.
+- `/propostas`: propostas comerciais
+- `/financeiro`: contratos, faturamento, recebimentos e custos
+- `/configuracoes`: perfil, aparência, pacotes, integrações e sistema
+Antes previstos e incorporados/adiados: `/pipeline` → Kanban em Leads; `/atividades` → detalhe do lead/cliente e Home; `/portfolio` → adiado.
+
+## Regras de cálculo (código em `src/lib/metrics`, cobertas por testes)
+- **Temperatura do lead**: novo/qualificado = frio; contatado/respondeu = morno; diagnóstico/proposta/negociação = quente; ganho = convertido; perdido fora.
+- **Score de oportunidade** (0–100): situação do site (até 40) + prioridade (até 30) + temperatura (até 30), sempre com os motivos exibidos.
+- **Progresso do projeto**: tarefas concluídas ÷ tarefas totais; status derivado da etapa.
+- **Lançamento**: pago, parcial, a receber, vencido (saldo aberto com vencimento passado) ou cancelado.
+- **Radar comercial**: seis razões 0–100 dos últimos 30 dias, com fórmula no tooltip; meta mensal de leads configurável.
 
 ## Entidades mínimas
 `leads` (nome, segmento, cidade, uf, site, instagram, email comercial, telefone comercial, origem, status, prioridade, valor potencial, responsável, ultimo_contato, proximo_contato, created_at, updated_at)

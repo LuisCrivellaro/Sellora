@@ -1,0 +1,340 @@
+@import "tailwindcss";
+
+/*
+ * Sellora — "vitrine acesa à noite".
+ * Fachadas escuras sobre a rua (night), letreiros em neon com significado fixo.
+ * Ver docs/DESIGN_SYSTEM.md.
+ */
+:root {
+  color-scheme: dark;
+
+  /* Superfícies: mesma matiz violeta, passos curtos de luminosidade */
+  --night: #07060b;
+  --facade: #110e18;
+  --facade-top: #16121f;
+  --facade-raised: #1b1726;
+  --facade-hover: #211c2e;
+  --facade-inset: #0b0910;
+
+  /* Texto */
+  --ink: #f4f2f8;
+  --ink-soft: #b1aac3;
+  --ink-faint: #8a83a0;
+  --ink-ghost: #3b3548;
+
+  /* Bordas */
+  --seam: rgba(236, 228, 255, 0.075);
+  --seam-strong: rgba(236, 228, 255, 0.14);
+  --seam-lit: rgba(246, 240, 255, 0.62);
+  --focus: #c9a6ff;
+
+  /* Neon com significado */
+  --neon-violet: #8f4bff;
+  --neon-lilac: #b48cff;
+  --neon-magenta: #f230d6;
+  --neon-mint: #1de9b6;
+  --neon-indigo: #6f6cff;
+  --signal-warn: #f6b54a;
+  --signal-danger: #ff4f70;
+
+  --radius-card: 18px;
+  --radius-tile: 10px;
+
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-in: cubic-bezier(0.55, 0, 1, 0.45);
+}
+
+@theme inline {
+  --color-night: var(--night);
+  --color-facade: var(--facade);
+  --color-facade-raised: var(--facade-raised);
+  --color-facade-hover: var(--facade-hover);
+  --color-facade-inset: var(--facade-inset);
+  --color-ink: var(--ink);
+  --color-ink-soft: var(--ink-soft);
+  --color-ink-faint: var(--ink-faint);
+  --color-ink-ghost: var(--ink-ghost);
+  --color-seam: var(--seam);
+  --color-seam-strong: var(--seam-strong);
+  --color-seam-lit: var(--seam-lit);
+  --color-focus: var(--focus);
+  --color-violet: var(--neon-violet);
+  --color-lilac: var(--neon-lilac);
+  --color-magenta: var(--neon-magenta);
+  --color-mint: var(--neon-mint);
+  --color-indigo: var(--neon-indigo);
+  --color-warn: var(--signal-warn);
+  --color-danger: var(--signal-danger);
+
+  --font-sans: var(--font-manrope), ui-sans-serif, system-ui, sans-serif;
+
+  --radius-card: var(--radius-card);
+  --radius-tile: var(--radius-tile);
+
+  --breakpoint-3xl: 1800px;
+}
+
+@layer base {
+  html {
+    background: var(--night);
+    -webkit-text-size-adjust: 100%;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  body {
+    min-height: 100dvh;
+    color: var(--ink);
+    font-family: var(--font-sans);
+    font-size: 14px;
+    line-height: 1.5;
+    background:
+      radial-gradient(1100px 520px at 18% -8%, rgba(143, 75, 255, 0.13), transparent 70%),
+      radial-gradient(900px 480px at 92% 0%, rgba(242, 48, 214, 0.07), transparent 70%),
+      var(--night);
+    background-attachment: fixed;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    font-feature-settings: "ss01" on;
+  }
+
+  ::selection {
+    background: rgba(143, 75, 255, 0.45);
+    color: #fff;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--focus);
+    outline-offset: 2px;
+    border-radius: 6px;
+  }
+
+  button,
+  [role="button"],
+  a,
+  summary,
+  label[for] {
+    cursor: pointer;
+    touch-action: manipulation;
+  }
+
+  button:disabled {
+    cursor: not-allowed;
+  }
+
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--ink-ghost) transparent;
+  }
+}
+
+@layer components {
+  /* Fachada: card padrão */
+  .facade {
+    position: relative;
+    border-radius: var(--radius-card);
+    border: 1px solid var(--seam);
+    background: linear-gradient(180deg, var(--facade-top) 0%, var(--facade) 42%);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.045),
+      0 10px 30px -18px rgba(0, 0, 0, 0.8);
+  }
+
+  /* Fachada iluminada: card de gráfico principal com brilho interno violeta/magenta */
+  .facade-lit {
+    background:
+      radial-gradient(120% 90% at 35% 100%, rgba(143, 75, 255, 0.34), transparent 62%),
+      radial-gradient(70% 70% at 78% 85%, rgba(242, 48, 214, 0.2), transparent 70%),
+      linear-gradient(180deg, #1a1226 0%, #120d1b 55%);
+    border-color: rgba(190, 140, 255, 0.16);
+  }
+
+  /* Grupo em pill (navegação, segmented, ações) */
+  .pill-group {
+    border-radius: 999px;
+    border: 1px solid var(--seam);
+    background: linear-gradient(180deg, rgba(30, 25, 42, 0.9), rgba(17, 14, 24, 0.9));
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  }
+
+  /* Estado ativo: contorno claro + brilho interno */
+  .pill-active {
+    border-radius: 999px;
+    border: 1px solid var(--seam-lit);
+    background: linear-gradient(180deg, rgba(64, 56, 82, 0.75), rgba(32, 27, 44, 0.85));
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.14),
+      inset 0 0 14px rgba(196, 160, 255, 0.12),
+      0 0 18px -6px rgba(180, 140, 255, 0.45);
+  }
+
+  .tile {
+    border-radius: var(--radius-tile);
+    border: 1px solid var(--seam-strong);
+    background: linear-gradient(180deg, #1d1829, #120f1a);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  }
+
+  .inset-field {
+    border-radius: 12px;
+    border: 1px solid var(--seam-strong);
+    background: var(--facade-inset);
+    transition:
+      border-color 140ms var(--ease-out),
+      box-shadow 140ms var(--ease-out);
+  }
+
+  .inset-field:hover {
+    border-color: rgba(236, 228, 255, 0.22);
+  }
+
+  .inset-field:focus-within,
+  .inset-field:focus-visible {
+    outline: none;
+    border-color: var(--focus);
+    box-shadow: 0 0 0 3px rgba(201, 166, 255, 0.18);
+  }
+
+  .inset-field[aria-invalid="true"] {
+    border-color: var(--signal-danger);
+  }
+
+  .tnum {
+    font-variant-numeric: tabular-nums;
+  }
+
+  .hatch {
+    background-image: repeating-linear-gradient(
+      135deg,
+      rgba(255, 255, 255, 0.07) 0 1px,
+      transparent 1px 6px
+    );
+  }
+
+  .dots {
+    background-image: radial-gradient(rgba(255, 255, 255, 0.11) 1px, transparent 1.2px);
+    background-size: 6px 6px;
+  }
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes fade-out {
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes pop-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px) scale(0.97);
+  }
+}
+
+@keyframes dialog-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, calc(-50% + 10px)) scale(0.98);
+  }
+}
+
+@media (max-width: 639px) {
+  @keyframes dialog-in {
+    from {
+      opacity: 0;
+      transform: translateY(16px);
+    }
+  }
+}
+
+@keyframes sheet-in {
+  from {
+    opacity: 0;
+    transform: translateX(28px);
+  }
+}
+
+@keyframes sheet-out {
+  to {
+    opacity: 0;
+    transform: translateX(20px);
+  }
+}
+
+@keyframes segment-on {
+  from {
+    opacity: 0.12;
+  }
+}
+
+/* Movimento reduzido: sistema ou preferência do usuário (html[data-motion="reduced"]) */
+@media (prefers-reduced-motion: reduce) {
+  html:not([data-motion="full"]) *,
+  html:not([data-motion="full"]) *::before,
+  html:not([data-motion="full"]) *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+html[data-motion="reduced"] *,
+html[data-motion="reduced"] *::before,
+html[data-motion="reduced"] *::after {
+  animation-duration: 0.001ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.001ms !important;
+  scroll-behavior: auto !important;
+}
+
+/* Impressão: quando há uma proposta aberta, imprime só o documento. */
+@media print {
+  html,
+  body {
+    background: #fff !important;
+  }
+
+  body:has(.print-area) * {
+    visibility: hidden !important;
+  }
+
+  body:has(.print-area) .print-area,
+  body:has(.print-area) .print-area * {
+    visibility: visible !important;
+  }
+
+  body:has(.print-area) .print-area {
+    position: fixed;
+    inset: 0;
+    margin: 0;
+    border-radius: 0;
+    box-shadow: none;
+    background: #fff !important;
+  }
+
+  .no-print {
+    display: none !important;
+  }
+}
+
+/* Densidade compacta (Configurações › Aparência) */
+html[data-density="compacta"] td {
+  padding-top: 0.5rem;
+  padding-bottom: 0.5rem;
+}
+
+html[data-density="compacta"] main .gap-3\.5 {
+  gap: 0.625rem;
+}
+
+/* Foco interno para controles dentro de contêineres com rolagem (o anel não é cortado). */
+.focus-inset:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: -2px;
+  border-radius: 999px;
+}

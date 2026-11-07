@@ -1,32 +1,49 @@
-# Direção de design — Sellora Dashboard
+# Design system — Sellora Dashboard
 
-**Conceito:** cockpit comercial elegante: claro, consistente, decisivo. Mistura de rigor de ferramenta operacional com acabamento premium. Inspirar-se em produtos SaaS sólidos sem copiar marcas ou layouts.
+**Direção aprovada (2026-11-06):** painel escuro premium, fiel à linguagem de quatro imagens de referência fornecidas pelo usuário (dashboard de cibersegurança dark com neon violeta/magenta). Substitui a direção inicial neutra/teal com sidebar (ver `docs/DECISIONS.md`). A Sellora usa a **linguagem** das referências com identidade, dados e marca próprios; nenhum logo, nome ou ativo das referências é reproduzido.
 
-## Direção inicial (ajustável via revisão)
-- Base: superfícies neutras, contraste cuidadoso, acento azul-petróleo / teal só em ações/estados úteis; evitar degradês roxos genéricos.
-- Sidebar esquerda compacta, topbar com contexto, busca, ação primária.
-- Tipografia: escolher fonte contemporânea legível (não exagerar pesos), números tabulares em métricas e valores.
-- Layout: grid consistente, densidade equilibrada, tabelas com informações realmente operacionais.
-- Ícones Lucide, poucos emojis ou ilustrações decorativas.
-- Escalas de espaçamento e raio via tokens CSS; garantir contraste WCAG AA quando possível.
-- Mobile: menu colapsável, tabela adaptada, Kanban em lista ou scroll horizontal acessível.
+## Conceito: vitrine acesa à noite
+A Sellora leva estabelecimentos para a vitrine digital. O painel é a rua à noite: fundo quase preto, fachadas escuras (cards) e letreiros em neon que acendem conforme o negócio avança. A cor tem significado fixo:
 
-## Tokens (nomes fixos; valores a definir na Entrega 0)
-Cor semântica: `background`, `surface`, `surface-raised`, `text`, `text-muted`, `border`, `primary`, `accent`, `danger`, `success`, `warning`, `focus`. Também escalas de espaço, raio, sombra, tipografia (display, H1–H4, body, caption, números tabulares) e breakpoints. Valores literais não entram em componentes. Detalhes e critérios: `docs/FRONTEND_PLAYBOOK.md` §2.
+| Neon | Token | Significa |
+|---|---|---|
+| Magenta | `--neon-magenta` | Demanda, novo, atenção (leads novos, pendências) |
+| Violeta | `--neon-violet` | Em andamento (contato, produção, negociação) — cor primária de ação |
+| Lilás | `--neon-lilac` | Série secundária em gráficos |
+| Menta | `--neon-mint` | Concluído, online, recebido (site publicado, pagamento recebido, venda ganha) |
+| Índigo | `--neon-indigo` | Categoria neutra adicional |
+| Âmbar / vermelho | `--signal-warn` / `--signal-danger` | Prazo próximo / vencido, destrutivo |
 
-## Motion no dashboard
-Somente funcional: feedback de hover/press ~100–150 ms; drawer, modal, dropdown e reordenação do Kanban ~180–250 ms com ease-out; toasts discretos. Sem scroll animations, parallax ou animação decorativa em KPIs. CSS/Tailwind transitions por padrão; biblioteca de motion apenas com justificativa em `docs/DECISIONS.md`. Respeitar `prefers-reduced-motion`. Detalhes: `docs/FRONTEND_PLAYBOOK.md` §7.
+**Assinatura:** barra segmentada "acendendo" (segmentos que acendem até o valor, marcador branco na fronteira). Aparece em origem de leads, pipeline, progresso de projetos, sites contratados, valores de propostas e recebimentos.
+
+## Tokens (fonte: `src/app/globals.css`)
+- **Superfícies:** `--night` (fundo), `--facade` (card), `--facade-raised` (popover, cabeçalho de tabela), `--facade-inset` (inputs). Elevação = passos de luminosidade de poucos pontos, mesma matiz.
+- **Texto:** `--ink` (primário), `--ink-soft` (secundário), `--ink-faint` (terciário/eixos), `--ink-ghost` (segmentos apagados, desabilitado).
+- **Bordas:** `--seam` (padrão, rgba baixa), `--seam-strong` (ênfase), `--seam-lit` (item ativo, contorno claro), `--focus` (anel de foco).
+- **Raios:** card 18px · tile/ícone 10px · controles e navegação em pill (999px) · células de heatmap 5px.
+- **Espaço:** base 4px; gap entre cards 12–16px; padding de card 16–20px.
+- **Profundidade:** bordas finas + brilho interno discreto (inset highlight no topo) + glow radial apenas em cards de gráfico principal. Sem sombras pesadas.
+
+## Tipografia
+Manrope (variável, Google Fonts via `next/font`), uma família só. Geométrica e levemente arredondada como os pills; mais caráter que Inter e compacta o suficiente para densidade. Números sempre com `tabular-nums`. Escala: 12 (eixos/metadados) · 13 (tabelas, labels) · 14 (corpo) · 15–16 (títulos de card) · 20–28 (números de destaque). Sem caixa-alta espaçada.
+
+## Layout
+- Header superior: logo · navegação em pill com 7 destinos (ícone + nome) · busca global · notificações/configurações · perfil. Sem sidebar no desktop.
+- Grid de cards de 12 colunas, alto aproveitamento da área útil, `max-width` 1600px.
+- < 1280px: navegação com overflow horizontal acessível; < 768px: menu compacto (sheet) com os 7 destinos; cards empilhados; tabelas viram lista de cartões.
+
+## Motion (`src/lib/motion.ts`)
+- Entrada: header fade; cards sobem 12px com fade em 320ms, stagger 50ms.
+- Gráficos: linhas desenhadas (stroke-dashoffset) 900ms; barras crescem 700ms; donut revela 800ms; contadores até 900ms.
+- Navegação: indicador ativo desliza (shared layout); conteúdo troca em 200ms sem flash.
+- Interação: hover/press 120–160ms; popover/modal 180–220ms; saída mais curta que entrada.
+- `prefers-reduced-motion` **e** preferência em Configurações (Completo / Reduzido / Sistema): no modo reduzido não há deslocamento, desenho ou contagem; estados e conteúdo aparecem prontos.
+- Só `transform`/`opacity`/`stroke-dashoffset`; sem scroll-jacking, parallax ou loops infinitos.
 
 ## Dados e visualização
-KPIs com unidade, período e definição do denominador; valores nulos tratados explicitamente; dados demo com selo **Demonstração** visível. Gráfico só quando responde a uma pergunta operacional; preferir lista de próximas ações a gráfico cosmético.
-
-## Páginas
-1. **Overview**: quatro a seis KPIs úteis, funil resumido, atividades vencidas, lista 'Próximas ações'. Evite gráficos sem dados.
-2. **Leads**: tela central com toolbar, busca instantânea, filtros, colunas de empresa/status/fonte/valor/próximo contato; drawer de detalhes; CRUD.
-3. **Pipeline**: colunas por estágio com contagem, cartões compactos, estado de interação claro, movimento persistido com fallback para menu acessível.
-4. **Propostas**: editor simples com itens/valores/termos e preview imprimível.
-5. **Projetos**: tabela por cliente, fase, prazo, valor e preview.
-6. **Configurações**: pacotes e dados básicos de operação.
+- Todo número é derivado do repositório de dados; dados iniciais são **fictícios** com selo **Demonstração** permanente no header.
+- KPIs com período e definição; gráficos com legenda, tooltip por ponteiro **e teclado**, `aria-label` com resumo e estado vazio.
+- Radar usa métricas normalizadas 0–100 com fórmula explicada no tooltip.
 
 ## Qualidade de UI
-Cada botão deve ter ação real e rótulo pelo resultado ("Salvar lead", "Criar proposta"); form com labels persistentes e validação inline + servidor; skeletons onde a estrutura é previsível; empty states com CTA; confirmação proporcional ao risco em ações destrutivas; feedback de sucesso/erro; foco visível e Kanban operável por teclado (menu "Mover para…"). Testar 360px, 768px e 1440px. Sem mock charts com números apresentados como reais. Revisão: skill `design-review`; gate P0/P1/P2 em `docs/WORKFLOW.md` §6.
+Rótulo pelo resultado; labels persistentes; validação inline (Zod); confirmação em ações destrutivas; toasts com `aria-live`; foco visível em todo controle; Kanban operável por menu "Mover para…"; testes em 360 / 768 / 1366 / 1440 / 1920. Revisão: `design-review`; gate P0/P1/P2 em `docs/WORKFLOW.md` §6.

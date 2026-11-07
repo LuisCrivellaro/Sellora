@@ -10,3 +10,7 @@ test-results/
 !.env.example
 .DS_Store
 *.log
+
+# Next.js / TypeScript
+next-env.d.ts
+*.tsbuildinfo
