@@ -2,7 +2,7 @@
 
 ## Navegação (implementada em 2026-11-07 — 7 destinos, ver `docs/DECISIONS.md`)
 - `/dashboard` (Home): indicadores e próximas ações
-- `/leads`: CRM em tabela + **Kanban** (`?visao=kanban`); atividades e follow-ups no detalhe do lead
+- `/leads`: CRM em tabela + **Kanban** (`?visao=kanban`); atividades e follow-ups no detalhe do lead; aba **Prospecção IA** (`?aba=prospeccao`): pesquisa por cidade/segmento com executor OpenStreetMap, classificação HOT/WARM/LOW/SKIP, exportação e importação ao CRM com origem `prospeccao_ia` (ver README)
 - `/clientes`: clientes convertidos
 - `/projetos`: entrega dos websites
 - `/propostas`: propostas comerciais

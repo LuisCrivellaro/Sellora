@@ -61,13 +61,14 @@ export const leadStageMeta: Record<LeadStage, Meta> = {
   perdido: { label: "Perdido", tone: "ghost" },
 };
 
-export const LEAD_SOURCES: LeadSource[] = ["google_maps", "instagram", "indicacao", "manual", "outros"];
+export const LEAD_SOURCES: LeadSource[] = ["google_maps", "instagram", "indicacao", "manual", "prospeccao_ia", "outros"];
 
 export const leadSourceMeta: Record<LeadSource, Meta> = {
   google_maps: { label: "Google Maps", tone: "magenta" },
   instagram: { label: "Instagram", tone: "violet" },
   indicacao: { label: "Indicação", tone: "mint" },
   manual: { label: "Pesquisa manual", tone: "indigo" },
+  prospeccao_ia: { label: "Prospecção IA", tone: "ghost" },
   outros: { label: "Outros", tone: "lilac" },
 };
 

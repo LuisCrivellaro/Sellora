@@ -2,7 +2,7 @@
 
 export type ID = string;
 
-export type LeadSource = "google_maps" | "instagram" | "indicacao" | "manual" | "outros";
+export type LeadSource = "google_maps" | "instagram" | "indicacao" | "manual" | "outros" | "prospeccao_ia";
 
 export type LeadStage =
   | "novo"

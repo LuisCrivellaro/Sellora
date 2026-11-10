@@ -1,6 +1,7 @@
 "use client";
 
-import { Eye, Kanban, MoreHorizontal, Pencil, Plus, Rows3, Trash2, X } from "lucide-react";
+import { Eye, Kanban, MoreHorizontal, Pencil, Plus, Radar, Rows3, Trash2, X } from "lucide-react";
+import { ProspectingTab } from "@/components/prospecting/prospecting-tab";
 import { useMemo, useState } from "react";
 import { CapsuleBarChart } from "@/components/charts/bar-charts";
 import { DonutChart } from "@/components/charts/donut";
@@ -45,6 +46,7 @@ export function LeadsView() {
   const [toDelete, setToDelete] = useState<Lead | null>(null);
 
   const view = params.get("visao") === "kanban" ? "kanban" : "tabela";
+  const tab = params.get("aba") === "prospeccao" ? "prospeccao" : "crm";
   const special = params.get("filtro");
   const detailId = params.get("id");
 
@@ -148,13 +150,27 @@ export function LeadsView() {
     <>
       <PageHeader
         title="Leads"
-        description="CRM de estabelecimentos: pesquise, qualifique e mova no funil."
+        description={tab === "prospeccao" ? "Prospecção IA: encontre estabelecimentos sem presença digital adequada e leve ao CRM." : "CRM de estabelecimentos: pesquise, qualifique e mova no funil."}
         actions={
           <Button variant="primary" onClick={() => { setEditing(null); setFormOpen(true); }}>
             <Plus aria-hidden /> Novo lead
           </Button>
         }
       />
+      <Segmented
+        label="Seção de leads"
+        size="md"
+        className="mb-4"
+        value={tab}
+        onChange={(v) => setParams({ aba: v === "prospeccao" ? "prospeccao" : null })}
+        options={[
+          { value: "crm", label: <><Rows3 className="size-4" aria-hidden /> CRM</> },
+          { value: "prospeccao", label: <><Radar className="size-4" aria-hidden /> Prospecção IA</> },
+        ]}
+      />
+      {tab === "prospeccao" ? (
+        <ProspectingTab onOpenLead={(id) => setParams({ aba: null, id })} />
+      ) : (
       <div className="grid grid-cols-12 gap-3.5">
         <DashboardCard index={0} className="col-span-12 md:col-span-6 xl:col-span-4" title="Captação de leads" description="Novos leads por semana · 8 semanas">
           <div className="mb-2 flex gap-5">
@@ -336,6 +352,7 @@ export function LeadsView() {
           )}
         </DashboardCard>
       </div>
+      )}
 
       <LeadForm
         open={formOpen}

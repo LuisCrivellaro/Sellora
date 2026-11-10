@@ -36,6 +36,8 @@ import type {
   Transaction,
 } from "../types";
 import { uid } from "../utils";
+import { findCrmDuplicate, prospectToLeadInput, type CrmMatch } from "../prospecting/to-lead";
+import type { ProspectResult } from "../prospecting/types";
 import { createEmptyDatabase, createSeed } from "./seed";
 import { commit, getDb, getMode } from "./store";
 
@@ -145,6 +147,49 @@ export function toggleActivity(id: ID) {
     ...db,
     activities: db.activities.map((a) => (a.id === id ? { ...a, completedAt: a.completedAt ? null : nowIso() } : a)),
   }));
+}
+
+/* ───────────────────────────── Prospecção IA → CRM ───────────────────────────── */
+
+export interface ProspectImportReport {
+  created: { resultId: string; lead: Lead }[];
+  duplicates: { resultId: string; match: CrmMatch }[];
+  invalid: { resultId: string; message: string }[];
+}
+
+/**
+ * Importa resultados da Prospecção IA como leads novos, numa única gravação.
+ * Duplicidade conferida contra o CRM no momento da gravação (e dentro do lote):
+ * um lead já cadastrado nunca é sobrescrito. Mesmos schemas do cadastro manual.
+ */
+export function importProspects(results: ProspectResult[]): ProspectImportReport {
+  const report: ProspectImportReport = { created: [], duplicates: [], invalid: [] };
+  commit((db) => {
+    const leads: Lead[] = [];
+    const activities: Activity[] = [];
+    for (const r of results) {
+      const match = findCrmDuplicate(r, [...leads, ...db.leads]);
+      if (match) {
+        report.duplicates.push({ resultId: r.id, match });
+        continue;
+      }
+      const { input, activity } = prospectToLeadInput(r, db.settings.packages);
+      const parsed = leadInputSchema.safeParse(input);
+      if (!parsed.success) {
+        report.invalid.push({ resultId: r.id, message: parsed.error.issues[0]?.message ?? "Dados inválidos." });
+        continue;
+      }
+      const t = nowIso();
+      const lead: Lead = { ...parsed.data, website: parsed.data.website || null, lastContactAt: null, clientId: null, lostReason: "", id: uid("lead"), createdAt: t, updatedAt: t };
+      const note = activityInputSchema.parse({ type: "nota", description: activity, dueAt: null, completed: true });
+      activities.push({ id: uid("act"), leadId: lead.id, clientId: null, projectId: null, type: note.type, description: note.description, dueAt: null, completedAt: t, createdAt: t });
+      leads.push(lead);
+      report.created.push({ resultId: r.id, lead });
+    }
+    if (!leads.length) return db;
+    return { ...db, leads: [...leads, ...db.leads], activities: [...activities, ...db.activities] };
+  });
+  return report;
 }
 
 /**

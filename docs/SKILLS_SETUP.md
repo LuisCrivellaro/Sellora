@@ -11,12 +11,15 @@ Inventário verificado em 2026-11-06. **Reverificado em 2026-11-07 (outra sessã
 | `quality-assurance` | Rodar verificações e relatar PASS/FAIL/SKIP | WORKFLOW §5–7, CLIENT_WEBSITES §6 |
 | `prompt-architect` | Escrever ou consolidar prompts para agentes | WORKFLOW §2–4 |
 | `lead-research` | Montar e qualificar lista de leads | PRODUCT_CONTEXT, ROADMAP |
+| `local-client-prospector` | Prospectar estabelecimentos locais e classificar HOT/WARM/LOW/SKIP (chat ou revisão da aba Prospecção IA) | SKILL.md, ORIGEM.md, `src/lib/prospecting/classify.ts` |
 | `website-audit` | Diagnosticar o site/presença de um lead | FRONTEND_PLAYBOOK §3, §9–10; CLIENT_WEBSITES §5 |
 | `sales-strategy` | Abordagem consultiva e follow-up (rascunhos) | PRODUCT_CONTEXT, ROADMAP |
 | `proposal-writer` | Rascunho de proposta comercial | PRODUCT_CONTEXT, CLIENT_WEBSITES §4 |
 | `website-builder` | Construir site de cliente com briefing aprovado | CLIENT_WEBSITES, FRONTEND_PLAYBOOK |
 
 As 8 skills originais foram reescritas preservando nome e propósito, com gatilho mais claro no `description`, leituras obrigatórias, processo, proibições e formato de saída. `prompt-architect` é nova.
+
+**2026-11-09 — `local-client-prospector` instalada no repositório** (primeira skill externa versionada). Fonte: `Kappaemme-git/local-client-prospector-skill`, commit `2340d02`, MIT. Auditoria completa em `.claude/skills/local-client-prospector/ORIGEM.md`: só instruções e um CSV; o instalador `npx` (que grava em `~/.codex`) e o `agents/openai.yaml` do Codex **não** foram usados. Adaptada para Claude Code (ferramentas verificadas na sessão, pt-BR, LGPD, níveis de evidência, mesmos critérios do executor do app). Verificado: a skill passou a aparecer na listagem de skills da sessão do Claude desktop logo após a cópia.
 
 ## Skills externas
 

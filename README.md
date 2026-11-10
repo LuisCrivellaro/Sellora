@@ -20,7 +20,7 @@ Next.js 16.4 (App Router) · React 19.3 · TypeScript 5.9 · Tailwind CSS 4.3 ·
 
 ## Módulos do dashboard (7 destinos)
 - **Home** (`/dashboard`): quatro KPIs por período (leads, contatos, propostas e vendas), evolução comercial e fontes de leads em composição 65/35; tabela de atividades recentes com busca, filtros, ordenação, paginação e acesso ao CRM. Radar de performance, pipeline e próximas ações ficam em análises complementares. Períodos 7D/30D/90D/1A atualizam os KPIs, gráfico, fontes e movimentações; comparações usam o intervalo anterior equivalente, sem percentual quando a base é zero. Vendas usam o histórico de ganho ou a aprovação de uma proposta vinculada, uma vez por lead; ganhos sem data ficam fora da contagem por período, explicados no tooltip.
-- **Leads** (`/leads`): captação, origem, temperatura; CRM com busca, filtros, ordenação, seleção em lote, paginação, cadastro/edição, detalhe com score explicado, atividades e follow-ups; visão **Kanban** com arrastar e soltar e menu acessível "Mover para…"; conversão em cliente sem duplicar.
+- **Leads** (`/leads`): captação, origem, temperatura; CRM com busca, filtros, ordenação, seleção em lote, paginação, cadastro/edição, detalhe com score explicado, atividades e follow-ups; visão **Kanban** com arrastar e soltar e menu acessível "Mover para…"; conversão em cliente sem duplicar. Aba **Prospecção IA** (`/leads?aba=prospeccao`): ver seção abaixo.
 - **Clientes** (`/clientes`): evolução, segmentos, sites contratados, clientes que exigem atenção; cadastro, busca, histórico, projetos vinculados e dados comerciais.
 - **Projetos** (`/projetos`): etapas por mês de início, heatmap de produção, status; checklist de tarefas (progresso = tarefas concluídas ÷ total), etapas, preview e publicação registrados.
 - **Propostas** (`/propostas`): volume, valores por status, conversão; editor com pacotes, itens, desconto, prazo, revisões, validade; duplicar; status; documento imprimível/PDF pelo navegador.
@@ -41,9 +41,21 @@ Com `NEXT_PUBLIC_SUPABASE_URL` e `NEXT_PUBLIC_SUPABASE_ANON_KEY` em `.env.local`
 
 Configuração (uma vez):
 1. Crie o projeto no Supabase e copie a URL e a chave anon/publishable para `.env.local` (modelo em `.env.example`). **Nunca** use a `service_role` no app.
-2. Rode a migration `supabase/migrations/20261107120000_initial_schema.sql` no SQL Editor do painel. Alternativa: `npx supabase link` + `npx supabase db push`.
+2. Rode as migrations de `supabase/migrations/` em ordem no SQL Editor do painel (`20261107120000_initial_schema.sql` e depois `20261109120000_lead_source_prospeccao_ia.sql`). Alternativa: `npx supabase link` + `npx supabase db push`.
 3. Em Authentication › Providers › Email, desligue **Allow new users to sign up**. Crie os usuários em Authentication › Users.
 4. Opcional: o teste de RLS com dois usuários de teste é `node --env-file=.env.local scripts/rls-check.mjs` (variáveis no cabeçalho do script).
+
+## Prospecção IA (aba em Leads)
+Encontra estabelecimentos por cidade/UF, segmento, raio (5/10/20/50 km), quantidade (10/20/50/100) e tipo de oportunidade (sem site, site desatualizado, só redes sociais, todas). Implementa no servidor o fluxo da skill `local-client-prospector` (`.claude/skills/local-client-prospector/`): **pesquisa → verificação de presença digital → classificação** HOT/WARM/LOW/SKIP com score 0–100 justificado (critérios no `SKILL.md` e em `src/lib/prospecting/classify.ts`).
+
+- **Executor real, sem custo:** OpenStreetMap (Nominatim para a cidade, Overpass para os estabelecimentos) + conferência HTTP de cada site encontrado (HTTPS, meta viewport, ano do rodapé, link de telefone/WhatsApp, domínio gratuito, site fora do ar). Sem chave, sem API paga, sem IA generativa. Dados © colaboradores do OpenStreetMap (ODbL).
+- **Ativar:** `PROSPECCAO_EXECUTOR=osm` em `.env.local` e reiniciar o servidor. Sem isso a aba mostra "Integração não configurada" e nada é executado ou simulado.
+- **Usar:** Leads → aba **Prospecção IA** → preencher o formulário → **Buscar oportunidades**. O progresso aparece em "Execução" (fase, candidatos, analisados, avisos, **Cancelar**). Resultados na tabela (busca, filtros por temperatura/segmento/situação, ordenação, paginação, seleção múltipla, exportação CSV/JSON) e no painel lateral (diagnóstico, problemas, score, evidências verificado/declarado/não verificado, fontes, sugestão de pacote).
+- **Importar:** "Adicionar ao CRM" (no painel ou em lote). Confere duplicidade por nome+cidade, telefone, site e Instagram; o que já existe nunca é sobrescrito. O lead entra em **Novo**, origem **Prospecção IA**, prioridade pela classe, diagnóstico nas observações e uma nota na timeline. Funciona no modo demonstração e no modo Supabase (mesmo repositório e validação).
+- **Modo Supabase:** rode também `supabase/migrations/20261109120000_lead_source_prospeccao_ia.sql` (amplia a origem aceita). Sem ela a gravação do lead importado é recusada pelo banco e a faixa de erro oferece tentar de novo/descartar.
+- **Limites:** 1 pesquisa ativa por usuário, 2 no servidor, 10 por hora, 5 min por pesquisa, até 150 sites conferidos por pesquisa, Nominatim a 1 req/s. Rotas `/api/prospeccao/*` exigem login no modo Supabase e só atendem `localhost` no modo demonstração.
+- **Onde ficam os dados:** histórico de pesquisas e resultados no `localStorage` deste navegador (por conta); jobs no servidor só em memória por 1 h. Leads importados vão para o CRM (localStorage ou Postgres, conforme o modo).
+- **Limitações honestas:** a cobertura do OpenStreetMap varia (cidades menores trazem poucos resultados); "sem site" significa que a fonte não registra site — a ausência não é confirmada por busca na web (marcada como **não verificada**); Instagram não é aberto (exige login); layout, velocidade e conteúdo do site não são avaliados visualmente (use a skill `website-audit`). Nenhuma mensagem é enviada.
 
 ## Qualidade e segurança
 Aplicação autenticada; dados reais somente no backend; RLS; validação de formulários; sem chaves no Git; sem scraping agressivo; sem envios em massa; sem publicações ou cobranças automáticas. E2E nos fluxos essenciais, lint, typecheck e build antes da entrega.
@@ -72,7 +84,7 @@ npm install
 npm run dev        # http://localhost:3000
 npm run lint
 npm run typecheck
-npm run test       # Vitest: métricas, schemas, repositório, diff/mapeadores, validação do servidor, fila do modo Supabase
+npm run test       # Vitest: métricas, schemas, repositório, diff/mapeadores, validação do servidor, fila do modo Supabase, prospecção
 npm run build
 ```
 
@@ -90,6 +102,9 @@ src/lib/auth/            login/logout (server actions)
 src/proxy.ts             proteção de rotas e renovação de sessão
 supabase/migrations/     esquema, FKs, índices, RLS e função apply_changes
 scripts/rls-check.mjs    teste de RLS contra o projeto real (dois usuários)
+src/lib/prospecting/     Prospecção IA: catálogo, classificação/score, OpenStreetMap, conferência HTTP segura, jobs, ponte para o CRM
+src/app/api/prospeccao/  rotas status, jobs (POST) e jobs/[id] (GET/DELETE)
+src/components/prospecting/ aba Prospecção IA (formulário, execução, tabela, painel)
 src/lib/metrics/         regras de cálculo (testadas)
 src/lib/schemas.ts       validação Zod
 ```

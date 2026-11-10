@@ -1,4 +1,4 @@
-import { Camera, MapPin, Search, Shapes, UserRoundCheck } from "lucide-react";
+import { Camera, MapPin, Radar, Search, Shapes, UserRoundCheck } from "lucide-react";
 import type { LeadSource } from "@/lib/types";
 
 /** Ícones genéricos por origem (sem logotipos de terceiros). */
@@ -13,6 +13,8 @@ export function SourceIcon({ source, className }: { source: LeadSource; classNam
       return <UserRoundCheck {...props} />;
     case "manual":
       return <Search {...props} />;
+    case "prospeccao_ia":
+      return <Radar {...props} />;
     default:
       return <Shapes {...props} />;
   }

@@ -30,6 +30,13 @@ describe("validação no servidor (Zod)", () => {
     expect(changeSetSchema.safeParse({ upserts: {}, deletes: { leads: ["1; drop table leads"] } }).success).toBe(false);
   });
 
+  it("aceita a origem prospeccao_ia (lead importado da Prospecção IA) e recusa origem desconhecida", () => {
+    const c = databaseToChangeSet(realDb());
+    const lead = { ...c.upserts.leads![0], source: "prospeccao_ia" };
+    expect(changeSetSchema.safeParse({ upserts: { leads: [lead] }, deletes: {} }).success).toBe(true);
+    expect(changeSetSchema.safeParse({ upserts: { leads: [{ ...lead, source: "robo" }] }, deletes: {} }).success).toBe(false);
+  });
+
   it("normaliza entrada (trim, UF maiúscula, site vazio → null)", () => {
     const c = databaseToChangeSet(realDb());
     const lead = { ...c.upserts.leads![0], name: "  Café Aurora  ", uf: "sp", website: "" };
