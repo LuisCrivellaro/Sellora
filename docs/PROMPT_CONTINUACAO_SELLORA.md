@@ -9,8 +9,8 @@ Negócio que cria sites profissionais para estabelecimentos locais (restaurantes
 O repositório é o **painel interno** da operação: prospecção → CRM → proposta → cliente → projeto → financeiro.
 
 - Repositório: `https://github.com/LuisCrivellaro/Sellora`
-- Branch: `main`. Último commit conhecido: `06d1203`.
-- **A Parte 1 pode estar sem commit.** Rode `git status --short` antes de tudo. Se o working tree estiver limpo e não existir `docs/AI_HANDOFF.md`, você está num clone sem as alterações: pare e peça ao usuário o patch ou a branch (instruções em `docs/AI_HANDOFF.md` §11 da máquina de origem).
+- Branch: `main`. A Parte 1 está no commit `1a1e380` (feat: fluxo comercial completo), seguido de um commit de documentação.
+- **Esses commits podem não ter sido enviados ao GitHub** (o remoto estava em `06d1203`). Rode `git log --oneline | head -5` antes de tudo. Se `1a1e380` não aparecer e não existir `docs/AI_HANDOFF.md`, você está num clone sem a Parte 1: pare e peça ao usuário o push ou o bundle (instruções em `docs/AI_HANDOFF.md` §11 da máquina de origem).
 
 ## 2. Antes de modificar qualquer coisa
 
@@ -74,7 +74,7 @@ Aviso de ambiente: no navegador embutido do Claude, com o painel em segundo plan
 
 ## 8. Pendências, em ordem de prioridade
 
-1. Perguntar a identidade visual (§5) e se o usuário autoriza commitar a Parte 1.
+1. Perguntar a identidade visual (§5) e, se os commits locais ainda não estiverem no GitHub, se o usuário autoriza o push.
 2. **Propostas**: ligar `expireOverdueProposals()` (pronta e testada) a uma ação visível, com contagem e confirmação.
 3. **Financeiro**: editar lançamento existente; filtro de período personalizado (data inicial e final) coerente com `cashFlow`/`rangeBounds`; decidir com o usuário o que acontece com as parcelas quando o valor do projeto muda.
 4. **Fechar venda**: permitir revisar início, prazo e parcelas antes de confirmar.
@@ -103,7 +103,7 @@ Do catálogo da conta, se listadas na sua sessão: `frontend-design`, `interface
 
 ## 11. Primeiro passo exato
 
-Execute a §2. Em seguida, envie ao usuário uma mensagem curta com: (a) o resultado da referência de testes; (b) a pergunta da identidade visual (§5); (c) a pergunta sobre commitar a Parte 1. Sem esperar a resposta, comece o item 2 da §8 (ação "Expirar propostas vencidas" em `src/components/views/proposals-view.tsx`, usando `expireOverdueProposals` de `src/lib/data/repository.ts`), que não depende de nenhuma das duas respostas.
+Execute a §2. Em seguida, envie ao usuário uma mensagem curta com: (a) o resultado da referência de testes; (b) a pergunta da identidade visual (§5); (c) a pergunta sobre o push, se `git status -sb` mostrar a `main` à frente do remoto. Sem esperar a resposta, comece o item 2 da §8 (ação "Expirar propostas vencidas" em `src/components/views/proposals-view.tsx`, usando `expireOverdueProposals` de `src/lib/data/repository.ts`), que não depende de nenhuma das duas respostas.
 
 ## 12. Critério de conclusão da Parte 2
 

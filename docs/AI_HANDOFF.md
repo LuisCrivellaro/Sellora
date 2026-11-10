@@ -14,8 +14,8 @@ Divisão do trabalho: **Parte 1** (esta) = fundação funcional e fluxo comercia
 
 ## 2. Estado do repositório
 
-- Repositório: `https://github.com/LuisCrivellaro/Sellora` · branch `main` · último commit `06d1203` (feat: aba Prospecção IA em Leads e skill local-client-prospector).
-- **As alterações da Parte 1 NÃO estão commitadas** (commit/push só com autorização do usuário). Lista na §11.
+- Repositório: `https://github.com/LuisCrivellaro/Sellora` · branch `main` · commit da Parte 1: `1a1e380` (feat: fluxo comercial completo), seguido de um commit de documentação. O remoto (`origin/main`) está em `06d1203`.
+- **A Parte 1 está commitada localmente, sem push** (push só com autorização do usuário). Detalhes na §11.
 - Nada publicado; nenhum deploy; nenhum push feito nesta sessão.
 
 ## 3. Stack e versões reais
@@ -147,31 +147,16 @@ Nota de ambiente: com o painel do navegador do Claude em segundo plano, `request
 - O navegador de teste do Claude ficou com dados de teste no `localStorage` dele (lead "Cantina Teste E2E", "Lanchonete CSV Teste"). O navegador do usuário não foi tocado. Para limpar: Configurações › Sistema › Restaurar demonstração.
 - `closeSale` usa a entrada (%) vigente em Configurações no momento do clique, não o texto livre "Forma de pagamento" da proposta.
 
-## 11. Alterações não commitadas (working tree)
+## 11. Onde está o código da Parte 1
 
-Novos:
-- `docs/AI_HANDOFF.md`, `docs/PROMPT_CONTINUACAO_SELLORA.md`
-- `src/lib/data/lead-csv.ts`
-- `src/lib/data/sale-flow.test.ts`
-- `supabase/migrations/20261110120000_sellora2_stages_status_scope.sql`
-
-Modificados:
-- `README.md`, `docs/DECISIONS.md`, `docs/HANDOFF.md`
-- `src/lib/types.ts`, `constants.ts`, `schemas.ts`, `visualization.ts`
-- `src/lib/data/repository.ts`, `repository.test.ts`, `seed.ts`, `store.ts`, `mappers.ts`, `row-schemas.ts`
-- `src/lib/metrics/home-overview.ts`, `home.ts`, `leads.ts`, `projects.ts`, `proposals.ts`
-- `src/components/views/home-view.tsx`, `home-view.css`, `leads-view.tsx`, `settings-view.tsx`
-- `src/components/proposals/proposal-form.tsx`, `proposal-detail.tsx`
-- `src/components/leads/lead-detail.tsx`, `src/components/clients/client-detail.tsx`
-
-Conferir com `git status --short`.
+Tudo commitado na `main` local em `1a1e380` (31 arquivos: 26 modificados, 5 novos), seguido de um commit só de documentação que atualizou este arquivo e o prompt de continuidade. Ver com `git show --stat 1a1e380`. A árvore de trabalho ficou limpa. **Nenhum push foi feito**: o GitHub ainda está em `06d1203`.
 
 ### Como levar o código para a outra conta
 
-- **Mesma máquina, mesma pasta** (`C:\Projetos\Sellora`): nada a fazer; a outra conta enxerga o working tree.
+- **Mesma máquina, mesma pasta** (`C:\Projetos\Sellora`): nada a fazer; a outra conta enxerga os commits locais.
 - **Outro computador ou clone**, em ordem de preferência:
-  1. Autorizar commit + push numa branch (`git switch -c sellora2-parte1`, `git add -A`, `git commit`, `git push -u origin sellora2-parte1`) e fazer `git fetch && git switch sellora2-parte1` no destino.
-  2. Sem push: `git add -A && git stash` não serve entre máquinas; gere um patch com `git add -A && git diff --cached --binary > parte1.patch`, copie o arquivo e aplique com `git apply --index parte1.patch` num clone no commit `06d1203`.
+  1. Com autorização do usuário, `git push origin main` (ou uma branch: `git switch -c sellora2-parte1 && git push -u origin sellora2-parte1`) e `git pull`/`git fetch` no destino.
+  2. Sem push: `git bundle create parte1.bundle 06d1203..main`, copiar o arquivo e, num clone em `06d1203`, `git pull parte1.bundle main`.
 - `.env.local` não é versionado: recriar a partir de `.env.example` (`PROSPECCAO_EXECUTOR=osm`; variáveis do Supabase só quando houver projeto).
 
 ## 12. Configuração externa necessária (sem segredos)
@@ -185,10 +170,10 @@ Conferir com `git status --short`.
 
 ## 13. Próximos passos, em ordem
 
-1. Perguntar ao usuário qual identidade visual vale (§5) e se autoriza o commit das alterações da Parte 1.
+1. Perguntar ao usuário qual identidade visual vale (§5) e se autoriza o push dos commits locais.
 2. Se houver credenciais do Supabase: rodar as migrations, criar usuário, executar `scripts/rls-check.mjs` e repetir o fluxo da §9 logado.
 3. Ligar `expireOverdueProposals()` a uma ação visível em Propostas.
 4. Financeiro: editar lançamento e período personalizado.
 5. Parte 2: refinamento visual por módulo com `design-review`, depois `quality-assurance`.
 
-**Onde o trabalho parou:** código da Parte 1 completo e verde; documentação atualizada; nada commitado. Nenhuma tarefa ficou pela metade.
+**Onde o trabalho parou:** código da Parte 1 completo e verde; documentação atualizada; tudo commitado localmente, sem push. Nenhuma tarefa ficou pela metade.
