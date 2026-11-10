@@ -70,7 +70,7 @@ const stageIndex = (s: LeadStage) => LEAD_STAGES.indexOf(s);
 export function funnel(db: Database) {
   const leads = db.leads;
   const contacted = new Set(db.activities.filter(isContactActivity).map((a) => a.leadId));
-  const withProposal = new Set(db.proposals.filter((p) => p.status !== "rascunho" && p.leadId).map((p) => p.leadId));
+  const withProposal = new Set(db.proposals.filter((p) => p.status !== "rascunho" && p.status !== "pronta" && p.leadId).map((p) => p.leadId));
   const reached = (l: Lead, s: LeadStage) => l.stage !== "perdido" && stageIndex(l.stage) >= stageIndex(s);
   const total = leads.length;
   const contactedCount = leads.filter((l) => contacted.has(l.id) || reached(l, "contatado")).length;

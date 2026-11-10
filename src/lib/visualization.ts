@@ -50,17 +50,22 @@ export const dashboardProjectStatusColors: Record<ProjectStatus, string> = {
 
 export const dashboardProjectStageColors: Record<ProjectStage, string> = {
   briefing: dashboardColors.red,
+  briefing_recebido: dashboardColors.redSoft,
+  planejamento: dashboardColors.redDark,
   design: dashboardColors.redLight,
   desenvolvimento: dashboardColors.steel,
-  revisao: dashboardColors.redSoft,
+  revisao: dashboardColors.steelLight,
+  aprovacao: dashboardColors.steelDark,
   publicacao: tone.warn,
   entrega: tone.mint,
 };
 
 export const dashboardProposalStatusColors: Record<ProposalStatus, string> = {
   rascunho: dashboardColors.gray,
+  pronta: dashboardColors.steelLight,
   enviada: dashboardColors.steel,
   negociacao: dashboardColors.redSoft,
   aprovada: tone.mint,
   recusada: dashboardColors.muted,
+  expirada: tone.warn,
 };

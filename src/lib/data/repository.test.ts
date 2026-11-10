@@ -82,9 +82,9 @@ describe("repositório local (modo demo)", () => {
       publishedUrl: "",
       notes: "",
     });
-    expect(p.tasks.length).toBe(11);
+    expect(p.tasks.length).toBe(12);
     repo.toggleProjectTask(p.id, p.tasks[0].id);
-    expect(projectProgress(getDb().projects.find((x) => x.id === p.id)!)).toBe(9);
+    expect(projectProgress(getDb().projects.find((x) => x.id === p.id)!)).toBe(8);
   });
 
   it("pagamento parcial é aceito e excedente é recusado", async () => {

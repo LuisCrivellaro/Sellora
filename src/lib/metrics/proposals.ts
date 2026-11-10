@@ -35,6 +35,6 @@ export function proposalSeries(proposals: Proposal[], range: RangeKey, now = new
 }
 
 export function isExpired(p: Proposal, now = new Date()) {
-  const open: ProposalStatus[] = ["rascunho", "enviada", "negociacao"];
+  const open: ProposalStatus[] = ["rascunho", "pronta", "enviada", "negociacao"];
   return open.includes(p.status) && daysBetween(now, p.validUntil) < 0;
 }

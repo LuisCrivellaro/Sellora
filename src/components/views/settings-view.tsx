@@ -90,6 +90,9 @@ function SettingsPanel({ db }: { db: Database }) {
     validity: String(db.settings.defaultProposalValidityDays),
     followUp: String(db.settings.defaultFollowUpDays),
     target: String(db.settings.monthlyLeadTarget),
+    paymentTerms: db.settings.defaultPaymentTerms,
+    entryPercent: String(db.settings.entryPercent),
+    revisions: String(db.settings.defaultRevisions),
   }));
   const [confirm, setConfirm] = useState<"reset" | "scratch" | null>(null);
   const [storageKb] = useState(() => (remote ? null : readStorageKb()));
@@ -157,9 +160,15 @@ function SettingsPanel({ db }: { db: Database }) {
     if (!Number.isInteger(validity) || validity < 1 || validity > 90) errs.validity = "Entre 1 e 90 dias.";
     if (!Number.isInteger(followUp) || followUp < 1 || followUp > 30) errs.followUp = "Entre 1 e 30 dias.";
     if (!Number.isInteger(target) || target < 1 || target > 1000) errs.target = "Entre 1 e 1000 leads.";
+    const entryPercent = Number(commercial.entryPercent.replace(",", "."));
+    const revisions = Number(commercial.revisions);
+    const paymentTerms = commercial.paymentTerms.trim();
+    if (!Number.isFinite(entryPercent) || entryPercent < 0 || entryPercent > 100) errs.entryPercent = "Entre 0 e 100%.";
+    if (!Number.isInteger(revisions) || revisions < 0 || revisions > 20) errs.revisions = "Entre 0 e 20 rodadas.";
+    if (paymentTerms.length > 300) errs.paymentTerms = "Use no máximo 300 caracteres.";
     setPkgErrors(errs);
     if (Object.keys(errs).length) return;
-    updateSettings({ packages: parsed, defaultProposalValidityDays: validity, defaultFollowUpDays: followUp, monthlyLeadTarget: target });
+    updateSettings({ packages: parsed, defaultProposalValidityDays: validity, defaultFollowUpDays: followUp, monthlyLeadTarget: target, defaultPaymentTerms: paymentTerms, entryPercent, defaultRevisions: revisions });
     notify({ kind: "success", title: "Preferências comerciais salvas", description: "Novas propostas usarão esses valores." });
   };
 
@@ -294,6 +303,17 @@ function SettingsPanel({ db }: { db: Database }) {
               </Field>
               <Field label="Moeda">
                 {(f) => <TextInput {...f} value="Real brasileiro (R$)" readOnly aria-readonly className="text-ink-soft" />}
+              </Field>
+            </div>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-4">
+              <Field label="Condições de pagamento padrão" error={pkgErrors.paymentTerms} hint="Texto sugerido em novas propostas (editável em cada uma)." className="sm:col-span-2">
+                {(f) => <TextInput {...f} value={commercial.paymentTerms} onChange={(e) => setCommercial({ ...commercial, paymentTerms: e.target.value })} />}
+              </Field>
+              <Field label="Entrada (%)" error={pkgErrors.entryPercent} hint="Divide as parcelas ao fechar uma venda.">
+                {(f) => <TextInput {...f} inputMode="decimal" value={commercial.entryPercent} onChange={(e) => setCommercial({ ...commercial, entryPercent: e.target.value })} />}
+              </Field>
+              <Field label="Rodadas de revisão padrão" error={pkgErrors.revisions}>
+                {(f) => <TextInput {...f} inputMode="numeric" value={commercial.revisions} onChange={(e) => setCommercial({ ...commercial, revisions: e.target.value })} />}
               </Field>
             </div>
             <div>

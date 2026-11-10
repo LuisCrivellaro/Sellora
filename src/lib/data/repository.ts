@@ -1,7 +1,9 @@
 "use client";
 
-import { DEFAULT_PROJECT_TASKS, leadStageMeta, proposalStatusMeta } from "../constants";
+import { DEFAULT_PROJECT_TASKS, LEAD_STAGES, leadStageMeta, proposalStatusMeta } from "../constants";
 import { addDays } from "../dates";
+import { proposalTotal } from "../metrics/proposals";
+import { normalizeName, phoneDigits } from "../prospecting/classify";
 import {
   activityInputSchema,
   clientInputSchema,
@@ -90,7 +92,11 @@ export function updateLead(id: ID, input: LeadInput): Lead {
     if (!prev) throw new Error("Lead não encontrado.");
     saved = { ...prev, ...data, website: data.website || null, updatedAt: nowIso() };
     const activities = prev.stage !== data.stage ? [stageActivity({ leadId: id }, `Etapa: ${leadStageMeta[prev.stage].label} → ${leadStageMeta[data.stage].label}`), ...db.activities] : db.activities;
-    return { ...db, activities, leads: db.leads.map((l) => (l.id === id ? (saved as Lead) : l)) };
+    const next = { ...db, activities, leads: db.leads.map((l) => (l.id === id ? (saved as Lead) : l)) };
+    if (data.stage !== "ganho") return next;
+    const won = withClientForLead(next, id);
+    saved = won.db.leads.find((l) => l.id === id) as Lead;
+    return won.db;
   });
   return saved as Lead;
 }
@@ -99,12 +105,67 @@ export function moveLeadStage(id: ID, stage: LeadStage) {
   commit((db) => {
     const prev = db.leads.find((l) => l.id === id);
     if (!prev || prev.stage === stage) return db;
-    return {
+    const next = {
       ...db,
       activities: [stageActivity({ leadId: id }, `Etapa: ${leadStageMeta[prev.stage].label} → ${leadStageMeta[stage].label}`), ...db.activities],
       leads: db.leads.map((l) => (l.id === id ? { ...l, stage, updatedAt: nowIso() } : l)),
     };
+    // Venda ganha: garante o cliente (vincula um existente ou cria), sem duplicar.
+    return stage === "ganho" ? withClientForLead(next, id).db : next;
   });
+}
+
+/**
+ * Garante o cliente de um lead (função pura sobre o banco):
+ * 1. lead já vinculado → usa o cliente existente;
+ * 2. cliente sem lead com mesmo nome+cidade ou mesmo telefone → vincula;
+ * 3. senão cria. Propostas do lead passam a apontar para o cliente.
+ * Não altera a etapa do lead.
+ */
+function withClientForLead(db: Database, leadId: ID): { db: Database; client: Client; created: boolean } {
+  const lead = db.leads.find((l) => l.id === leadId);
+  if (!lead) throw new Error("Lead não encontrado.");
+  const linked = (lead.clientId ? db.clients.find((c) => c.id === lead.clientId) : undefined) ?? db.clients.find((c) => c.leadId === leadId);
+  const phone = phoneDigits(lead.phone);
+  const same =
+    linked ??
+    db.clients.find(
+      (c) =>
+        !c.leadId &&
+        ((normalizeName(c.name) === normalizeName(lead.name) && normalizeName(c.city) === normalizeName(lead.city)) ||
+          (phone.length >= 10 && phoneDigits(c.phone).slice(-10) === phone.slice(-10))),
+    );
+  const t = nowIso();
+  const client: Client = same
+    ? same
+    : {
+        id: uid("cli"),
+        leadId,
+        name: lead.name,
+        segment: lead.segment,
+        city: lead.city,
+        uf: lead.uf,
+        contactName: "",
+        phone: lead.phone,
+        email: lead.email,
+        status: "ativo",
+        siteUrl: "",
+        notes: lead.notes,
+        createdAt: t,
+        updatedAt: t,
+      };
+  const untouched = same && same.leadId === leadId && lead.clientId === same.id && !db.proposals.some((p) => p.leadId === leadId && p.clientId !== same.id);
+  if (untouched) return { db, client, created: false };
+  return {
+    client: same ? { ...same, leadId: same.leadId ?? leadId } : client,
+    created: !same,
+    db: {
+      ...db,
+      clients: same ? db.clients.map((c) => (c.id === same.id && !c.leadId ? { ...c, leadId, updatedAt: t } : c)) : [client, ...db.clients],
+      leads: db.leads.map((l) => (l.id === leadId ? { ...l, clientId: client.id, updatedAt: t } : l)),
+      proposals: db.proposals.map((p) => (p.leadId === leadId && p.clientId !== client.id ? { ...p, clientId: client.id } : p)),
+    },
+  };
 }
 
 /** Exclui o lead e solta os vínculos que apontavam para ele (cliente, propostas, atividades mantidas). */
@@ -192,42 +253,186 @@ export function importProspects(results: ProspectResult[]): ProspectImportReport
   return report;
 }
 
+export interface LeadFileImportReport {
+  created: Lead[];
+  duplicates: { name: string; match: CrmMatch }[];
+}
+
+/**
+ * Importa leads vindos de arquivo (CSV) numa única gravação. Mesma conferência
+ * de duplicidade da Prospecção IA (nome+cidade, telefone, site, Instagram),
+ * contra o CRM e dentro do próprio lote; existentes nunca são sobrescritos.
+ */
+export function importLeadInputs(inputs: LeadInput[], origin: string): LeadFileImportReport {
+  const report: LeadFileImportReport = { created: [], duplicates: [] };
+  commit((db) => {
+    const activities: Activity[] = [];
+    for (const raw of inputs) {
+      const data = leadInputSchema.parse(raw);
+      const match = findCrmDuplicate({ name: data.name, city: data.city, phone: data.phone, website: data.website, instagram: data.instagram }, [...report.created, ...db.leads]);
+      if (match) {
+        report.duplicates.push({ name: data.name, match });
+        continue;
+      }
+      const t = nowIso();
+      const lead: Lead = { ...data, website: data.website || null, lastContactAt: null, clientId: null, lostReason: "", id: uid("lead"), createdAt: t, updatedAt: t };
+      activities.push({ id: uid("act"), leadId: lead.id, clientId: null, projectId: null, type: "nota", description: `Importado de arquivo: ${origin}`.slice(0, 500), dueAt: null, completedAt: t, createdAt: t });
+      report.created.push(lead);
+    }
+    if (!report.created.length) return db;
+    return { ...db, leads: [...report.created, ...db.leads], activities: [...activities, ...db.activities] };
+  });
+  return report;
+}
+
 /**
  * Converte lead ganho em cliente (+ projeto inicial). Idempotente: se o lead
  * já tem cliente, apenas retorna o existente — não duplica.
  */
 export function convertLeadToClient(leadId: ID): Client {
-  const db = getDb();
+  let client: Client | undefined;
+  commit((d) => {
+    const won = markLeadWon(d, leadId);
+    client = won.client;
+    return won.db;
+  });
+  return client as Client;
+}
+
+/** Lead → Ganho (com histórico) + cliente garantido. Pura; idempotente. */
+function markLeadWon(db: Database, leadId: ID): { db: Database; client: Client } {
   const lead = db.leads.find((l) => l.id === leadId);
   if (!lead) throw new Error("Lead não encontrado.");
-  const existing = lead.clientId ? db.clients.find((c) => c.id === lead.clientId) : undefined;
-  if (existing) return existing;
-  const t = nowIso();
-  const client: Client = {
-    id: uid("cli"),
-    leadId,
-    name: lead.name,
-    segment: lead.segment,
-    city: lead.city,
-    uf: lead.uf,
-    contactName: "",
-    phone: lead.phone,
-    email: lead.email,
-    status: "ativo",
-    siteUrl: "",
-    notes: lead.notes,
-    createdAt: t,
-    updatedAt: t,
-  };
-  const approved = db.proposals.find((p) => p.leadId === leadId && p.status === "aprovada");
-  commit((d) => ({
-    ...d,
-    clients: [client, ...d.clients],
-    activities: lead.stage !== "ganho" ? [stageActivity({ leadId }, `Etapa: ${leadStageMeta[lead.stage].label} → Ganho`), ...d.activities] : d.activities,
-    leads: d.leads.map((l) => (l.id === leadId ? { ...l, stage: "ganho", clientId: client.id, nextAction: "Iniciar briefing", nextActionAt: null, updatedAt: t } : l)),
-    proposals: approved ? d.proposals.map((p) => (p.id === approved.id ? { ...p, clientId: client.id } : p)) : d.proposals,
-  }));
-  return client;
+  const staged: Database =
+    lead.stage === "ganho"
+      ? db
+      : {
+          ...db,
+          activities: [stageActivity({ leadId }, `Etapa: ${leadStageMeta[lead.stage].label} → Ganho`), ...db.activities],
+          leads: db.leads.map((l) => (l.id === leadId ? { ...l, stage: "ganho", nextAction: "Iniciar briefing", nextActionAt: null, updatedAt: nowIso() } : l)),
+        };
+  const won = withClientForLead(staged, leadId);
+  return { db: won.db, client: won.client };
+}
+
+/* ───────────────────────────── Fechamento de venda ───────────────────────────── */
+
+export interface InstallmentPlan {
+  description: string;
+  amount: number;
+  dueDate: string;
+}
+
+/**
+ * Parcelas de um contrato: entrada (percentual configurável) no início e o
+ * restante na entrega. A soma é sempre igual ao total, em centavos exatos.
+ * 0% ou 100% de entrada geram uma única parcela.
+ */
+export function buildInstallments(total: number, entryPercent: number, startDate: string, dueDate: string, label: string): InstallmentPlan[] {
+  const cents = Math.round(total * 100);
+  if (cents <= 0) return [];
+  const pct = Math.min(100, Math.max(0, entryPercent));
+  const entry = Math.round((cents * pct) / 100);
+  const rest = cents - entry;
+  const out: InstallmentPlan[] = [];
+  if (entry > 0) out.push({ description: `Entrada (${pct}%) · ${label}`.slice(0, 140), amount: entry / 100, dueDate: startDate });
+  if (rest > 0) out.push({ description: `${entry > 0 ? `Saldo na entrega (${100 - pct}%)` : "Pagamento na entrega"} · ${label}`.slice(0, 140), amount: rest / 100, dueDate });
+  return out;
+}
+
+export interface SaleResult {
+  client: Client;
+  project: Project;
+  transactions: Transaction[];
+  /** false quando a venda já estava fechada (nada foi duplicado). */
+  created: boolean;
+}
+
+/**
+ * Fecha a venda a partir de uma proposta, numa única gravação:
+ * proposta → Aprovada · lead → Ganho · cliente vinculado/criado · projeto com o
+ * valor contratado · parcelas a receber (contas a receber, NÃO caixa).
+ * Idempotente: se a proposta já tem projeto, devolve o existente.
+ * Nenhuma cobrança, contrato ou mensagem é enviada.
+ */
+export function closeSale(proposalId: ID): SaleResult {
+  let result: SaleResult | undefined;
+  commit((db0) => {
+    const proposal = db0.proposals.find((p) => p.id === proposalId);
+    if (!proposal) throw new Error("Proposta não encontrada.");
+    const existing = db0.projects.find((p) => p.proposalId === proposalId);
+    if (existing) {
+      const owner = db0.clients.find((c) => c.id === existing.clientId);
+      if (!owner) throw new Error("Cliente do projeto não encontrado.");
+      result = { client: owner, project: existing, transactions: db0.transactions.filter((x) => x.projectId === existing.id && x.kind === "receita"), created: false };
+      return db0;
+    }
+    if (proposal.status === "recusada") throw new Error("Proposta recusada não pode virar venda. Altere o status antes.");
+    const total = proposalTotal(proposal);
+    if (total <= 0) throw new Error("A proposta precisa ter valor maior que zero para fechar a venda.");
+
+    let db = db0;
+    let client: Client | undefined;
+    if (proposal.leadId && db.leads.some((l) => l.id === proposal.leadId)) {
+      const won = markLeadWon(db, proposal.leadId);
+      db = won.db;
+      client = won.client;
+    } else if (proposal.clientId) {
+      client = db.clients.find((c) => c.id === proposal.clientId);
+    }
+    if (!client) throw new Error("Vincule a proposta a um lead ou cliente antes de fechar a venda.");
+    const clientId = client.id;
+
+    const t = nowIso();
+    const start = new Date();
+    const due = addDays(start, proposal.deadlineDays).toISOString();
+    const project: Project = {
+      id: uid("proj"),
+      clientId,
+      proposalId,
+      title: `Site ${client.name}`.slice(0, 100),
+      siteType: proposal.packageId === "essencial" ? "landing" : proposal.packageId === "profissional" ? "institucional" : "personalizado",
+      stage: "briefing",
+      startDate: start.toISOString(),
+      dueDate: due,
+      contractValue: total,
+      tasks: DEFAULT_PROJECT_TASKS.map((task) => ({ id: uid("task"), title: task.title, stage: task.stage, done: false, doneAt: null })),
+      previewUrl: "",
+      publishedUrl: "",
+      publishedAt: null,
+      deliveredAt: null,
+      notes: proposal.scope ?? "",
+      createdAt: t,
+      updatedAt: t,
+    };
+    const transactions: Transaction[] = buildInstallments(total, db.settings.entryPercent, start.toISOString(), due, project.title).map((i) => ({
+      id: uid("tx"),
+      kind: "receita",
+      clientId,
+      projectId: project.id,
+      description: i.description,
+      amount: i.amount,
+      dueDate: i.dueDate,
+      payments: [],
+      cancelled: false,
+      createdAt: t,
+      updatedAt: t,
+    }));
+    const approving = proposal.status !== "aprovada";
+    const log = stageActivity(
+      { leadId: proposal.leadId, clientId, projectId: project.id },
+      `Venda fechada: projeto “${project.title}” criado com ${transactions.length} parcela(s) a receber.${approving ? ` Proposta: ${proposalStatusMeta[proposal.status].label} → Aprovada.` : ""}`,
+    );
+    result = { client, project, transactions, created: true };
+    return {
+      ...db,
+      activities: [log, ...db.activities],
+      proposals: db.proposals.map((p) => (p.id === proposalId ? { ...p, clientId, status: "aprovada", ...applyStatusDates(p, "aprovada"), updatedAt: t } : p)),
+      projects: [project, ...db.projects],
+      transactions: [...transactions, ...db.transactions],
+    };
+  });
+  return result as SaleResult;
 }
 
 /* ───────────────────────────── Clientes ───────────────────────────── */
@@ -348,8 +553,25 @@ export function removeProjectTask(projectId: ID, taskId: ID) {
 function applyStatusDates(prev: Proposal | null, status: ProposalStatus) {
   const t = nowIso();
   return {
-    sentAt: status === "rascunho" ? null : (prev?.sentAt ?? t),
-    decidedAt: status === "aprovada" || status === "recusada" ? (prev?.decidedAt ?? t) : null,
+    // "Pronta" ainda não saiu: só conta como enviada a partir do status "enviada".
+    sentAt: status === "rascunho" || status === "pronta" ? null : (prev?.sentAt ?? t),
+    decidedAt: status === "aprovada" || status === "recusada" || status === "expirada" ? (prev?.decidedAt ?? t) : null,
+  };
+}
+
+/**
+ * Mantém o funil coerente com a proposta: enviar leva o lead a "Proposta" e
+ * negociar a "Negociação" — só para a frente, nunca recua nem mexe em ganho/perdido.
+ */
+function advanceLeadForProposal(db: Database, leadId: ID | null, status: ProposalStatus): Database {
+  const target: LeadStage | null = status === "enviada" ? "proposta" : status === "negociacao" ? "negociacao" : null;
+  const lead = leadId ? db.leads.find((l) => l.id === leadId) : undefined;
+  if (!target || !lead || lead.stage === "ganho" || lead.stage === "perdido") return db;
+  if (LEAD_STAGES.indexOf(lead.stage) >= LEAD_STAGES.indexOf(target)) return db;
+  return {
+    ...db,
+    activities: [stageActivity({ leadId: lead.id }, `Etapa: ${leadStageMeta[lead.stage].label} → ${leadStageMeta[target].label}`), ...db.activities],
+    leads: db.leads.map((l) => (l.id === lead.id ? { ...l, stage: target, updatedAt: nowIso() } : l)),
   };
 }
 
@@ -357,21 +579,27 @@ export function createProposal(input: ProposalInput): Proposal {
   const data = proposalInputSchema.parse(input);
   const t = nowIso();
   const proposal: Proposal = { ...data, ...applyStatusDates(null, data.status), id: uid("prop"), createdAt: t, updatedAt: t };
-  commit((db) => ({ ...db, proposals: [proposal, ...db.proposals] }));
+  commit((db) => advanceLeadForProposal({ ...db, proposals: [proposal, ...db.proposals] }, proposal.leadId, proposal.status));
   return proposal;
 }
 
 export function updateProposal(id: ID, input: ProposalInput): Proposal {
   const data = proposalInputSchema.parse(input);
   let saved: Proposal | undefined;
-  commit((db) => ({
-    ...db,
-    proposals: db.proposals.map((p) => {
-      if (p.id !== id) return p;
-      saved = { ...p, ...data, ...applyStatusDates(p, data.status), updatedAt: nowIso() };
-      return saved;
-    }),
-  }));
+  commit((db) =>
+    advanceLeadForProposal(
+      {
+        ...db,
+        proposals: db.proposals.map((p) => {
+          if (p.id !== id) return p;
+          saved = { ...p, ...data, ...applyStatusDates(p, data.status), updatedAt: nowIso() };
+          return saved;
+        }),
+      },
+      data.leadId,
+      data.status,
+    ),
+  );
   if (!saved) throw new Error("Proposta não encontrada.");
   return saved;
 }
@@ -383,12 +611,32 @@ export function setProposalStatus(id: ID, status: ProposalStatus) {
     const activities = prev.leadId
       ? [stageActivity({ leadId: prev.leadId, clientId: prev.clientId }, `Proposta: ${proposalStatusMeta[prev.status].label} → ${proposalStatusMeta[status].label}`), ...db.activities]
       : db.activities;
+    return advanceLeadForProposal(
+      {
+        ...db,
+        activities,
+        proposals: db.proposals.map((p) => (p.id === id ? { ...p, status, ...applyStatusDates(p, status), updatedAt: nowIso() } : p)),
+      },
+      prev.leadId,
+      status,
+    );
+  });
+}
+
+/** Marca como "Expirada" as propostas abertas com validade vencida. Devolve quantas mudaram. */
+export function expireOverdueProposals(now = new Date()): number {
+  let changed = 0;
+  commit((db) => {
+    const due = db.proposals.filter((p) => ["rascunho", "pronta", "enviada", "negociacao"].includes(p.status) && new Date(p.validUntil).getTime() < now.getTime() - 86_400_000);
+    if (!due.length) return db;
+    changed = due.length;
+    const ids = new Set(due.map((p) => p.id));
     return {
       ...db,
-      activities,
-      proposals: db.proposals.map((p) => (p.id === id ? { ...p, status, ...applyStatusDates(p, status), updatedAt: nowIso() } : p)),
+      proposals: db.proposals.map((p) => (ids.has(p.id) ? { ...p, status: "expirada" as const, ...applyStatusDates(p, "expirada"), updatedAt: nowIso() } : p)),
     };
   });
+  return changed;
 }
 
 export function duplicateProposal(id: ID): Proposal {

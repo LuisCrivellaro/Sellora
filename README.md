@@ -20,12 +20,15 @@ Next.js 16.4 (App Router) · React 19.3 · TypeScript 5.9 · Tailwind CSS 4.3 ·
 
 ## Módulos do dashboard (7 destinos)
 - **Home** (`/dashboard`): quatro KPIs por período (leads, contatos, propostas e vendas), evolução comercial e fontes de leads em composição 65/35; tabela de atividades recentes com busca, filtros, ordenação, paginação e acesso ao CRM. Radar de performance, pipeline e próximas ações ficam em análises complementares. Períodos 7D/30D/90D/1A atualizam os KPIs, gráfico, fontes e movimentações; comparações usam o intervalo anterior equivalente, sem percentual quando a base é zero. Vendas usam o histórico de ganho ou a aprovação de uma proposta vinculada, uma vez por lead; ganhos sem data ficam fora da contagem por período, explicados no tooltip.
-- **Leads** (`/leads`): captação, origem, temperatura; CRM com busca, filtros, ordenação, seleção em lote, paginação, cadastro/edição, detalhe com score explicado, atividades e follow-ups; visão **Kanban** com arrastar e soltar e menu acessível "Mover para…"; conversão em cliente sem duplicar. Aba **Prospecção IA** (`/leads?aba=prospeccao`): ver seção abaixo.
+- **Leads** (`/leads`): captação, origem, temperatura; CRM com busca, filtros, ordenação, seleção em lote, paginação, cadastro/edição, detalhe com score explicado, atividades e follow-ups; visão **Kanban** com arrastar e soltar e menu acessível "Mover para…"; **Importar CSV** (modelo da skill de prospecção ou planilha com nome/cidade, sem duplicar); mover para Ganho cria ou vincula o cliente sem duplicar. Aba **Prospecção IA** (`/leads?aba=prospeccao`): ver seção abaixo.
 - **Clientes** (`/clientes`): evolução, segmentos, sites contratados, clientes que exigem atenção; cadastro, busca, histórico, projetos vinculados e dados comerciais.
-- **Projetos** (`/projetos`): etapas por mês de início, heatmap de produção, status; checklist de tarefas (progresso = tarefas concluídas ÷ total), etapas, preview e publicação registrados.
-- **Propostas** (`/propostas`): volume, valores por status, conversão; editor com pacotes, itens, desconto, prazo, revisões, validade; duplicar; status; documento imprimível/PDF pelo navegador.
+- **Projetos** (`/projetos`): nove etapas (Briefing pendente, Briefing recebido, Planejamento, Design, Desenvolvimento, Revisão, Aprovação, Publicação, Entregue), heatmap de produção, status; checklist de tarefas (progresso = tarefas concluídas ÷ total), preview e publicação registrados.
+- **Propostas** (`/propostas`): volume, valores por status, conversão; editor com pacotes, itens, escopo, desconto, prazo, revisões, validade; duplicar; sete status (Rascunho, Pronta, Enviada, Em negociação, Aprovada, Recusada, Expirada); documento imprimível/PDF pelo navegador; **Fechar venda** cria cliente, projeto e parcelas a receber de uma vez.
 - **Financeiro** (`/financeiro`): contratado × recebido; situação dos recebimentos; contratado, faturado, recebido, saldo, custos e ticket médio separados; lançamentos, recebimentos parciais, cancelamento e valores por cliente.
-- **Configurações** (`/configuracoes`): perfil, animações (sistema/completas/reduzidas), densidade, pacotes e padrões comerciais, status real das integrações, exportar/restaurar/limpar dados.
+- **Configurações** (`/configuracoes`): perfil, animações (sistema/completas/reduzidas), densidade, pacotes e padrões comerciais (validade, follow-up, condições de pagamento, entrada %, revisões), status real das integrações, exportar/restaurar/limpar dados.
+
+### Fluxo comercial completo
+Lead (cadastro manual, Prospecção IA ou CSV) → qualificação no funil → **Criar proposta** na ficha do lead → status Enviada/Em negociação (o lead acompanha no funil) → **Fechar venda** na proposta → cliente + projeto + parcelas (entrada e saldo) → **Registrar recebimento** no Financeiro → indicadores da Home. Parcelas são contas a receber: só o recebimento registrado entra no caixa. Nada é enviado nem cobrado automaticamente.
 
 Busca global: **Ctrl/⌘ + K**. Detalhes têm deep link (`?id=`).
 
@@ -41,7 +44,7 @@ Com `NEXT_PUBLIC_SUPABASE_URL` e `NEXT_PUBLIC_SUPABASE_ANON_KEY` em `.env.local`
 
 Configuração (uma vez):
 1. Crie o projeto no Supabase e copie a URL e a chave anon/publishable para `.env.local` (modelo em `.env.example`). **Nunca** use a `service_role` no app.
-2. Rode as migrations de `supabase/migrations/` em ordem no SQL Editor do painel (`20261107120000_initial_schema.sql` e depois `20261109120000_lead_source_prospeccao_ia.sql`). Alternativa: `npx supabase link` + `npx supabase db push`.
+2. Rode as migrations de `supabase/migrations/` em ordem no SQL Editor do painel (`20261107120000_initial_schema.sql`, `20261109120000_lead_source_prospeccao_ia.sql` e `20261110120000_sellora2_stages_status_scope.sql`). A terceira só amplia listas aceitas e acrescenta a coluna de escopo; sem ela o banco recusa os status e etapas novos. Alternativa: `npx supabase link` + `npx supabase db push`.
 3. Em Authentication › Providers › Email, desligue **Allow new users to sign up**. Crie os usuários em Authentication › Users.
 4. Opcional: o teste de RLS com dois usuários de teste é `node --env-file=.env.local scripts/rls-check.mjs` (variáveis no cabeçalho do script).
 
@@ -71,7 +74,8 @@ Aplicação autenticada; dados reais somente no backend; RLS; validação de for
 - `docs/WORKFLOW.md`: integração de novas instruções, padrão de prompts, quality gate e formato de relatório.
 - `docs/SKILLS_SETUP.md`: skills locais e externas, com status verificado.
 - `docs/DECISIONS.md`: registro de decisões.
-- `docs/HANDOFF.md`: estado atual, pendências e missão do próximo passo (para retomar o trabalho em outra sessão ou conta).
+- `docs/AI_HANDOFF.md`: **estado atual da Sellora 2.0**, o que foi testado, pendências e próximos passos (ler primeiro ao retomar em outra sessão ou conta).
+- `docs/HANDOFF.md`: histórico da missão anterior (Supabase).
 - `.claude/skills/*/SKILL.md`: habilidades reutilizáveis do projeto.
 
 O procedimento para incorporar novas instruções (antes previsto em `prompts/INTEGRATE_NEW_PROMPTS.md`) está em `docs/WORKFLOW.md` §3. O prompt de início do dashboard (`prompts/START_DASHBOARD.md`) ainda não existe; será gerado com a skill `prompt-architect` quando a implementação for autorizada.
@@ -84,7 +88,7 @@ npm install
 npm run dev        # http://localhost:3000
 npm run lint
 npm run typecheck
-npm run test       # Vitest: métricas, schemas, repositório, diff/mapeadores, validação do servidor, fila do modo Supabase, prospecção
+npm run test       # Vitest: métricas, schemas, repositório, fluxo de venda, CSV, diff/mapeadores, validação do servidor, fila do modo Supabase, prospecção
 npm run build
 ```
 

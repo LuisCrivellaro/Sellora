@@ -1,6 +1,6 @@
 "use client";
 
-import { Copy, Pencil, Printer, Trash2 } from "lucide-react";
+import { Copy, Handshake, Pencil, Printer, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
 import { LogoMark } from "@/components/shell/logo";
@@ -10,12 +10,15 @@ import { Select } from "@/components/ui/field";
 import { ConfirmDialog, Modal } from "@/components/ui/overlay";
 import { useToast } from "@/components/ui/toast";
 import { PROPOSAL_STATUSES, proposalStatusMeta } from "@/lib/constants";
-import { deleteProposal, duplicateProposal, setProposalStatus } from "@/lib/data/repository";
+import { closeSale, deleteProposal, duplicateProposal, setProposalStatus } from "@/lib/data/repository";
 import { useStore } from "@/lib/data/store";
 import { formatDate } from "@/lib/dates";
 import { isExpired, proposalSubtotal, proposalTotal } from "@/lib/metrics/proposals";
+import { buildInstallments } from "@/lib/data/repository";
+import { addDays } from "@/lib/dates";
 import type { Proposal } from "@/lib/types";
 import { Money } from "@/components/ui/money";
+import { formatBRL } from "@/lib/utils";
 import { dashboardProposalStatusColors } from "@/lib/visualization";
 
 export function ProposalDetail({
@@ -34,10 +37,16 @@ export function ProposalDetail({
   const { db } = useStore();
   const { notify } = useToast();
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [confirmSale, setConfirmSale] = useState(false);
   if (!proposal || !db) return null;
   const pkg = db.settings.packages.find((p) => p.id === proposal.packageId);
   const expired = isExpired(proposal);
   const lead = proposal.leadId ? db.leads.find((l) => l.id === proposal.leadId) : null;
+  const project = db.projects.find((p) => p.proposalId === proposal.id) ?? null;
+  const client = proposal.clientId ? db.clients.find((c) => c.id === proposal.clientId) : null;
+  const total = proposalTotal(proposal);
+  const canClose = !project && proposal.status !== "recusada" && total > 0 && (!!lead || !!client);
+  const plan = buildInstallments(total, db.settings.entryPercent, new Date().toISOString(), addDays(new Date(), proposal.deadlineDays).toISOString(), "");
 
   return (
     <>
@@ -51,8 +60,23 @@ export function ProposalDetail({
                 Ver lead
               </Link>
             )}
+            {client && (
+              <Link href={`/clientes?id=${client.id}`} className="text-[12px] font-semibold text-interactive hover:text-ink">
+                Ver cliente
+              </Link>
+            )}
+            {project && (
+              <Link href={`/projetos?id=${project.id}`} className="text-[12px] font-semibold text-interactive hover:text-ink">
+                Ver projeto
+              </Link>
+            )}
           </div>
           <div className="flex flex-wrap items-center gap-2">
+            {canClose && (
+              <Button size="sm" variant="primary" onClick={() => setConfirmSale(true)}>
+                <Handshake aria-hidden /> Fechar venda
+              </Button>
+            )}
             <Button size="sm" variant="secondary" onClick={() => onEdit(proposal)}>
               <Pencil aria-hidden /> Editar
             </Button>
@@ -85,11 +109,20 @@ export function ProposalDetail({
               />
             </div>
           </div>
-          {proposal.status === "aprovada" && lead && !lead.clientId && (
+          {proposal.status === "aprovada" && canClose && (
             <p className="rounded-2xl border border-[rgba(95,191,159,0.35)] bg-[rgba(95,191,159,0.06)] px-4 py-3 text-[13px] text-ink">
-              Proposta aprovada. Converta o lead em cliente na{" "}
-              <Link href={`/leads?id=${lead.id}`} className="font-semibold text-mint underline-offset-2 hover:underline">
-                ficha do lead
+              Proposta aprovada, mas a venda ainda não foi fechada no painel. Use <strong>Fechar venda</strong> para criar o cliente, o projeto e as parcelas a receber.
+            </p>
+          )}
+          {project && (
+            <p className="rounded-2xl border border-[rgba(95,191,159,0.35)] bg-[rgba(95,191,159,0.06)] px-4 py-3 text-[13px] text-ink">
+              Venda fechada: projeto{" "}
+              <Link href={`/projetos?id=${project.id}`} className="font-semibold text-mint underline-offset-2 hover:underline">
+                {project.title}
+              </Link>{" "}
+              criado. Parcelas em{" "}
+              <Link href="/financeiro" className="font-semibold text-mint underline-offset-2 hover:underline">
+                Financeiro
               </Link>
               .
             </p>
@@ -118,6 +151,13 @@ export function ProposalDetail({
           <p className="mt-1 text-[13px] text-paper-soft">
             Para: <strong>{proposal.recipientName}</strong> · Pacote {pkg?.name ?? proposal.packageId}
           </p>
+
+          {proposal.scope && (
+            <section className="mt-5">
+              <h4 className="text-[11.5px] font-semibold text-paper-muted">Escopo</h4>
+              <p className="mt-1 text-[13px] whitespace-pre-wrap text-paper-soft">{proposal.scope}</p>
+            </section>
+          )}
 
           <table className="mt-5 w-full text-left text-[13px]">
             <thead>
@@ -180,6 +220,21 @@ export function ProposalDetail({
           </p>
         </article>
       </Modal>
+      <ConfirmDialog
+        open={confirmSale}
+        onOpenChange={setConfirmSale}
+        title="Fechar venda desta proposta?"
+        description={`A proposta fica Aprovada${lead && lead.stage !== "ganho" ? ", o lead vai para Ganho" : ""}${client ? "" : ", o cliente é criado ou vinculado"}, um projeto é aberto com ${formatBRL(total)} contratados e ${plan.length} parcela(s) a receber são lançadas (${plan.map((i) => formatBRL(i.amount)).join(" + ")}). Nada é cobrado nem enviado: parcelas só viram caixa quando você registrar o recebimento.`}
+        confirmLabel="Fechar venda"
+        onConfirm={() => {
+          try {
+            const sale = closeSale(proposal.id);
+            notify({ kind: "success", title: "Venda fechada", description: `${sale.client.name}: projeto criado e ${sale.transactions.length} parcela(s) a receber lançadas.` });
+          } catch (err) {
+            notify({ kind: "error", title: "Não foi possível fechar a venda", description: err instanceof Error ? err.message : undefined });
+          }
+        }}
+      />
       <ConfirmDialog
         open={confirmDelete}
         onOpenChange={setConfirmDelete}

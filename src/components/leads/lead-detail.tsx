@@ -11,7 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Select } from "@/components/ui/field";
 import { ConfirmDialog, Modal } from "@/components/ui/overlay";
 import { useToast } from "@/components/ui/toast";
-import { LEAD_STAGES, leadSourceMeta, leadStageMeta, priorityMeta, segmentMeta, temperatureMeta, websiteSituationMeta } from "@/lib/constants";
+import { LEAD_STAGES, leadSourceMeta, leadStageMeta, priorityMeta, proposalStatusMeta, segmentMeta, temperatureMeta, websiteSituationMeta } from "@/lib/constants";
 import { convertLeadToClient, deleteLead, moveLeadStage } from "@/lib/data/repository";
 import { useStore } from "@/lib/data/store";
 import { formatDate, formatRelative } from "@/lib/dates";
@@ -44,7 +44,7 @@ export function LeadDetail({ lead, open, onOpenChange, onEdit }: { lead: Lead | 
 
   const convert = () => {
     const c = convertLeadToClient(lead.id);
-    notify({ kind: "success", title: "Lead convertido em cliente", description: `${c.name} agora está em Clientes. Crie o projeto a partir do cliente.` });
+    notify({ kind: "success", title: "Lead convertido em cliente", description: `${c.name} está em Clientes. Para abrir projeto e parcelas, use “Fechar venda” na proposta.` });
   };
 
   return (
@@ -126,7 +126,7 @@ export function LeadDetail({ lead, open, onOpenChange, onEdit }: { lead: Lead | 
                 value={lead.stage}
                 onValueChange={(s) => {
                   moveLeadStage(lead.id, s);
-                  notify({ kind: "success", title: `Movido para ${leadStageMeta[s].label}` });
+                  notify({ kind: "success", title: `Movido para ${leadStageMeta[s].label}`, description: s === "ganho" && !lead.clientId ? "Cliente criado ou vinculado automaticamente, sem duplicar." : undefined });
                 }}
                 options={LEAD_STAGES.map((s) => ({ value: s, label: leadStageMeta[s].label }))}
               />
@@ -143,8 +143,8 @@ export function LeadDetail({ lead, open, onOpenChange, onEdit }: { lead: Lead | 
                 {proposals.map((p) => (
                   <li key={p.id}>
                     <Link href={`/propostas?id=${p.id}`} className="flex items-center justify-between rounded-xl border border-seam px-3 py-2 text-[13px] text-ink hover:border-seam-strong">
-                      {p.title}
-                      <span className="text-ink-faint">{formatDate(p.createdAt)}</span>
+                      <span className="min-w-0 truncate">{p.title}</span>
+                      <span className="shrink-0 text-ink-faint">{proposalStatusMeta[p.status].label} · {formatDate(p.createdAt)}</span>
                     </Link>
                   </li>
                 ))}

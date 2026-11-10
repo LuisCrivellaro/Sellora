@@ -7,10 +7,11 @@ import { ActivityPanel } from "@/components/shared/activity-panel";
 import { StatusBadge, TonePill } from "@/components/ui/dashboard-badge";
 import { Button } from "@/components/ui/button";
 import { Modal } from "@/components/ui/overlay";
-import { clientStatusMeta, projectStageMeta, segmentMeta } from "@/lib/constants";
+import { clientStatusMeta, projectStageMeta, proposalStatusMeta, segmentMeta, transactionStatusMeta } from "@/lib/constants";
 import { useStore } from "@/lib/data/store";
 import { formatDate } from "@/lib/dates";
-import { openAmount, paidAmount } from "@/lib/metrics/finance";
+import { openAmount, paidAmount, transactionStatus } from "@/lib/metrics/finance";
+import { proposalTotal } from "@/lib/metrics/proposals";
 import { projectProgress } from "@/lib/metrics/projects";
 import type { Client } from "@/lib/types";
 import { sum } from "@/lib/utils";
@@ -27,6 +28,7 @@ export function ClientDetail({ client, open, onOpenChange, onEdit }: { client: C
   const open_ = sum(txs.map(openAmount));
   const activities = db.activities.filter((a) => a.clientId === client.id || (client.leadId && a.leadId === client.leadId));
   const lead = client.leadId ? db.leads.find((l) => l.id === client.leadId) : null;
+  const proposals = db.proposals.filter((p) => p.clientId === client.id || (client.leadId && p.leadId === client.leadId));
 
   return (
     <Modal open={open} onOpenChange={onOpenChange} variant="sheet" title={client.name} description={`${segmentMeta[client.segment].label} · ${client.city}/${client.uf}`}>
@@ -113,6 +115,53 @@ export function ClientDetail({ client, open, onOpenChange, onEdit }: { client: C
                           {p.publishedUrl ? `Publicado: ${p.publishedUrl.replace(/^https?:\/\//, "")}` : `Preview: ${p.previewUrl.replace(/^https?:\/\//, "")}`}
                         </span>
                       )}
+                    </Link>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </section>
+
+        <section>
+          <p className="mb-2 text-[12.5px] font-semibold text-ink-faint">Propostas vinculadas</p>
+          {proposals.length === 0 ? (
+            <p className="text-[13px] text-ink-faint">Nenhuma proposta vinculada a este cliente.</p>
+          ) : (
+            <ul className="flex flex-col gap-1.5">
+              {proposals.map((p) => (
+                <li key={p.id}>
+                  <Link href={`/propostas?id=${p.id}`} className="flex items-center justify-between gap-3 rounded-xl border border-seam px-3 py-2 text-[13px] text-ink hover:border-seam-strong">
+                    <span className="min-w-0 truncate">{p.title}</span>
+                    <span className="tnum shrink-0 text-ink-faint">
+                      {proposalStatusMeta[p.status].label} · <Money value={proposalTotal(p)} />
+                    </span>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+
+        <section>
+          <p className="mb-2 text-[12.5px] font-semibold text-ink-faint">Parcelas e recebimentos</p>
+          {txs.length === 0 ? (
+            <p className="text-[13px] text-ink-faint">Nenhum lançamento de receita para este cliente.</p>
+          ) : (
+            <ul className="flex flex-col gap-1.5">
+              {txs.map((t) => {
+                const st = transactionStatus(t);
+                return (
+                  <li key={t.id}>
+                    <Link href={`/financeiro?projeto=${t.projectId ?? ""}`} className="flex items-center justify-between gap-3 rounded-xl border border-seam px-3 py-2 text-[13px] text-ink hover:border-seam-strong">
+                      <span className="min-w-0">
+                        <span className="block truncate">{t.description}</span>
+                        <span className="block text-[11.5px] text-ink-faint">Vence em {formatDate(t.dueDate)} · {transactionStatusMeta[st].label}</span>
+                      </span>
+                      <span className="tnum shrink-0 text-right">
+                        <span className="block font-semibold"><Money value={t.amount} /></span>
+                        <span className="block text-[11.5px] text-ink-faint">recebido <Money value={paidAmount(t)} /></span>
+                      </span>
                     </Link>
                   </li>
                 );

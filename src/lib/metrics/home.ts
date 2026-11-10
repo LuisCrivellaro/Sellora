@@ -41,7 +41,7 @@ export function commercialRadar(db: Database, now = new Date()): RadarAxis[] {
   const openContacted = open.filter((l) => !!l.lastContactAt);
 
   const contacted = db.leads.filter((l) => !!l.lastContactAt);
-  const proposed = new Set(db.proposals.filter((p) => p.status !== "rascunho").map((p) => p.leadId));
+  const proposed = new Set(db.proposals.filter((p) => p.status !== "rascunho" && p.status !== "pronta").map((p) => p.leadId));
   const contactedWithProposal = contacted.filter((l) => proposed.has(l.id));
 
   const decided = db.proposals.filter((p) => (p.status === "aprovada" || p.status === "recusada") && recent(p.decidedAt));

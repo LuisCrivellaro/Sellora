@@ -29,6 +29,7 @@ type Values = {
   title: string;
   packageId: PackageId;
   items: ItemValue[];
+  scope: string;
   discount: string;
   deadlineDays: string;
   revisions: string;
@@ -71,10 +72,11 @@ export function ProposalForm({
       items: proposal
         ? proposal.items.map((i) => ({ id: i.id, description: i.description, quantity: String(i.quantity), unitPrice: String(i.unitPrice) }))
         : [{ id: uid("item"), description: `Pacote ${pkg?.name ?? "Profissional"}`, quantity: "1", unitPrice: String(pkg?.price ?? 990) }],
+      scope: proposal?.scope ?? "",
       discount: String(proposal?.discount ?? 0),
       deadlineDays: String(proposal?.deadlineDays ?? 15),
-      revisions: String(proposal?.revisions ?? 2),
-      paymentTerms: proposal?.paymentTerms ?? "50% na aprovação, 50% na entrega",
+      revisions: String(proposal?.revisions ?? db?.settings.defaultRevisions ?? 2),
+      paymentTerms: proposal?.paymentTerms ?? db?.settings.defaultPaymentTerms ?? "50% de entrada na aprovação e 50% na entrega",
       exclusions: proposal?.exclusions ?? "Domínio, hospedagem, produção de fotos e manutenção mensal não inclusos.",
       validUntil: proposal ? toInputDate(proposal.validUntil) : isoDate(addDays(new Date(), db?.settings.defaultProposalValidityDays ?? 15)),
       status: proposal?.status ?? "rascunho",
@@ -130,6 +132,7 @@ export function ProposalForm({
       title: values.title,
       packageId: values.packageId,
       items: values.items.map((i) => ({ id: i.id, description: i.description, quantity: i.quantity, unitPrice: i.unitPrice.replace(",", ".") })),
+      scope: values.scope,
       discount: values.discount.replace(",", "."),
       deadlineDays: values.deadlineDays,
       revisions: values.revisions,
@@ -251,6 +254,10 @@ export function ProposalForm({
             <Plus aria-hidden /> Adicionar item
           </Button>
         </fieldset>
+
+        <Field label="Escopo (o que será entregue)" optional error={errors.scope} hint="Páginas, seções e funcionalidades combinadas. Aparece na proposta impressa.">
+          {(p) => <TextArea {...p} className="min-h-[84px]" value={values.scope} onChange={(e) => set("scope", e.target.value)} placeholder="Ex.: página inicial, sobre, serviços, contato com mapa e botão de WhatsApp; versão mobile; SEO local básico." />}
+        </Field>
 
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-6">
           <Field label="Desconto (R$)" error={errors.discount} className="sm:col-span-2">

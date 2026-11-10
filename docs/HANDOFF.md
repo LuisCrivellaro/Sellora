@@ -1,5 +1,7 @@
 # Handoff — continuação do projeto Sellora
 
+> **Histórico.** Este arquivo descreve a missão anterior (Supabase), de 2026-11-07. O estado atual da Sellora 2.0 está em [`AI_HANDOFF.md`](AI_HANDOFF.md).
+
 Documento para o próximo agente (ou outra conta) retomar o trabalho sem perder contexto. Atualizado em **2026-11-07**. A Entrega 1 (Supabase) está **implementada, mas não validada no projeto Supabase real**: veja §2 e §3.
 
 ---

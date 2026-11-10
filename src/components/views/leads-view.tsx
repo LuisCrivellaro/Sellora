@@ -1,8 +1,8 @@
 "use client";
 
-import { Eye, Kanban, MoreHorizontal, Pencil, Plus, Radar, Rows3, Trash2, X } from "lucide-react";
+import { Eye, FileUp, Kanban, MoreHorizontal, Pencil, Plus, Radar, Rows3, Trash2, X } from "lucide-react";
 import { ProspectingTab } from "@/components/prospecting/prospecting-tab";
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { CapsuleBarChart } from "@/components/charts/bar-charts";
 import { DonutChart } from "@/components/charts/donut";
 import { SegmentedBar } from "@/components/charts/segmented-bar";
@@ -24,7 +24,8 @@ import { Segmented } from "@/components/ui/segmented";
 import { EmptyState, PageSkeleton } from "@/components/ui/states";
 import { useToast } from "@/components/ui/toast";
 import { LEAD_SOURCES, LEAD_STAGES, leadSourceMeta, leadStageMeta, priorityMeta, SEGMENTS, segmentMeta, temperatureMeta, websiteSituationMeta } from "@/lib/constants";
-import { deleteLead, moveLeadStage } from "@/lib/data/repository";
+import { deleteLead, importLeadInputs, moveLeadStage } from "@/lib/data/repository";
+import { parseLeadCsv } from "@/lib/data/lead-csv";
 import { useStore } from "@/lib/data/store";
 import { buildBuckets, countByBucket, formatDate, formatRelative } from "@/lib/dates";
 import { leadsWithoutContact, pendingFollowUps, sourceDistribution, temperatureDistribution } from "@/lib/metrics/leads";
@@ -44,6 +45,7 @@ export function LeadsView() {
   const [formOpen, setFormOpen] = useState(params.get("novo") === "1");
   const [editing, setEditing] = useState<Lead | null>(null);
   const [toDelete, setToDelete] = useState<Lead | null>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
 
   const view = params.get("visao") === "kanban" ? "kanban" : "tabela";
   const tab = params.get("aba") === "prospeccao" ? "prospeccao" : "crm";
@@ -146,15 +148,42 @@ export function LeadsView() {
 
   const openDetail = (l: Lead) => setParams({ id: l.id });
 
+  const importFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    if (file.size > 2 * 1024 * 1024) return notify({ kind: "error", title: "Arquivo grande demais", description: "O limite é 2 MB." });
+    try {
+      const parsed = parseLeadCsv(await file.text());
+      if (!parsed.ok) return notify({ kind: "error", title: "Importação recusada", description: parsed.message });
+      const report = importLeadInputs(parsed.rows.map((r) => r.input), file.name);
+      const parts = [
+        `${report.created.length} lead(s) adicionados em Novo`,
+        report.duplicates.length ? `${report.duplicates.length} já existiam (não alterados)` : "",
+        parsed.invalid.length ? `${parsed.invalid.length} linha(s) inválidas (ex.: linha ${parsed.invalid[0].line}: ${parsed.invalid[0].message})` : "",
+        parsed.skipped ? `${parsed.skipped} além do limite de 500` : "",
+      ].filter(Boolean);
+      notify({ kind: report.created.length ? "success" : "error", title: report.created.length ? "Leads importados" : "Nenhum lead novo", description: `${parts.join(" · ")}.` });
+    } catch (err) {
+      notify({ kind: "error", title: "Não foi possível importar", description: err instanceof Error ? err.message : "Arquivo ilegível." });
+    }
+  };
+
   return (
     <>
       <PageHeader
         title="Leads"
         description={tab === "prospeccao" ? "Prospecção IA: encontre estabelecimentos sem presença digital adequada e leve ao CRM." : "CRM de estabelecimentos: pesquise, qualifique e mova no funil."}
         actions={
-          <Button variant="primary" onClick={() => { setEditing(null); setFormOpen(true); }}>
-            <Plus aria-hidden /> Novo lead
-          </Button>
+          <>
+            <input ref={fileRef} type="file" accept=".csv,text/csv" className="sr-only" tabIndex={-1} aria-hidden onChange={importFile} />
+            <Button variant="secondary" onClick={() => fileRef.current?.click()} title="CSV no modelo da skill de prospecção ou planilha com colunas nome, cidade, uf…">
+              <FileUp aria-hidden /> Importar CSV
+            </Button>
+            <Button variant="primary" onClick={() => { setEditing(null); setFormOpen(true); }}>
+              <Plus aria-hidden /> Novo lead
+            </Button>
+          </>
         }
       />
       <Segmented

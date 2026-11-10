@@ -124,6 +124,7 @@ export const proposalInputSchema = z.object({
   title: requiredText("Título", 3, 120),
   packageId: z.enum(["essencial", "profissional", "personalizado"]),
   items: z.array(proposalItemSchema).min(1, "Adicione ao menos um item."),
+  scope: optionalText(2000).default(""),
   discount: money("Desconto"),
   deadlineDays: z.coerce.number().int().min(1, "Prazo mínimo de 1 dia.").max(365, "Prazo máximo de 365 dias."),
   revisions: z.coerce.number().int().min(0).max(20, "No máximo 20 rodadas."),

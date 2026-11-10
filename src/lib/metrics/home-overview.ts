@@ -2,6 +2,9 @@ import { activityTypeMeta } from "../constants";
 import { addDays, daysBetween, startOfDay, type RangeKey } from "../dates";
 import type { Database, Lead } from "../types";
 import { sourceDistribution, funnel, isContactActivity } from "./leads";
+import { openAmount, transactionStatus } from "./finance";
+import { projectStatus } from "./projects";
+import { round2, sum } from "../utils";
 import { commercialSeries } from "./home";
 
 export interface RecentCommercialLead {
@@ -89,5 +92,42 @@ export function homePeriodOverview(db: Database, range: RangeKey, now = new Date
     conversion: funnel(db).conversion,
     undatedWon,
     recent,
+  };
+}
+
+/**
+ * Indicadores operacionais e financeiros da Home. Cada um declara sua base:
+ * - "período": respeita o filtro (início inclusivo, fim exclusivo);
+ * - "atual": retrato de agora, independente do filtro.
+ * Contratado (projetos criados) nunca é somado a recebido (pagamentos registrados).
+ */
+export function homeIndicators(db: Database, start: number, end: number, now = new Date()) {
+  const within = (value: string | null | undefined) => {
+    const stamp = value ? new Date(value).getTime() : NaN;
+    return Number.isFinite(stamp) && stamp >= start && stamp < end;
+  };
+  const captured = db.leads.filter((lead) => within(lead.createdAt));
+  const receitas = db.transactions.filter((t) => t.kind === "receita" && !t.cancelled);
+  const pending = db.activities.filter((a) => a.dueAt && !a.completedAt);
+  const startOfToday = startOfDay(now).getTime();
+  return {
+    /** atual */
+    totalLeads: db.leads.length,
+    /** período: captados no período que já saíram de "Novo" e não foram perdidos */
+    qualified: captured.filter((lead) => lead.stage !== "novo" && lead.stage !== "perdido").length,
+    captured: captured.length,
+    /** período: valor de contrato dos projetos criados */
+    contracted: round2(sum(db.projects.filter((p) => within(p.createdAt)).map((p) => p.contractValue))),
+    /** período: pagamentos registrados em receitas */
+    received: round2(sum(receitas.flatMap((t) => t.payments.filter((p) => within(p.date)).map((p) => p.amount)))),
+    /** atual: saldo aberto das receitas lançadas */
+    receivable: round2(sum(receitas.map(openAmount))),
+    overdueReceivable: round2(sum(receitas.filter((t) => transactionStatus(t, now) === "vencido").map(openAmount))),
+    /** atual */
+    activeProjects: db.projects.filter((p) => projectStatus(p) !== "concluido").length,
+    totalProjects: db.projects.length,
+    /** atual: atividades com data marcada e ainda não concluídas */
+    pendingActivities: pending.length,
+    overdueActivities: pending.filter((a) => new Date(a.dueAt as string).getTime() < startOfToday).length,
   };
 }

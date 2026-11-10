@@ -4,7 +4,7 @@ import { useSyncExternalStore } from "react";
 import type { Database } from "../types";
 import { dataMode, type DataMode } from "../supabase/config";
 import { applyChanges, loadDatabase } from "./actions";
-import { createSeed, DB_VERSION } from "./seed";
+import { createSeed, DB_VERSION, normalizeDatabase } from "./seed";
 import { diffDatabases, isEmptyChangeSet, type ChangeSet } from "./sync";
 
 /**
@@ -79,7 +79,7 @@ function loadLocal() {
     const raw = window.localStorage.getItem(STORAGE_KEY);
     if (raw) {
       const parsed: unknown = JSON.parse(raw);
-      if (isDatabase(parsed)) db = parsed;
+      if (isDatabase(parsed)) db = normalizeDatabase(parsed);
     }
   } catch {
     storageError = "Não foi possível ler os dados salvos neste navegador. Iniciamos uma nova demonstração em memória.";
@@ -177,7 +177,7 @@ function subscribe(listener: () => void) {
     if (state.mode !== "local" || e.key !== STORAGE_KEY || !e.newValue) return;
     try {
       const parsed: unknown = JSON.parse(e.newValue);
-      if (isDatabase(parsed)) set({ db: parsed });
+      if (isDatabase(parsed)) set({ db: normalizeDatabase(parsed) });
     } catch {
       /* ignora valor inválido de outra aba */
     }

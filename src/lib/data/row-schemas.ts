@@ -110,6 +110,10 @@ export const settingsSchema = z.object({
   currency: z.literal("BRL"),
   defaultProposalValidityDays: z.number().int().min(1).max(90),
   defaultFollowUpDays: z.number().int().min(1).max(30),
+  // Campos novos têm padrão: preferências gravadas antes deles continuam válidas.
+  defaultPaymentTerms: z.string().trim().max(300).default("50% de entrada na aprovação e 50% na entrega"),
+  entryPercent: z.number().min(0).max(100).default(50),
+  defaultRevisions: z.number().int().min(0).max(20).default(2),
   monthlyLeadTarget: z.number().int().min(1).max(1000),
 }) satisfies z.ZodType<Settings, unknown>;
 

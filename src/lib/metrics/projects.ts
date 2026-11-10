@@ -14,13 +14,13 @@ export function projectProgress(p: Project): number {
 /**
  * Status derivado:
  * - concluído: etapa "entrega" com data de entrega registrada;
- * - em revisão: etapas "revisão" ou "publicação";
+ * - em revisão: etapas "revisão", "aprovação" ou "publicação";
  * - não iniciado: etapa "briefing" sem tarefas concluídas;
  * - em desenvolvimento: demais casos.
  */
 export function projectStatus(p: Project): ProjectStatus {
   if (p.stage === "entrega" && p.deliveredAt) return "concluido";
-  if (p.stage === "revisao" || p.stage === "publicacao") return "em_revisao";
+  if (p.stage === "revisao" || p.stage === "aprovacao" || p.stage === "publicacao") return "em_revisao";
   if (p.stage === "briefing" && !p.tasks.some((t) => t.done)) return "nao_iniciado";
   return "em_desenvolvimento";
 }
@@ -44,7 +44,7 @@ export function statusCounts(projects: Project[]) {
 /** Sites contratados por situação de entrega. */
 export function siteDelivery(projects: Project[]) {
   return {
-    desenvolvimento: projects.filter((p) => ["briefing", "design", "desenvolvimento"].includes(p.stage)).length,
+    desenvolvimento: projects.filter((p) => ["briefing", "briefing_recebido", "planejamento", "design", "desenvolvimento"].includes(p.stage)).length,
     revisao: projects.filter((p) => p.stage === "revisao").length,
     publicados: projects.filter((p) => !!p.publishedUrl).length,
     entregues: projects.filter((p) => projectStatus(p) === "concluido").length,

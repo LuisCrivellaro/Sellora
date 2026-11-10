@@ -51,6 +51,9 @@ export const defaultSettings: Settings = {
   currency: "BRL",
   defaultProposalValidityDays: 15,
   defaultFollowUpDays: 3,
+  defaultPaymentTerms: "50% de entrada na aprovação e 50% na entrega",
+  entryPercent: 50,
+  defaultRevisions: 2,
   monthlyLeadTarget: 30,
 };
 
@@ -133,6 +136,15 @@ function slug(s: string) {
     .replace(/[̀-ͯ]/g, "")
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "");
+}
+
+/** Completa campos criados depois (dados antigos do navegador ou do banco) sem perder o que já existe. */
+export function normalizeDatabase(db: Database): Database {
+  const settings = { ...structuredClone(defaultSettings), ...db.settings };
+  const needsScope = db.proposals.some((p) => typeof p.scope !== "string");
+  const sameSettings = Object.keys(settings).every((k) => k in db.settings);
+  if (sameSettings && !needsScope) return db;
+  return { ...db, settings, proposals: needsScope ? db.proposals.map((p) => ({ ...p, scope: p.scope ?? "" })) : db.proposals };
 }
 
 export function createSeed(now: Date = new Date()): Database {
@@ -313,6 +325,7 @@ export function createSeed(now: Date = new Date()): Database {
       deadlineDays: packageId === "essencial" ? 7 : packageId === "profissional" ? 15 : 25,
       revisions: 2,
       paymentTerms: "50% na aprovação, 50% na entrega",
+      scope: "",
       exclusions: "Domínio, hospedagem, produção de fotos e manutenção mensal não inclusos.",
       validUntil: addDays(created, 15).toISOString(),
       status,
@@ -339,6 +352,7 @@ export function createSeed(now: Date = new Date()): Database {
       deadlineDays: 15,
       revisions: 2,
       paymentTerms: "50% na aprovação, 50% na entrega",
+      scope: "",
       exclusions: "Domínio, hospedagem e manutenção mensal não inclusos.",
       validUntil: addDays(now, 15).toISOString(),
       status: "rascunho",

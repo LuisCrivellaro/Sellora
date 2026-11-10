@@ -17,8 +17,8 @@ import { leadSourceMeta, leadStageMeta, OPEN_STAGES } from "@/lib/constants";
 import { useStore } from "@/lib/data/store";
 import { formatDate, formatShort, RANGE_OPTIONS, type RangeKey } from "@/lib/dates";
 import { commercialRadar, nextActions } from "@/lib/metrics/home";
-import { homePeriodOverview } from "@/lib/metrics/home-overview";
-import { formatPercent } from "@/lib/utils";
+import { homeIndicators, homePeriodOverview } from "@/lib/metrics/home-overview";
+import { formatBRL, formatInt, formatPercent } from "@/lib/utils";
 import { dashboardColors, dashboardTone as tone } from "@/lib/visualization";
 import "./home-view.css";
 
@@ -30,9 +30,11 @@ export function HomeView() {
   const data = useMemo(() => {
     if (!db) return null;
     const now = new Date();
+    const overview = homePeriodOverview(db, range, now);
     return {
       now,
-      overview: homePeriodOverview(db, range, now),
+      overview,
+      indicators: homeIndicators(db, overview.start, overview.end, now),
       radar: commercialRadar(db, now),
       actions: nextActions(db, now),
       openTotal: db.leads.filter((lead) => OPEN_STAGES.includes(lead.stage)).length,
@@ -42,7 +44,17 @@ export function HomeView() {
 
   if (!db || !data) return <PageSkeleton rows={[["col-span-12 sm:col-span-6 xl:col-span-3 h-[170px]", "col-span-12 sm:col-span-6 xl:col-span-3 h-[170px]", "col-span-12 sm:col-span-6 xl:col-span-3 h-[170px]", "col-span-12 sm:col-span-6 xl:col-span-3 h-[170px]"], ["col-span-12 xl:col-span-8 h-[350px]", "col-span-12 xl:col-span-4 h-[350px]"], ["col-span-12 h-[420px]"]]} />;
 
-  const { overview } = data;
+  const { overview, indicators } = data;
+  const indicatorItems: { label: string; value: string; hint: string; href: string; base: "período" | "atual" }[] = [
+    { label: "Total de leads", value: formatInt(indicators.totalLeads), hint: "Todos os leads no CRM", href: "/leads", base: "atual" },
+    { label: "Leads qualificados", value: formatInt(indicators.qualified), hint: `De ${formatInt(indicators.captured)} captados: já saíram de Novo e não foram perdidos`, href: "/leads", base: "período" },
+    { label: "Taxa de conversão", value: overview.conversion === null ? "—" : formatPercent(overview.conversion, 1), hint: overview.conversion === null ? "Sem leads cadastrados para calcular" : "Ganhos ÷ leads cadastrados · acumulado", href: "/leads?visao=kanban", base: "atual" },
+    { label: "Receita contratada", value: formatBRL(indicators.contracted), hint: "Contratos dos projetos criados. Não é caixa", href: "/projetos", base: "período" },
+    { label: "Valor recebido", value: formatBRL(indicators.received), hint: "Pagamentos registrados em receitas", href: "/financeiro", base: "período" },
+    { label: "Valor a receber", value: formatBRL(indicators.receivable), hint: indicators.overdueReceivable > 0 ? `${formatBRL(indicators.overdueReceivable)} vencidos` : "Saldo aberto das parcelas, nada vencido", href: "/financeiro?status=pendente", base: "atual" },
+    { label: "Projetos ativos", value: formatInt(indicators.activeProjects), hint: `De ${formatInt(indicators.totalProjects)} projetos; os demais foram entregues`, href: "/projetos", base: "atual" },
+    { label: "Atividades pendentes", value: formatInt(indicators.pendingActivities), hint: `${formatInt(indicators.overdueActivities)} com data vencida`, href: "/leads?filtro=follow_up", base: "atual" },
+  ];
   const { series, metrics } = overview;
   const rangeInfo = RANGE_OPTIONS.find((item) => item.value === range)!;
   return (
@@ -62,6 +74,21 @@ export function HomeView() {
         <HomeKpi title="Propostas enviadas" metric={metrics.proposals} icon={FileText} href="/propostas" note="Envios registrados no período" index={2} />
         <HomeKpi title="Vendas fechadas" metric={metrics.sales} icon={Handshake} href="/clientes" note={overview.conversion === null ? "Conversão acumulada sem base" : `${formatPercent(overview.conversion, 1)} de conversão acumulada`} info={overview.undatedWon ? `${overview.undatedWon} ganho(s) sem data de fechamento registrada ficam fora da contagem por período. Não usamos a data de edição do lead como fechamento.` : "Ganhos no período, pelo histórico de etapa ou pela aprovação da proposta. Cada lead é contado uma vez."} index={3} />
       </div>
+
+      <section className="facade home-indicators" aria-label="Indicadores da operação">
+        <dl>
+          {indicatorItems.map((item) => (
+            <div key={item.label} className="home-indicator">
+              <dt>
+                <Link href={item.href}>{item.label}</Link>
+                <span className="home-indicator-base">{item.base}</span>
+              </dt>
+              <dd className="tnum">{item.value}</dd>
+              <p>{item.hint}</p>
+            </div>
+          ))}
+        </dl>
+      </section>
 
       <div className="home-analytics">
         <DashboardCard index={4} title="Evolução comercial" description={rangeInfo.description} className="home-trend-card" actions={<span className="home-chart-period">{rangeInfo.label}</span>}>

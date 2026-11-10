@@ -124,15 +124,28 @@ export const clientStatusMeta: Record<ClientStatus, Meta> = {
   encerrado: { label: "Encerrado", tone: "indigo" },
 };
 
-export const PROJECT_STAGES: ProjectStage[] = ["briefing", "design", "desenvolvimento", "revisao", "publicacao", "entrega"];
+export const PROJECT_STAGES: ProjectStage[] = [
+  "briefing",
+  "briefing_recebido",
+  "planejamento",
+  "design",
+  "desenvolvimento",
+  "revisao",
+  "aprovacao",
+  "publicacao",
+  "entrega",
+];
 
 export const projectStageMeta: Record<ProjectStage, Meta> = {
-  briefing: { label: "Briefing", tone: "magenta" },
+  briefing: { label: "Briefing pendente", tone: "magenta" },
+  briefing_recebido: { label: "Briefing recebido", tone: "magenta" },
+  planejamento: { label: "Planejamento", tone: "lilac" },
   design: { label: "Design", tone: "lilac" },
   desenvolvimento: { label: "Desenvolvimento", tone: "violet" },
   revisao: { label: "Revisão", tone: "indigo" },
+  aprovacao: { label: "Aprovação", tone: "indigo" },
   publicacao: { label: "Publicação", tone: "warn" },
-  entrega: { label: "Entrega", tone: "mint" },
+  entrega: { label: "Entregue", tone: "mint" },
 };
 
 export const projectStatusMeta: Record<ProjectStatus, Meta> = {
@@ -151,26 +164,29 @@ export const siteTypeMeta: Record<SiteType, { label: string }> = {
 /** Tarefas padrão criadas para cada novo projeto (base do cálculo de progresso). */
 export const DEFAULT_PROJECT_TASKS: { title: string; stage: ProjectStage }[] = [
   { title: "Reunião de briefing", stage: "briefing" },
-  { title: "Coletar conteúdo, fotos e logo", stage: "briefing" },
+  { title: "Coletar conteúdo, fotos e logo", stage: "briefing_recebido" },
+  { title: "Mapa de páginas e cronograma", stage: "planejamento" },
   { title: "Ficha de direção criativa aprovada", stage: "design" },
   { title: "Layout desktop e mobile", stage: "design" },
   { title: "Construir páginas", stage: "desenvolvimento" },
   { title: "Formulário e contatos funcionando", stage: "desenvolvimento" },
   { title: "QA: mobile, acessibilidade, performance", stage: "revisao" },
   { title: "Ajustes da revisão do cliente", stage: "revisao" },
-  { title: "Preview aprovado por escrito", stage: "publicacao" },
+  { title: "Preview aprovado por escrito", stage: "aprovacao" },
   { title: "Publicar com domínio do cliente", stage: "publicacao" },
   { title: "Entrega e orientações finais", stage: "entrega" },
 ];
 
-export const PROPOSAL_STATUSES: ProposalStatus[] = ["rascunho", "enviada", "negociacao", "aprovada", "recusada"];
+export const PROPOSAL_STATUSES: ProposalStatus[] = ["rascunho", "pronta", "enviada", "negociacao", "aprovada", "recusada", "expirada"];
 
 export const proposalStatusMeta: Record<ProposalStatus, Meta> = {
   rascunho: { label: "Rascunho", tone: "ghost" },
+  pronta: { label: "Pronta", tone: "lilac" },
   enviada: { label: "Enviada", tone: "violet" },
   negociacao: { label: "Em negociação", tone: "magenta" },
   aprovada: { label: "Aprovada", tone: "mint" },
   recusada: { label: "Recusada", tone: "indigo" },
+  expirada: { label: "Expirada", tone: "warn" },
 };
 
 export const packageOrder: PackageId[] = ["essencial", "profissional", "personalizado"];

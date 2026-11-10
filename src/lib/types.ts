@@ -82,7 +82,19 @@ export interface Client {
   updatedAt: string;
 }
 
-export type ProjectStage = "briefing" | "design" | "desenvolvimento" | "revisao" | "publicacao" | "entrega";
+/**
+ * "briefing" = briefing pendente; "entrega" = entregue (ids antigos preservados para não migrar dados).
+ */
+export type ProjectStage =
+  | "briefing"
+  | "briefing_recebido"
+  | "planejamento"
+  | "design"
+  | "desenvolvimento"
+  | "revisao"
+  | "aprovacao"
+  | "publicacao"
+  | "entrega";
 
 export type SiteType = "landing" | "institucional" | "personalizado";
 
@@ -126,7 +138,7 @@ export interface ProposalItem {
   unitPrice: number;
 }
 
-export type ProposalStatus = "rascunho" | "enviada" | "negociacao" | "aprovada" | "recusada";
+export type ProposalStatus = "rascunho" | "pronta" | "enviada" | "negociacao" | "aprovada" | "recusada" | "expirada";
 
 export interface Proposal {
   id: ID;
@@ -136,6 +148,8 @@ export interface Proposal {
   title: string;
   packageId: PackageId;
   items: ProposalItem[];
+  /** Escopo descritivo (o que será entregue), além dos itens com valor. */
+  scope: string;
   discount: number;
   deadlineDays: number;
   revisions: number;
@@ -194,6 +208,12 @@ export interface Settings {
   currency: "BRL";
   defaultProposalValidityDays: number;
   defaultFollowUpDays: number;
+  /** Texto padrão das condições de pagamento em novas propostas. */
+  defaultPaymentTerms: string;
+  /** Percentual de entrada (0–100) usado ao gerar as parcelas de uma venda. */
+  entryPercent: number;
+  /** Rodadas de revisão padrão em novas propostas. */
+  defaultRevisions: number;
   /** Meta mensal de leads captados; base do eixo "Prospecção" do radar. */
   monthlyLeadTarget: number;
 }
