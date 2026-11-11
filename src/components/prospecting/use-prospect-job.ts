@@ -1,7 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { clearActiveJob, failSearch, finishSearch, startSearch, useProspects } from "@/lib/prospecting/store";
+import { clearActiveJob, failSearch, startSearch, useProspects } from "@/lib/prospecting/store";
+import { completeProspectSearch } from "@/lib/prospecting/complete-search";
 import type { ExecutorStatus, JobView, ProspectParams } from "@/lib/prospecting/types";
 
 /**
@@ -95,7 +96,7 @@ export function useProspectJob() {
         if (view.status === "running" || view.status === "queued") timer.current = window.setTimeout(tick, POLL_MS);
         else {
           pollingId.current = null;
-          finishSearch(view);
+          completeProspectSearch(view);
         }
       } catch {
         // Falha de rede momentânea: tenta de novo com intervalo maior.
@@ -113,7 +114,7 @@ export function useProspectJob() {
   useEffect(() => stopPolling, []);
 
   const start = useCallback(
-    async (params: ProspectParams) => {
+    async (params: ProspectParams, generateDemos = false) => {
       setStarting(true);
       setRequestError(null);
       try {
@@ -126,7 +127,7 @@ export function useProspectJob() {
         }
         const view = body.job as JobView;
         setJob(view);
-        startSearch(view);
+        startSearch(view, generateDemos);
         poll(view.id);
         return true;
       } catch {
@@ -151,7 +152,7 @@ export function useProspectJob() {
       stopPolling();
       const view = body.job as JobView;
       setJob(view);
-      finishSearch(view);
+      completeProspectSearch(view);
     } catch {
       setRequestError("Sem resposta do servidor ao cancelar.");
     }

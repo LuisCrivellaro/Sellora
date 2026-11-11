@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { leadDemoSchema } from "../demos/model";
 import { PROJECT_STAGES } from "../constants";
 import {
   activityInputSchema,
@@ -30,6 +31,7 @@ const position = z.number().int().min(0).max(10_000);
 const MAX_ROWS = 5000;
 
 export const leadRowSchema = leadInputSchema.extend({
+  demo: leadDemoSchema.nullable().optional(),
   id,
   website: leadInputSchema.shape.website.nullable().transform((v) => v || null),
   nextActionAt: isoOrNull,

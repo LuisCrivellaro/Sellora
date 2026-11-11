@@ -1,0 +1,27 @@
+.cover { color: var(--cover-ink); background: var(--cover-paper); height: 220px; overflow: hidden; position: relative; }
+.chrome { display: flex; align-items: center; gap: 4px; background: #242424; padding: 9px 12px; color: #aaa; height: 27px; }
+.chrome > i { width: 5px; height: 5px; background: #6b6b6b; border-radius: 50%; }
+.chrome span { margin-left: 12px; font-size: 8px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 75%; }
+.page { padding: 10px 18px; }
+.miniHeader { display: flex; align-items: center; justify-content: space-between; gap: 14px; font-size: 9px; font-weight: 600; }
+.miniHeader > span { font-size: 6px; white-space: nowrap; font-weight: 400; }
+.hero { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 16px; align-items: center; }
+.hero img { width: 100%; height: 120px; object-fit: cover; }
+.copy small { display: block; font-size: 6px; color: var(--cover-accent); margin-bottom: 7px; }
+.copy strong { font: 400 24px/1.04 Georgia,serif; letter-spacing: -.04em; display: block; }
+.copy em { display: inline-block; margin-top: 10px; padding: 4px 6px; background: var(--cover-accent); color: var(--cover-paper); font-size: 5px; font-style: normal; }
+.miniFooter { border-top: 1px solid color-mix(in srgb,var(--cover-ink) 18%,transparent); margin-top: 15px; padding-top: 9px; font: 12px/1.2 Georgia,serif; }
+.miniFooter > i { display: inline-block; width: 30%; height: 2px; margin-left: 10%; background: color-mix(in srgb,var(--cover-ink) 20%,transparent); }
+.restaurantes .hero img { border-radius: 0 0 35px 0; }
+.beleza .copy strong { font-size: 31px; }
+.beleza .hero img { height: 130px; }
+.saude .copy strong,.servicos .copy strong,.outros .copy strong { font-family: Arial,sans-serif; font-weight: 650; font-size: 22px; }
+.saude .hero img { border-radius: 3px 28px 3px 3px; }
+.servicos .hero img { height: 135px; }
+.comercio .hero { grid-template-columns: 1fr; position: relative; margin-top: 10px; }
+.comercio .copy { position: absolute; inset: 0; background: #20382fa6; color: #fff; padding: 14px; }
+.comercio .copy strong { width: 65%; }
+.comercio .copy small { color: #fff; }
+.comercio .hero img { height: 130px; }
+.legacy { display: flex; flex-direction: column; padding: 36px 24px; gap: 18px; font: 28px/1.1 Georgia,serif; }
+.legacy small { font: 11px/1.4 Arial,sans-serif; }

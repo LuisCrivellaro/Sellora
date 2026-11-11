@@ -41,7 +41,9 @@ import { uid } from "../utils";
 import { findCrmDuplicate, prospectToLeadInput, type CrmMatch } from "../prospecting/to-lead";
 import type { ProspectResult } from "../prospecting/types";
 import { createEmptyDatabase, createSeed } from "./seed";
-import { commit, getDb, getMode } from "./store";
+import { commit, getDb, getMode, getStoreState } from "./store";
+import { createLeadDemo, demoMessageForCopy, demoMessageSchema, leadDemoSchema, type LeadDemo } from "../demos/model";
+import { isCurrentDemoSent, normalizeWhatsappPhone, MANUAL_DEMO_ACTIVITY } from "../demos/whatsapp";
 
 /**
  * Operações de escrita. Toda entrada passa pelo schema Zod antes de gravar —
@@ -213,6 +215,7 @@ export function toggleActivity(id: ID) {
 /* ───────────────────────────── Prospecção IA → CRM ───────────────────────────── */
 
 export interface ProspectImportReport {
+  demos: { resultId: string; leadId: string; reused: boolean }[];
   created: { resultId: string; lead: Lead }[];
   duplicates: { resultId: string; match: CrmMatch }[];
   invalid: { resultId: string; message: string }[];
@@ -223,15 +226,24 @@ export interface ProspectImportReport {
  * Duplicidade conferida contra o CRM no momento da gravação (e dentro do lote):
  * um lead já cadastrado nunca é sobrescrito. Mesmos schemas do cadastro manual.
  */
-export function importProspects(results: ProspectResult[]): ProspectImportReport {
-  const report: ProspectImportReport = { created: [], duplicates: [], invalid: [] };
+export function importProspects(results: (ProspectResult & { discarded?: boolean })[], options?: { generateDemos: boolean }): ProspectImportReport {
+  const report: ProspectImportReport = { created: [], duplicates: [], invalid: [], demos: [] };
   commit((db) => {
     const leads: Lead[] = [];
     const activities: Activity[] = [];
+    const demoUpdates = new Map<string, LeadDemo>();
     for (const r of results) {
+      if (options?.generateDemos && (r.discarded || !["HOT", "WARM"].includes(r.classification))) continue;
       const match = findCrmDuplicate(r, [...leads, ...db.leads]);
       if (match) {
         report.duplicates.push({ resultId: r.id, match });
+        if (options?.generateDemos) {
+          const existing = [...leads, ...db.leads].find((l) => l.id === match.leadId)!;
+          if (existing.stage === "ganho" || existing.stage === "perdido") continue;
+          const previous = demoUpdates.get(existing.id) ?? existing.demo;
+          demoUpdates.set(existing.id, previous ?? createLeadDemo(existing));
+          report.demos.push({ resultId: r.id, leadId: existing.id, reused: !!previous });
+        }
         continue;
       }
       const { input, activity } = prospectToLeadInput(r, db.settings.packages);
@@ -242,15 +254,74 @@ export function importProspects(results: ProspectResult[]): ProspectImportReport
       }
       const t = nowIso();
       const lead: Lead = { ...parsed.data, website: parsed.data.website || null, lastContactAt: null, clientId: null, lostReason: "", id: uid("lead"), createdAt: t, updatedAt: t };
+      if (options?.generateDemos) {
+        lead.demo = createLeadDemo(lead);
+        report.demos.push({ resultId: r.id, leadId: lead.id, reused: false });
+      }
       const note = activityInputSchema.parse({ type: "nota", description: activity, dueAt: null, completed: true });
       activities.push({ id: uid("act"), leadId: lead.id, clientId: null, projectId: null, type: note.type, description: note.description, dueAt: null, completedAt: t, createdAt: t });
       leads.push(lead);
       report.created.push({ resultId: r.id, lead });
     }
-    if (!leads.length) return db;
-    return { ...db, leads: [...leads, ...db.leads], activities: [...activities, ...db.activities] };
+    if (!leads.length && !demoUpdates.size) return db;
+    return { ...db, leads: [...leads, ...db.leads].map((l) => demoUpdates.has(l.id) ? { ...l, demo: demoUpdates.get(l.id), updatedAt: nowIso() } : l), activities: [...activities, ...db.activities] };
   });
   return report;
+}
+
+export function generateLeadDemo(leadId: ID): LeadDemo {
+  let demo: LeadDemo | undefined;
+  commit((db) => {
+    const lead = db.leads.find((l) => l.id === leadId);
+    if (!lead) throw new Error("Lead não encontrado.");
+    demo = lead.demo ?? createLeadDemo(lead);
+    if (lead.demo) return db;
+    return { ...db, leads: db.leads.map((l) => l.id === leadId ? { ...l, demo, updatedAt: nowIso() } : l) };
+  });
+  return demo!;
+}
+
+function updateLeadDemo(leadId: ID, update: (demo: LeadDemo, db: Database) => LeadDemo) {
+  commit((db) => {
+    const lead = db.leads.find((l) => l.id === leadId);
+    if (!lead?.demo) throw new Error("Gere a demo antes de revisar a mensagem.");
+    const demo = leadDemoSchema.parse(update(lead.demo, db));
+    return { ...db, leads: db.leads.map((l) => l.id === leadId ? { ...l, demo, updatedAt: nowIso() } : l) };
+  });
+}
+
+export function saveDemoMessage(leadId: ID, message: string) {
+  const text = demoMessageSchema.parse(message);
+  updateLeadDemo(leadId, (demo) => demo.message === text ? demo : { ...demo, message: text, status: "pending", approvedAt: null, approvedBy: null, updatedAt: nowIso() });
+}
+
+export function approveLeadDemo(leadId: ID) {
+  updateLeadDemo(leadId, (demo, db) => ({ ...demo, status: "approved", approvedAt: nowIso(), updatedAt: nowIso(), approvedBy: getMode() === "supabase" ? getStoreState().account?.email || db.settings.profile.name : db.settings.profile.name || "Revisor local" }));
+}
+
+export function revokeDemoApproval(leadId: ID) {
+  updateLeadDemo(leadId, (demo) => ({ ...demo, status: "pending", approvedAt: null, approvedBy: null, updatedAt: nowIso() }));
+}
+
+export function upgradeLeadDemoDesign(leadId: ID) {
+  updateLeadDemo(leadId, (demo) => demo.version === 2 ? demo : { ...demo, version: 2, status: "pending", approvedAt: null, approvedBy: null, updatedAt: nowIso() });
+}
+
+/** Declaração manual do operador, nunca confirmação de entrega do WhatsApp. */
+export function markDemoManuallySent(leadId: ID, origin: string) {
+  commit((db) => {
+    const lead = db.leads.find((l) => l.id === leadId);
+    if (!lead?.demo) throw new Error("Gere e aprove a mensagem antes de registrar o envio.");
+    const text = demoMessageForCopy(lead.demo, origin);
+    const phone = normalizeWhatsappPhone(lead.phone);
+    if (!phone) throw new Error("Confirme um telefone válido antes de registrar o envio.");
+    if (isCurrentDemoSent(lead.demo, lead.phone)) return db;
+    const t = nowIso();
+    const by = getStoreState().account?.email || db.settings.profile.name || "Revisor local";
+    const demo = leadDemoSchema.parse({ ...lead.demo, updatedAt: t, lastManualSend: { at: t, by, phone, body: lead.demo.message, text, designVersion: lead.demo.version } });
+    const activity: Activity = { id: uid(), leadId, clientId: null, projectId: null, type: "whatsapp", description: MANUAL_DEMO_ACTIVITY, dueAt: null, completedAt: t, createdAt: t };
+    return { ...db, leads: db.leads.map((l) => l.id === leadId ? { ...l, demo, lastContactAt: t, stage: l.stage === "novo" || l.stage === "qualificado" ? "contatado" : l.stage, updatedAt: t } : l), activities: [activity, ...db.activities] };
+  });
 }
 
 export interface LeadFileImportReport {

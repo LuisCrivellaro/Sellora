@@ -142,9 +142,10 @@ function slug(s: string) {
 export function normalizeDatabase(db: Database): Database {
   const settings = { ...structuredClone(defaultSettings), ...db.settings };
   const needsScope = db.proposals.some((p) => typeof p.scope !== "string");
+  const needsDemo = db.leads.some((l) => l.demo === undefined);
   const sameSettings = Object.keys(settings).every((k) => k in db.settings);
-  if (sameSettings && !needsScope) return db;
-  return { ...db, settings, proposals: needsScope ? db.proposals.map((p) => ({ ...p, scope: p.scope ?? "" })) : db.proposals };
+  if (sameSettings && !needsScope && !needsDemo) return db;
+  return { ...db, settings, leads: needsDemo ? db.leads.map((l) => ({ ...l, demo: l.demo ?? null })) : db.leads, proposals: needsScope ? db.proposals.map((p) => ({ ...p, scope: p.scope ?? "" })) : db.proposals };
 }
 
 export function createSeed(now: Date = new Date()): Database {
@@ -271,6 +272,7 @@ export function createSeed(now: Date = new Date()): Database {
     const nextActionAt = stage === "perdido" || stage === "ganho" ? null : addDays(now, between(-3, 6)).toISOString();
 
     leads.push({
+      demo: null,
       id: leadId,
       name: spec.name,
       segment: spec.segment,

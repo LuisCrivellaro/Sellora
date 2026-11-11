@@ -12,6 +12,10 @@ export async function proxy(request: NextRequest) {
   const { pathname, search } = request.nextUrl;
   const isLogin = pathname === "/entrar";
 
+  // Apenas o renderizador da prévia é público. Não consulta o CRM nem sessões;
+  // recebe um snapshot comercial validado no fragmento (nunca no servidor).
+  if (pathname === "/demo") return NextResponse.next();
+
   if (!isSupabaseConfigured()) {
     return isLogin ? NextResponse.redirect(new URL("/dashboard", request.url)) : NextResponse.next();
   }

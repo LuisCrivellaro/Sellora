@@ -1,4 +1,5 @@
 import type { Activity, Client, Lead } from "../types";
+import { leadDemoSchema } from "../demos/model";
 import type { ChangeSet, ItemRecord, PaymentRecord, ProjectRecord, ProposalRecord, TableName, TaskRecord, TransactionRecord } from "./sync";
 
 /**
@@ -21,6 +22,7 @@ const childStamps = (now: string) => ({ created_at: now, updated_at: now });
 
 export function leadToRow(l: Lead): Row {
   return {
+    demo: l.demo ?? null,
     id: l.id,
     name: l.name,
     segment: l.segment,
@@ -157,6 +159,7 @@ export function paymentToRow(p: PaymentRecord, now: string): Row {
 
 export function leadFromRow(r: Row): Lead {
   return {
+    demo: leadDemoSchema.safeParse(r.demo).data ?? null,
     id: String(r.id),
     name: str(r.name),
     segment: r.segment as Lead["segment"],

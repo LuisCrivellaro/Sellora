@@ -93,7 +93,7 @@ export async function fetchOverpass(query: string, signal: AbortSignal): Promise
       return res;
     });
   let res = await attempt();
-  if (res.status === 429 || res.status === 504 || res.status === 503) {
+  if ([429, 502, 503, 504].includes(res.status)) {
     await res.body?.cancel().catch(() => undefined);
     await new Promise((r) => setTimeout(r, 4000));
     if (signal.aborted) throw new SourceError("Pesquisa cancelada.");
@@ -101,7 +101,7 @@ export async function fetchOverpass(query: string, signal: AbortSignal): Promise
   }
   if (!res.ok) {
     await res.body?.cancel().catch(() => undefined);
-    throw new SourceError(res.status === 429 || res.status === 504 || res.status === 503 ? "O OpenStreetMap (Overpass) está ocupado. Tente de novo em alguns minutos." : `Falha na busca de estabelecimentos (HTTP ${res.status}).`);
+    throw new SourceError([429, 502, 503, 504].includes(res.status) ? "O OpenStreetMap (Overpass) está ocupado. Tente de novo em alguns minutos." : `Falha na busca de estabelecimentos (HTTP ${res.status}).`);
   }
   const json = (await res.json()) as { elements?: OsmElement[]; remark?: string };
   if (json.remark && /timed out|out of memory/i.test(json.remark)) throw new SourceError("A busca ficou grande demais para o OpenStreetMap. Reduza o raio ou escolha um segmento.");

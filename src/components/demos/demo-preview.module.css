@@ -1,0 +1,52 @@
+.preview { color: #242721; background: var(--demo-paper); border-radius: 20px; overflow: hidden; font-size: 15px; line-height: 1.6; }
+.preview a { color: inherit; text-decoration: none; }
+.preview a:focus-visible { outline: 3px solid var(--demo-accent); outline-offset: 5px; }
+.disclaimer { padding: 12px 24px; background: #242721; color: #fff; font-size: 12px; text-align: center; }
+.disclaimer span { padding: 0 6px; }
+.header { margin: 0 6%; padding: 30px 0; display: flex; align-items: center; justify-content: space-between; gap: 24px; border-bottom: 1px solid #24272126; }
+.brand { max-width: 65%; overflow-wrap: anywhere; font-weight: 800; font-size: 20px; letter-spacing: -.04em; }
+.header nav { display: flex; gap: 30px; font-size: 12px; font-weight: 600; }
+.header nav a { display: flex; align-items: center; gap: 6px; }
+.hero { display: grid; grid-template-columns: 1.05fr 1fr; gap: 7%; align-items: center; padding: 76px 6% 88px; }
+.eyebrow { text-transform: uppercase; letter-spacing: .18em; font-size: 10px; font-weight: 800; color: var(--demo-accent); }
+.hero h1 { font-family: Georgia, serif; font-weight: 400; font-size: clamp(40px, 5.4vw, 76px); letter-spacing: -.055em; line-height: 1.06; margin: 22px 0; text-wrap: balance; }
+.intro { max-width: 370px; color: #53584f; font-size: 15px; }
+.cta { display: inline-flex; align-items: center; justify-content: space-between; gap: 28px; max-width: 100%; overflow-wrap: anywhere; padding: 16px 23px; margin-top: 30px; border-radius: 4px; background: var(--demo-accent); color: white !important; font-size: 12px; font-weight: 700; }
+.cta svg { flex-shrink: 0; }
+.location { display: flex; align-items: center; gap: 6px; margin-top: 22px; font-size: 11px; color: #53584f; }
+.art { position: relative; display: flex; flex-direction: column; justify-content: space-between; align-items: center; min-height: 460px; padding: 32px; background: var(--demo-accent); color: #fff; border-radius: 180px 180px 8px 8px; overflow: hidden; text-align: center; }
+.art::before { content: ''; position: absolute; width: 400px; height: 400px; border: 1px solid #ffffff30; border-radius: 50%; top: 60px; }
+.artLabel { font-size: 9px; letter-spacing: .25em; margin-top: 24px; }
+.monogram { font-family: Georgia, serif; font-size: clamp(100px, 15vw, 200px); font-style: italic; line-height: 1.1; letter-spacing: -.1em; opacity: .65; }
+.art p { font-family: Georgia, serif; font-size: 27px; line-height: 1.2; overflow-wrap: anywhere; max-width: 100%; }
+.art p span { display: block; font-family: sans-serif; font-size: 10px; letter-spacing: .15em; margin-top: 12px; }
+.artFoot { font-size: 8px; letter-spacing: .17em; margin-top: 28px; }
+.concept { padding: 64px 6%; border-top: 1px solid #24272126; }
+.sectionHeading { max-width: 560px; }
+.sectionHeading h2, .contact h2 { font-family: Georgia, serif; font-size: clamp(30px, 3vw, 44px); letter-spacing: -.04em; font-weight: 400; margin: 12px 0; line-height: 1.15; overflow-wrap: anywhere; }
+.sectionHeading > p:last-child { color: #53584f; font-size: 13px; }
+.sections { display: grid; grid-template-columns: repeat(3, 1fr); gap: 32px; margin-top: 44px; }
+.sections > div { border-top: 1px solid #24272145; padding-top: 18px; }
+.number { font-size: 10px; color: var(--demo-accent); font-weight: 700; }
+.sections h3 { margin: 16px 0 8px; font-size: 17px; font-weight: 600; }
+.sections p { color: #53584f; font-size: 12px; }
+.sections svg { margin-top: 20px; color: var(--demo-accent); }
+.contact { margin: 16px 6% 64px; padding: 40px; display: grid; grid-template-columns: 1.2fr 1fr; gap: 48px; border-radius: 8px; background: #ffffff80; border: 1px solid #24272120; }
+.contact > div > p:not(.eyebrow) { display: flex; align-items: center; gap: 8px; color: #53584f; font-size: 13px; margin-top: 10px; }
+.contactNote { align-self: center; border-left: 1px solid #24272126; padding-left: 32px; }
+.contactNote p { font-weight: 700; font-size: 14px; }
+.contactNote span { display: block; font-size: 12px; color: #53584f; margin-top: 12px; }
+.contactNote a { display: flex; align-items: center; gap: 8px; font-size: 12px; font-weight: 700; margin-top: 22px; }
+.footer { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 12px; padding: 24px 6%; border-top: 1px solid #24272126; color: #53584f; font-size: 10px; }
+@media (max-width: 700px) {
+  .preview { border-radius: 12px; }
+  .header { padding: 20px 0; }
+  .header nav a:first-child { display: none; }
+  .hero { grid-template-columns: 1fr; padding-top: 40px; gap: 40px; padding-bottom: 40px; }
+  .hero h1 { max-width: 470px; }
+  .art { min-height: 360px; }
+  .monogram { font-size: 150px; }
+  .sections { grid-template-columns: 1fr; gap: 24px; }
+  .contact { grid-template-columns: 1fr; padding: 24px; gap: 24px; }
+  .contactNote { border-left: 0; border-top: 1px solid #24272126; padding: 24px 0 0; }
+}

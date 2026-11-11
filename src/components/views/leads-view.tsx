@@ -1,6 +1,7 @@
 "use client";
 
-import { Eye, FileUp, Kanban, MoreHorizontal, Pencil, Plus, Radar, Rows3, Trash2, X } from "lucide-react";
+import { Eye, FileUp, Kanban, MoreHorizontal, Pencil, Plus, Radar, Rows3, Trash2, X, Monitor } from "lucide-react";
+import { DemoQueue } from "@/components/demos/demo-queue";
 import { ProspectingTab } from "@/components/prospecting/prospecting-tab";
 import { useMemo, useRef, useState } from "react";
 import { CapsuleBarChart } from "@/components/charts/bar-charts";
@@ -48,7 +49,7 @@ export function LeadsView() {
   const fileRef = useRef<HTMLInputElement>(null);
 
   const view = params.get("visao") === "kanban" ? "kanban" : "tabela";
-  const tab = params.get("aba") === "prospeccao" ? "prospeccao" : "crm";
+  const tab = params.get("aba") === "prospeccao" ? "prospeccao" : params.get("aba") === "demos" ? "demos" : "crm";
   const special = params.get("filtro");
   const detailId = params.get("id");
 
@@ -173,7 +174,7 @@ export function LeadsView() {
     <>
       <PageHeader
         title="Leads"
-        description={tab === "prospeccao" ? "Prospecção IA: encontre estabelecimentos sem presença digital adequada e leve ao CRM." : "CRM de estabelecimentos: pesquise, qualifique e mova no funil."}
+        description={tab === "prospeccao" ? "Prospecção IA: encontre estabelecimentos sem presença digital adequada e leve ao CRM." : tab === "demos" ? "Revise cada demo e aprove as mensagens antes do contato manual." : "CRM de estabelecimentos: pesquise, qualifique e mova no funil."}
         actions={
           <>
             <input ref={fileRef} type="file" accept=".csv,text/csv" className="sr-only" tabIndex={-1} aria-hidden onChange={importFile} />
@@ -191,14 +192,17 @@ export function LeadsView() {
         size="md"
         className="mb-4"
         value={tab}
-        onChange={(v) => setParams({ aba: v === "prospeccao" ? "prospeccao" : null })}
+        onChange={(v) => setParams({ aba: v === "crm" ? null : v })}
         options={[
           { value: "crm", label: <><Rows3 className="size-4" aria-hidden /> CRM</> },
           { value: "prospeccao", label: <><Radar className="size-4" aria-hidden /> Prospecção IA</> },
+          { value: "demos", label: <><Monitor className="size-4" aria-hidden /> Demos</> },
         ]}
       />
       {tab === "prospeccao" ? (
         <ProspectingTab onOpenLead={(id) => setParams({ aba: null, id })} />
+      ) : tab === "demos" ? (
+        <div className="grid grid-cols-12 gap-3.5"><DemoQueue onOpenLead={(id) => setParams({ aba: null, id })} /></div>
       ) : (
       <div className="grid grid-cols-12 gap-3.5">
         <DashboardCard index={0} className="col-span-12 md:col-span-6 xl:col-span-4" title="Captação de leads" description="Novos leads por semana · 8 semanas">

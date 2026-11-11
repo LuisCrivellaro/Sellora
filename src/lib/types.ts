@@ -25,6 +25,8 @@ export type LeadTemperature = "frio" | "morno" | "quente" | "convertido";
 export type Segment = "restaurantes" | "saude" | "beleza" | "servicos" | "comercio" | "outros";
 
 export interface Lead {
+  /** Uma demo por estabelecimento; edição da mensagem revoga a aprovação. */
+  demo?: import("./demos/model").LeadDemo | null;
   id: ID;
   name: string;
   segment: Segment;

@@ -30,7 +30,7 @@ function MotionSync() {
 }
 
 /** Páginas sem navegação nem dados (login). Não toca no store. */
-const BARE_ROUTES = ["/entrar"];
+const BARE_ROUTES = ["/entrar", "/demo"];
 
 export function AppShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();

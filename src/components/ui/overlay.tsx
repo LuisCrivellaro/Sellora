@@ -18,7 +18,7 @@ interface ModalProps {
   footer?: ReactNode;
   size?: "md" | "lg" | "xl";
   /** "sheet" = painel lateral (detalhes); "dialog" = centralizado (formulários). */
-  variant?: "dialog" | "sheet";
+  variant?: "dialog" | "sheet" | "workspace";
 }
 
 export function Modal({ open, onOpenChange, title, description, children, footer, size = "md", variant = "dialog" }: ModalProps) {
@@ -36,7 +36,7 @@ export function Modal({ open, onOpenChange, title, description, children, footer
                   widths[size],
                   "data-[state=open]:animate-[dialog-in_220ms_var(--ease-out)] data-[state=closed]:animate-[fade-out_120ms_var(--ease-in)]",
                 )
-              : cn(
+              : variant === "workspace" ? "inset-2 h-[calc(100dvh-16px)] sm:inset-4 sm:h-[calc(100dvh-32px)]" : cn(
                   "inset-y-2 right-2 left-2 sm:left-auto sm:w-[min(640px,calc(100vw-24px))]",
                   size === "xl" && "sm:w-[min(820px,calc(100vw-24px))]",
                   "data-[state=open]:animate-[sheet-in_260ms_var(--ease-out)] data-[state=closed]:animate-[sheet-out_160ms_var(--ease-in)]",

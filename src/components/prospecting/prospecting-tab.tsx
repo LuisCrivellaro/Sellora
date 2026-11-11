@@ -1,7 +1,7 @@
 "use client";
 
 import { motion } from "motion/react";
-import { Ban, Database, Download, ExternalLink, Eye, Flame, History, MoreHorizontal, PlugZap, Radar, RefreshCw, Thermometer, UserPlus, type LucideIcon } from "lucide-react";
+import { Ban, Database, Download, ExternalLink, Eye, Flame, History, Monitor, MoreHorizontal, PlugZap, Radar, RefreshCw, Thermometer, UserPlus, type LucideIcon } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { DashboardCard } from "@/components/ui/card";
@@ -27,6 +27,7 @@ import { ProspectDetail } from "./prospect-detail";
 import { ProspectForm } from "./prospect-form";
 import { ClassBadge, JobPanel, ScoreMeter, segmentLabel } from "./prospect-ui";
 import { useProspectJob } from "./use-prospect-job";
+import { DemoQueue } from "@/components/demos/demo-queue";
 
 const CLASSES: Classification[] = ["HOT", "WARM", "LOW", "SKIP"];
 type CrmState = { kind: "imported"; leadId: string } | { kind: "duplicate"; match: CrmMatch } | null;
@@ -143,6 +144,17 @@ export function ProspectingTab({ onOpenLead }: { onOpenLead: (leadId: string) =>
     notify({ kind: "success", title: `${items.length} registro(s) exportados em ${format.toUpperCase()}` });
   };
 
+  const prepareDemos = (items: StoredProspect[]) => {
+    try {
+      const report = importProspects(items, { generateDemos: true });
+      markImported(report.demos);
+      const generated = report.demos.filter((d) => !d.reused).length;
+      const reused = report.demos.filter((d) => d.reused).length;
+      notify({ kind: generated ? "success" : "info", title: `${generated} demo(s) preparada(s) · ${reused} reaproveitada(s)`, description: `${report.invalid.length} inválido(s). Apenas HOT/WARM não descartados; ganhos e perdidos ficam de fora. Revise as mensagens na fila abaixo.` });
+      setSelected(new Set());
+    } catch (e) { notify({ kind: "error", title: "Não foi possível preparar as demos", description: e instanceof Error ? e.message : "Tente novamente." }); }
+  };
+
   const discard = (ids: string[], value: boolean) => {
     setDiscarded(ids, value);
     notify({ kind: "success", title: value ? `${ids.length} marcado(s) como descartado` : "Restaurado" });
@@ -244,9 +256,9 @@ export function ProspectingTab({ onOpenLead }: { onOpenLead: (leadId: string) =>
             <ProspectForm
               disabled={jobApi.running || jobApi.starting}
               busy={jobApi.starting}
-              onSubmit={(p) => {
+              onSubmit={(p, generateDemos) => {
                 setLastParams(p);
-                void jobApi.start(p);
+                void jobApi.start(p, generateDemos);
               }}
             />
             {jobApi.requestError && !jobApi.job && (
@@ -261,7 +273,7 @@ export function ProspectingTab({ onOpenLead }: { onOpenLead: (leadId: string) =>
       <DashboardCard index={6} className="col-span-12 lg:col-span-7" title="Execução" description="Acompanhamento em tempo real e histórico das pesquisas">
         {jobApi.job ? (
           <>
-            <JobPanel job={jobApi.job} onCancel={() => void jobApi.cancel()} onDismiss={jobApi.dismiss} onRetry={() => void jobApi.start(lastParams ?? jobApi.job!.params)} />
+            <JobPanel job={jobApi.job} onCancel={() => void jobApi.cancel()} onDismiss={jobApi.dismiss} onRetry={() => void jobApi.start(lastParams ?? jobApi.job!.params, prospects.searches.find((s) => s.id === jobApi.job!.id)?.generateDemos)} />
             {jobApi.requestError && (
               <p role="alert" className="mt-3 text-[12.5px] font-medium text-danger">
                 {jobApi.requestError}
@@ -290,7 +302,13 @@ export function ProspectingTab({ onOpenLead }: { onOpenLead: (leadId: string) =>
           <EmptyState icon={<Radar className="size-5" aria-hidden />} title="Nenhuma pesquisa ainda" description={configured ? "Escolha cidade e segmento e clique em Buscar oportunidades. O progresso aparece aqui." : "Ative o executor para começar. Nada é simulado."} />
         )}
         {prospects.storageError && <p className="mt-3 text-[12px] text-warn">{prospects.storageError}</p>}
+        {prospects.searches.filter((s) => s.generateDemos && (s.demoSummary || s.demoError)).slice(0, 3).map((s) => <div key={s.id} className="mt-3 rounded-xl border border-seam p-3 text-[12px] text-ink-soft" role="status">
+          <p className="font-semibold text-ink">Demos · {s.params.city}/{s.params.uf}</p>
+          {s.demoError ? <p className="text-danger">{s.demoError} Gere novamente pelos resultados abaixo.</p> : <p>{s.demoSummary!.generated} gerada(s) · {s.demoSummary!.reused} reaproveitada(s) · {s.demoSummary!.ignored} ignorada(s) · {s.demoSummary!.invalid} inválida(s). As mensagens ficam na fila de aprovação.</p>}
+        </div>)}
       </DashboardCard>
+
+      <DemoQueue onOpenLead={onOpenLead} />
 
       <DashboardCard
         index={7}
@@ -324,6 +342,7 @@ export function ProspectingTab({ onOpenLead }: { onOpenLead: (leadId: string) =>
               { key: "situation", label: "Situação", options: [{ value: "novo", label: "Fora do CRM" }, { value: "no_crm", label: "No CRM" }, { value: "descartado", label: "Descartados" }] },
             ]}
           />
+          <Button size="sm" variant="secondary" disabled={!filtered.some((r) => !r.discarded && ["HOT", "WARM"].includes(r.classification))} onClick={() => prepareDemos(selected.size ? selectedItems : filtered)}><Monitor aria-hidden />{selected.size ? "Gerar demos selecionadas" : "Gerar demos dos qualificados"}</Button>
           {selected.size > 0 && (
             <div className="ml-auto flex flex-wrap items-center gap-1.5 rounded-full border border-seam-strong bg-selected py-1 pr-1 pl-3.5">
               <span className="tnum text-[12.5px] font-semibold text-ink">{selected.size} selecionados</span>
@@ -377,6 +396,7 @@ export function ProspectingTab({ onOpenLead }: { onOpenLead: (leadId: string) =>
                 }
                 items={[
                   { label: "Ver diagnóstico", icon: <Eye />, onSelect: () => setDetailId(r.id) },
+                  { label: "Preparar demo e mensagem", icon: <Monitor />, disabled: r.discarded || !["HOT", "WARM"].includes(r.classification), onSelect: () => prepareDemos([r]) },
                   s
                     ? { label: "Ver no CRM", icon: <Database />, onSelect: () => onOpenLead(s.kind === "imported" ? s.leadId : s.match.leadId) }
                     : { label: "Adicionar ao CRM", icon: <UserPlus />, disabled: r.classification === "SKIP" || r.discarded, onSelect: () => doImport([r]) },

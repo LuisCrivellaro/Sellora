@@ -1,5 +1,15 @@
 # Sellora
 
+## Aplicativo para Windows
+
+O executável portátil é gerado em `release/Sellora-0.1.0-Windows-x64.exe`. Abra por duplo clique; não exige Node.js nem servidor iniciado no terminal. Versão para Windows x64, com Electron 45.3 e servidor Next embutido. O pacote local não inclui arquivos `.env`. A pesquisa OSM continua exigindo internet. O WhatsApp abre no navegador padrão; o envio continua manual. As demos continuam com links locais: compartilhar com leads exige uma hospedagem pública.
+
+Os dados ficam no perfil local do aplicativo, separados do Opera e de outros navegadores; não sincronizam automaticamente. Use Configurações → exportar/restaurar JSON para transferir seus registros e manter backup. O executável pode ser movido, mas os dados permanecem no perfil do Windows. A porta local 3187 é fixa para preservar a origem do armazenamento; o servidor aceita apenas 127.0.0.1 e encerra com o aplicativo. Porta ocupada produz aviso em vez de abrir um serviço desconhecido. Uma segunda abertura traz a janela existente para frente.
+
+Para gerar novamente: `npm ci` e `npm run desktop:build`. Para executar o pacote web preparado durante desenvolvimento: `npm run desktop:start` depois do build desktop. `release/` e `.desktop-web/` são artefatos ignorados. O build desktop habilita standalone apenas nessa execução, preservando os comandos web atuais. O aplicativo não tem assinatura digital comercial; o Windows pode exibir aviso de editor desconhecido. Não há atualização automática.
+
+Validação: 112 testes, lint e compilação; teste do executável empacotado com abertura, executor OSM ativo, geração de demo, fechamento/reabertura com persistência e prévia incorporada. Dependências de produção sem vulnerabilidades no npm audit desta entrega. Não houve contato com leads durante os testes.
+
 **Sellora** é uma operação de criação de sites profissionais para estabelecimentos sem presença digital adequada. A meta inicial é fechar **a primeira venda em até 15 dias**, antes de automatizar prospecção, venda e produção.
 
 ## Objetivo da versão 0.1
@@ -59,6 +69,26 @@ Encontra estabelecimentos por cidade/UF, segmento, raio (5/10/20/50 km), quantid
 - **Limites:** 1 pesquisa ativa por usuário, 2 no servidor, 10 por hora, 5 min por pesquisa, até 150 sites conferidos por pesquisa, Nominatim a 1 req/s. Rotas `/api/prospeccao/*` exigem login no modo Supabase e só atendem `localhost` no modo demonstração.
 - **Onde ficam os dados:** histórico de pesquisas e resultados no `localStorage` deste navegador (por conta); jobs no servidor só em memória por 1 h. Leads importados vão para o CRM (localStorage ou Postgres, conforme o modo).
 - **Limitações honestas:** a cobertura do OpenStreetMap varia (cidades menores trazem poucos resultados); "sem site" significa que a fonte não registra site — a ausência não é confirmada por busca na web (marcada como **não verificada**); Instagram não é aberto (exige login); layout, velocidade e conteúdo do site não são avaliados visualmente (use a skill `website-audit`). Nenhuma mensagem é enviada.
+
+## Demos e mensagens para aprovação
+
+Em **Leads → Prospecção IA**, **Buscar e gerar demos** pesquisa e prepara demos/mensagens de HOT/WARM não descartados. Importa os qualificados ao CRM, ignora ganhos/perdidos e reaproveita demos existentes sem sobrescrever o cadastro. A quantidade limita resultados da busca, não garante o número de qualificados. Desmarque **Preparar demos e mensagens para aprovação** para apenas pesquisar. Também é possível gerar pelos resultados selecionados/filtrados ou pela ficha de um lead.
+
+A aba **Leads → Demos** (`/leads?aba=demos`) mostra um cartão por negócio, com miniatura, nome, cidade, status e trecho da mensagem. A mesma fila aparece na Prospecção IA. Abra o cartão para ver **a demo de um lado e a mensagem do outro** (empilhadas no celular), com alternância de prévia Computador/Celular. Revise, salve alterações, confirme a conferência e aprove. Filtros: Para aprovar, Aprovadas, Envios e Todas; busca por nome, cidade e telefone.
+
+Depois de aprovar, **Abrir no WhatsApp** usa o recurso oficial [clique para conversa](https://faq.whatsapp.com/5913398998672934) para abrir o destinatário com texto e link preenchidos. Sem API paga, automação de navegador ou disparo; você precisa apertar Enviar no WhatsApp. Telefones brasileiros recebem DDI 55 se ausente; outros países exigem +DDI explícito. Telefone ausente/inválido desabilita a abertura. O Sellora não verifica se o número tem WhatsApp. Use com destinatários que autorizaram o contato. A opção de copiar a mensagem continua disponível.
+
+**Já enviei → Confirmar envio manual** é uma declaração do operador, não confirmação de entrega. Só essa ação atualiza o último contato, registra atividade WhatsApp e move Novo/Qualificado para Contatado; demais etapas são preservadas. Abrir o WhatsApp não grava contato. A mesma versão para o mesmo número não gera registros repetidos. O histórico guarda a última mensagem declarada (texto, destinatário, data e revisor); alterações posteriores preservam esse registro. O indicador diário conta leads distintos com envio declarado no fuso America/Sao_Paulo, com referência de 10 contatos/dia, sem agendamento ou garantia de entrega.
+
+A aprovação guarda data e identificação da conta/perfil atual, sem papel separado de aprovador. Editar e salvar o texto revoga a aprovação. Demos novas usam o visual v2; links v1 continuam com o visual original. **Atualizar visual da demo** conserva o cadastro/snapshot e o histórico, muda para v2 e exige nova aprovação. Nenhuma mensagem é enviada pelo Sellora.
+
+Modelos React/CSS para restaurantes, beleza, saúde, serviços, comércio e outros, sem IA generativa, API paga ou publicação automática. A v2 usa seis direções visuais, hierarquias e composições por segmento, com fotografias de referência locais licenciadas (fontes em [public/demos/ASSETS.md](public/demos/ASSETS.md)). São conceitos por segmento, não sites sob medida já validados com cada empresa. Usam nome, segmento, cidade/UF e telefone disponível, com **Demonstração não oficial**. Fotografias são identificadas como ilustrativas; serviços, preços, avaliações e credenciais não são inventados. A demo guarda um snapshot do cadastro; alterações posteriores no lead não alteram a prévia revisada.
+
+O link `/demo#…` contém só esse snapshot comercial validado, sem notas, e-mail ou score. Abre em outro navegador sem depender do localStorage do autor. O fragmento não é um segredo, não é autenticado e não é revogável. O renderizador é público, não indexável e não consulta o CRM; as demais rotas continuam protegidas no modo Supabase. **Localhost/IP privado serve para testes na máquina/rede**. Para envio externo, hospede o Sellora em um endereço público e abra esse endereço para copiar o link. Nenhum deploy foi feito nesta implementação.
+
+No modo local, demos/aprovações acompanham o lead no localStorage e no JSON exportado. No modo Supabase, aplique antes `supabase/migrations/20261111174117_lead_demos_approval.sql` (JSONB nullable em `leads.demo`, herda o RLS). Todas as migrations foram executadas em Postgres local via PGlite, com gravação/leitura e limites JSONB verificados; não houve acesso, aplicação ou validação em projeto remoto nesta sessão. Histórico de pesquisas permanece neste navegador. Pesquisas ativas retomam ao reabrir a aba; o preparo ocorre quando o navegador recebe o resultado concluído. Não há agendador nem worker independente do navegador.
+
+Validação em 2026-11-11: testes unitários de geração/idempotência, qualificação, aprovação/edição, mapeamento/validação, conclusão de pesquisas e isolamento da rota pública; navegador isolado com geração manual, aprovação/cópia/edição, recarga e fluxo de pesquisa com resposta controlada; prévia independente em outro contexto, layouts 320/375/768/1024/1440 px. Consulta real Campinas/SP, beleza, 5 km, até 10 resultados: concluída com 10 oportunidades após uma falha inicial HTTP 502 do Overpass. Nenhuma mensagem enviada.
 
 ## Qualidade e segurança
 Aplicação autenticada; dados reais somente no backend; RLS; validação de formulários; sem chaves no Git; sem scraping agressivo; sem envios em massa; sem publicações ou cobranças automáticas. E2E nos fluxos essenciais, lint, typecheck e build antes da entrega.

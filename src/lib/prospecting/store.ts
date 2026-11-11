@@ -11,6 +11,9 @@ import type { JobView, ProspectParams, ProspectResult } from "./types";
  */
 
 export interface ProspectSearch {
+  generateDemos?: boolean;
+  demoSummary?: { generated: number; reused: number; ignored: number; invalid: number } | null;
+  demoError?: string | null;
   id: string;
   jobId: string;
   executor: string;
@@ -104,8 +107,9 @@ export function useProspects(): ProspectState {
   );
 }
 
-export function startSearch(job: JobView): ProspectSearch {
+export function startSearch(job: JobView, generateDemos = false): ProspectSearch {
   const search: ProspectSearch = {
+    generateDemos,
     id: job.id,
     jobId: job.id,
     executor: job.executor,
@@ -165,4 +169,10 @@ export function markImported(links: { resultId: string; leadId: string }[]) {
 
 export function removeSearchHistory() {
   set({ searches: [], results: [], activeJobId: null });
+}
+
+export function getProspectState(): ProspectState { return state; }
+
+export function recordSearchDemos(id: string, demoSummary: ProspectSearch["demoSummary"], demoError: string | null = null) {
+  set({ searches: state.searches.map((s) => s.id === id ? { ...s, demoSummary, demoError } : s) });
 }
