@@ -29,6 +29,24 @@ O gerador v5 lê SKILL.md, references/fluxo-sellora.md e references/validacao.md
 
 Modernizar Sites Locais foi copiada da instalação local a pedido do usuário. Seus scripts de captura/comparação exigem Playwright ou Playwright Core com Chromium compatível. Ela orienta tarefas assistidas por agente e não é chamada pelo gerador v5. Não use o endereço de exemplo como lead real.
 
+## Skills de frontend do gerador V6 (instaladas em 2026-11-12)
+
+Instaladas copiando as pastas dos repositórios oficiais para `.claude/skills/`, sem executar instaladores nem scripts. Os comandos documentados (`npx skills@latest add …`, `npx impeccable install`) baixam e executam pacotes npm e criam links simbólicos, que dão problema no Windows. A cópia direta dá o mesmo resultado para o Claude Code, que reconheceu todas as skills na sessão.
+
+| Skill (pasta) | Repositório · commit · licença | Objetivo na Sellora |
+| --- | --- | --- |
+| emil-design-eng, animate, review-animations, improve-animations, animation-performance, mobile-native, break-ui | emilkowalski/skills · f7ce8c0 · MIT | Movimento com propósito: curvas, durações, resposta ao toque, desempenho, ajustes de celular e testes de casos extremos |
+| impeccable | pbakaus/impeccable · b4bff16 · Apache-2.0 (LICENSE e NOTICE.md na pasta) | Piso de qualidade visual, critique/audit/polish/harden/typeset/layout/adapt |
+| design-taste-frontend | leonxlnx/taste-skill · f6b7657 · MIT | Direção de arte por tipo de negócio, fotografia, seções, texto sem cara de IA |
+| humanizer | blader/humanizer · b48c832 · MIT | Remover padrões de texto de IA de títulos, chamadas e mensagens |
+
+- **Taste:** `assets/` (34 MB de fotos, ícones, efeitos) fica fora do git. Para restaurar: clone `leonxlnx/taste-skill` e copie `skills/taste-skill/assets` para `.claude/skills/design-taste-frontend/assets`. O SKILL.md declara um hook `Stop` que roda `scripts/gate.mjs` (Node + Chrome/Edge) quando a skill é usada numa sessão do Claude Code.
+- **Impeccable:** o CLI (`scripts/impeccable.cmd`) baixa um binário na primeira execução. Ele não foi executado. `init` e `live` são interativos e não foram rodados; não há PRODUCT.md/DESIGN.md do Impeccable no projeto.
+- **Uso automático x interativo:** nas sessões do Claude Code, as skills ficam disponíveis por nome (`/impeccable audit`, `/humanizer` etc.). O gerador do aplicativo não executa skills: ele roda o Claude Code com `--safe-mode` e sem ferramentas, ou o `codex app-server` com skills e MCP desligados. Instalar uma skill no Claude Code não a torna disponível ao `codex app-server`.
+- **Integração real com o gerador:** as regras pertinentes das quatro skills foram adaptadas, com atribuição, em `.agents/skills/demo-generator-v6/references/guia-de-criacao.md`. O app envia esse guia como instrução de sistema a cada geração V6 e mede o que consegue em `src/lib/demos/v6/qa-static.ts` e `qa-browser.ts`. Os checkers originais (gate do Taste, detector do Impeccable) não rodam dentro do app.
+- **demo-generator-v6:** skill do projeto (fonte canônica em `.agents/skills/`, espelho em `.claude/skills/`), empacotada no Windows pelo `desktop/build.mjs`.
+- **imagen** (tysszl/imagen-skill): sem licença, local e fora do git. Remoção agendada (ver AI_HANDOFF, missão 3).
+
 ## Origem e manutenção
 
 - Local Client Prospector: upstream `Kappaemme-git/local-client-prospector-skill`, commit `2340d02`, licença MIT; adaptações e auditoria em seu ORIGEM.md.

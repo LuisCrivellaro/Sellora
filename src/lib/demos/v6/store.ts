@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { access, mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
+import { access, cp, mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { z } from "zod";
 import { demoDataRoot } from "../codex-server";
@@ -44,8 +44,25 @@ export async function writeSite(id: string, files: Map<string, Buffer>, meta: Re
     await writeFile(path.join(staging, "meta", name), data);
   }
   await writeFile(path.join(staging, "meta", "manifest.json"), JSON.stringify({ id, files: manifest }, null, 2));
-  await rename(staging, final);
+  await publishDirectory(staging, final);
   return manifest;
+}
+
+/**
+ * No Windows, renomear uma pasta recém-gravada pode falhar com EPERM/EBUSY enquanto o antivírus ou o indexador
+ * leem os arquivos. Tenta de novo com espera crescente; se ainda falhar, copia e remove a pasta temporária.
+ */
+async function publishDirectory(staging: string, final: string) {
+  for (let attempt = 0; attempt < 8; attempt += 1) {
+    try { await rename(staging, final); return; }
+    catch (error) {
+      const code = (error as NodeJS.ErrnoException).code;
+      if (code !== "EPERM" && code !== "EBUSY" && code !== "EACCES") throw error;
+      await new Promise((resolve) => setTimeout(resolve, 60 * (attempt + 1)));
+    }
+  }
+  await cp(staging, final, { recursive: true, errorOnExist: true, force: false });
+  await rm(staging, { recursive: true, force: true }).catch(() => {});
 }
 
 export async function readSiteManifest(id: string): Promise<SiteFile[] | null> {
