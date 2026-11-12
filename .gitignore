@@ -16,6 +16,8 @@ next-env.d.ts
 *.tsbuildinfo
 .desktop-web/
 .sellora-data/
+# Checkout do Claw3D e estado local da Cloud 3D (recriados por integrations/claw3d/setup.mjs)
+.claw3d/
 release/
 supabase/.temp/
 

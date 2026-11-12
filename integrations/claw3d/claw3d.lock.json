@@ -1,0 +1,8 @@
+{
+  "repository": "https://github.com/iamlukethedev/Claw3D.git",
+  "commit": "51337f7",
+  "commitDate": "2026-11-05",
+  "license": "MIT",
+  "verifiedAt": "2026-11-12",
+  "note": "Upstream sem commits novos em 2026-11-12. Atualize o commit só depois de reler os contratos do gateway (eventos agent/presence, connect hello-ok)."
+}
