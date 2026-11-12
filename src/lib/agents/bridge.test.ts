@@ -4,7 +4,7 @@ import path from "node:path";
 import { afterEach, beforeEach, expect, it } from "vitest";
 import { agentRegistry, claw3dState, lifecycleEvents, readJobs } from "./bridge";
 
-const job = (overrides: Record<string, unknown>) => ({ id: randomUUID(), businessKey: JSON.stringify({ name: "Barbearia Teste Sellora", city: "Campinas", uf: "SP", segment: "beleza" }), status: "running", phase: "Etapa 4: escrevendo o código", error: null, textProvider: "claude", generator: "v6", startedAt: "2026-11-12T20:00:00.000Z", events: [{ at: "2026-11-12T20:00:00.000Z", phase: "Preparando a geração" }, { at: "2026-11-12T20:01:00.000Z", phase: "Etapa 4: escrevendo o código" }], result: null, ...overrides });
+const job = (overrides: Record<string, unknown>) => ({ id: randomUUID(), businessKey: JSON.stringify({ name: "Barbearia Teste Sellora", city: "Campinas", uf: "SP", segment: "beleza" }), status: "running", phase: "Etapa 4: escrevendo o código", error: null, textProvider: "claude", generator: "v6", leadId: "lead-1", startedAt: "2026-11-12T20:00:00.000Z", events: [{ at: "2026-11-12T20:00:00.000Z", phase: "Preparando a geração" }, { at: "2026-11-12T20:01:00.000Z", phase: "Etapa 4: escrevendo o código" }], result: null, ...overrides });
 
 beforeEach(() => { process.env.SELLORA_DATA_DIR = path.join(process.cwd(), "test-results", "bridge", randomUUID()); });
 afterEach(() => { delete process.env.SELLORA_DATA_DIR; delete (globalThis as { selloraDemoJobs?: unknown }).selloraDemoJobs; });
@@ -45,7 +45,7 @@ it("gera eventos de ciclo de vida reais: início, etapa, conclusão aguardando a
   await save({ ...running, status: "completed", phase: "Demo pronta para revisão", finishedAt: "2026-11-12T20:03:00.000Z", result: { site: { id: "s1" } } });
   const done = await readJobs(40, new Set());
   expect(done[0].status).toBe("waiting_approval");
-  expect(lifecycleEvents(new Map(second.map((run) => [run.runId, run])), done)[0]).toMatchObject({ phase: "end", siteId: "s1" });
+  expect(lifecycleEvents(new Map(second.map((run) => [run.runId, run])), done)[0]).toMatchObject({ phase: "end", siteId: "s1", leadId: "lead-1" });
   await save({ ...running, status: "failed", phase: "Geração interrompida", error: "Limite de uso atingido" });
   const failed = await readJobs(40, new Set());
   expect(lifecycleEvents(new Map(second.map((run) => [run.runId, run])), failed)[0]).toMatchObject({ phase: "error", text: "Limite de uso atingido" });

@@ -101,6 +101,7 @@ export interface DemoGenerationJob {
   textProvider?: DemoTextProvider;
   imageProvider?: DemoImageProvider;
   generator?: "v5" | "v6";
+  leadId?: string;
   /** Linha do tempo real das etapas (horário ISO + descrição), base para acompanhar o agente. */
   events?: { at: string; phase: string }[];
   startedAt?: string;

@@ -14,7 +14,7 @@ export type AgentStatus = "queued" | "running" | "waiting_approval" | "completed
 const jobSchema = z.object({
   id: z.uuid(), businessKey: z.string(), status: z.enum(["running", "completed", "failed"]), phase: z.string(),
   error: z.string().nullable().optional(), textProvider: z.enum(["claude", "codex"]).optional(), imageProvider: z.string().optional(),
-  generator: z.enum(["v5", "v6"]).optional(), startedAt: z.string().optional(), finishedAt: z.string().optional(),
+  generator: z.enum(["v5", "v6"]).optional(), leadId: z.string().optional(), startedAt: z.string().optional(), finishedAt: z.string().optional(),
   events: z.array(z.object({ at: z.string(), phase: z.string() })).optional(),
   result: z.object({ site: z.object({ id: z.string() }).loose().optional() }).loose().nullable().optional(),
 }).loose();
@@ -23,7 +23,7 @@ export type BridgeJob = z.infer<typeof jobSchema>;
 export interface AgentRun {
   runId: string; status: AgentStatus; task: string; business: string; runtime: string; generator: string;
   startedAt: string | null; updatedAt: string | null; finishedAt: string | null; error: string | null;
-  events: { at: string; phase: string }[]; siteId: string | null;
+  events: { at: string; phase: string }[]; siteId: string | null; leadId: string | null;
 }
 export interface AgentRecord {
   id: "gerador-de-demos"; name: string; type: "worker"; role: string; runtime: string; status: AgentStatus;
@@ -48,7 +48,7 @@ export async function readJobs(limit = 40, liveIds: Set<string> = new Set()): Pr
         task: running && !liveIds.has(job.id) ? "Interrompido (o aplicativo foi fechado durante a geração)" : job.phase,
         business: businessName(job.businessKey), runtime: job.textProvider === "codex" ? "codex-app-server" : "claude-code",
         generator: job.generator ?? "v5", startedAt: job.startedAt ?? events[0]?.at ?? null, updatedAt: events.at(-1)?.at ?? job.finishedAt ?? null,
-        finishedAt: job.finishedAt ?? null, error: job.error ?? null, events, siteId: job.result?.site?.id ?? null,
+        finishedAt: job.finishedAt ?? null, error: job.error ?? null, events, siteId: job.result?.site?.id ?? null, leadId: job.leadId ?? null,
       });
     } catch { /* arquivo de outra versão: não é evidência de execução */ }
   }
@@ -91,10 +91,10 @@ export function claw3dRegistry() {
 
 /** Diferença entre dois retratos: vira eventos de ciclo de vida no formato `agent` do Claw3D (start, etapa, fim, erro). */
 export function lifecycleEvents(previous: Map<string, AgentRun>, runs: AgentRun[]) {
-  const events: { agentId: string; runId: string; phase: "start" | "progress" | "end" | "error"; text: string; at: string; business: string; siteId: string | null }[] = [];
+  const events: { agentId: string; runId: string; phase: "start" | "progress" | "end" | "error"; text: string; at: string; business: string; siteId: string | null; leadId: string | null }[] = [];
   for (const run of runs) {
     const before = previous.get(run.runId);
-    const base = { agentId: "gerador-de-demos", runId: run.runId, at: run.updatedAt ?? new Date().toISOString(), business: run.business, siteId: run.siteId };
+    const base = { agentId: "gerador-de-demos", runId: run.runId, at: run.updatedAt ?? new Date().toISOString(), business: run.business, siteId: run.siteId, leadId: run.leadId };
     if (run.status === "running" && !before) events.push({ ...base, phase: "start", text: run.task });
     else if (run.status === "running" && before && before.task !== run.task) events.push({ ...base, phase: "progress", text: run.task });
     else if (before?.status === "running" && run.status !== "running") events.push({ ...base, phase: run.status === "failed" || run.status === "cancelled" ? "error" : "end", text: run.error ?? run.task });

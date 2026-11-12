@@ -19,6 +19,8 @@ export const generationRequestSchema = z.object({
   generator: z.enum(["v5", "v6"]).default("v6"),
   /** Só para os marcadores de contato do site V6. Nunca entra em prompt de modelo. */
   phone: z.string().max(80).default(""),
+  /** Id do lead no CRM, para a observabilidade (Cloud 3D) abrir o registro certo. Não vai ao modelo. */
+  leadId: z.string().max(100).optional(),
 }).strict();
 type GenerationRequest = z.infer<typeof generationRequestSchema>;
 
@@ -178,7 +180,7 @@ export function startDemoGeneration(request: GenerationRequest): Promise<DemoGen
       return existing;
     }
     if ([...jobs.values()].some((job) => job.status === "running")) throw new DemoBusyError("Há uma geração em andamento. O próximo item começará ao terminar.");
-    const job: DemoGenerationJob = { id: request.id, businessKey, textProvider: request.textProvider, imageProvider: request.imageProvider, generator: request.generator, startedAt: new Date().toISOString(), events: [{ at: new Date().toISOString(), phase: "Preparando a geração" }], status: "running", phase: "Preparando a geração", error: null, result: null };
+    const job: DemoGenerationJob = { id: request.id, businessKey, textProvider: request.textProvider, imageProvider: request.imageProvider, generator: request.generator, leadId: request.leadId, startedAt: new Date().toISOString(), events: [{ at: new Date().toISOString(), phase: "Preparando a geração" }], status: "running", phase: "Preparando a geração", error: null, result: null };
     jobs.set(job.id, job);
     try { await persist(job); }
     catch { jobs.delete(job.id); throw new Error("Não foi possível salvar o trabalho de geração neste computador."); }
