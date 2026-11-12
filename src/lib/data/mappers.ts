@@ -1,5 +1,6 @@
 import type { Activity, Client, Lead } from "../types";
 import { leadDemoSchema } from "../demos/model";
+import { EXPENSE_CATEGORIES, PAYMENT_METHODS } from "../constants";
 import type { ChangeSet, ItemRecord, PaymentRecord, ProjectRecord, ProposalRecord, TableName, TaskRecord, TransactionRecord } from "./sync";
 
 /**
@@ -97,6 +98,7 @@ export function projectToRow(p: ProjectRecord): Row {
     published_url: p.publishedUrl,
     published_at: p.publishedAt,
     delivered_at: p.deliveredAt,
+    contract_cancelled_at: p.contractCancelledAt,
     notes: p.notes,
     created_at: p.createdAt,
     updated_at: p.updatedAt,
@@ -145,6 +147,8 @@ export function transactionToRow(t: TransactionRecord): Row {
     description: t.description,
     amount: t.amount,
     due_date: t.dueDate,
+    category: t.category,
+    notes: t.notes,
     cancelled: t.cancelled,
     created_at: t.createdAt,
     updated_at: t.updatedAt,
@@ -152,7 +156,7 @@ export function transactionToRow(t: TransactionRecord): Row {
 }
 
 export function paymentToRow(p: PaymentRecord, now: string): Row {
-  return { id: p.id, transaction_id: p.transactionId, amount: p.amount, paid_at: p.date, note: p.note, position: p.position, ...childStamps(now) };
+  return { id: p.id, transaction_id: p.transactionId, amount: p.amount, paid_at: p.date, method: p.method, note: p.note, position: p.position, ...childStamps(now) };
 }
 
 /* ───────────── Linha → domínio ───────────── */
@@ -233,6 +237,7 @@ export function projectFromRow(r: Row): ProjectRecord {
     publishedUrl: str(r.published_url),
     publishedAt: tsOrNull(r.published_at),
     deliveredAt: tsOrNull(r.delivered_at),
+    contractCancelledAt: tsOrNull(r.contract_cancelled_at),
     notes: str(r.notes),
     createdAt: ts(r.created_at),
     updatedAt: ts(r.updated_at),
@@ -296,6 +301,8 @@ export function transactionFromRow(r: Row): TransactionRecord {
     description: str(r.description),
     amount: num(r.amount),
     dueDate: ts(r.due_date),
+    category: (EXPENSE_CATEGORIES as readonly string[]).includes(str(r.category)) ? (str(r.category) as TransactionRecord["category"]) : "",
+    notes: str(r.notes),
     cancelled: Boolean(r.cancelled),
     createdAt: ts(r.created_at),
     updatedAt: ts(r.updated_at),
@@ -308,6 +315,7 @@ export function paymentFromRow(r: Row): PaymentRecord {
     transactionId: String(r.transaction_id),
     amount: num(r.amount),
     date: ts(r.paid_at),
+    method: (PAYMENT_METHODS as readonly string[]).includes(str(r.method)) ? (str(r.method) as PaymentRecord["method"]) : "",
     note: str(r.note),
     position: num(r.position),
   };

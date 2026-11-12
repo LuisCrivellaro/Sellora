@@ -5,6 +5,7 @@ import {
   activityInputSchema,
   clientInputSchema,
   leadInputSchema,
+  openingBalanceSchema,
   packageSchema,
   paymentInputSchema,
   profileSchema,
@@ -65,6 +66,7 @@ export const projectRowSchema = projectInputBaseSchema
     dueDate: iso,
     publishedAt: isoOrNull,
     deliveredAt: isoOrNull,
+    contractCancelledAt: isoOrNull.default(null),
     createdAt: iso,
     updatedAt: iso,
   })
@@ -117,6 +119,7 @@ export const settingsSchema = z.object({
   entryPercent: z.number().min(0).max(100).default(50),
   defaultRevisions: z.number().int().min(0).max(20).default(2),
   monthlyLeadTarget: z.number().int().min(1).max(1000),
+  openingBalance: openingBalanceSchema.extend({ amount: z.number().min(-10_000_000).max(10_000_000), date: iso }).nullable().default(null),
 }) satisfies z.ZodType<Settings, unknown>;
 
 const rows = <T extends z.ZodType>(schema: T) => z.array(schema).max(MAX_ROWS, "Lote grande demais.").optional();

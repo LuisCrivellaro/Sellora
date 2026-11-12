@@ -22,6 +22,7 @@ import { clientStatusMeta, SEGMENTS, segmentMeta } from "@/lib/constants";
 import { useStore } from "@/lib/data/store";
 import { buildBuckets, countByBucket, formatRelative, RANGE_OPTIONS, type RangeKey } from "@/lib/dates";
 import { clientsNeedingAttention } from "@/lib/metrics/clients";
+import { contractValueOf } from "@/lib/metrics/finance";
 import { siteDelivery } from "@/lib/metrics/projects";
 import type { Client, ClientStatus } from "@/lib/types";
 import { matchesQuery, sum } from "@/lib/utils";
@@ -57,7 +58,7 @@ export function ClientsView() {
   const detail = detailId ? (db.clients.find((c) => c.id === detailId) ?? null) : null;
   const rangeInfo = RANGE_OPTIONS.find((r) => r.value === range)!;
 
-  const contractedBy = (id: string) => sum(db.projects.filter((p) => p.clientId === id).map((p) => p.contractValue));
+  const contractedBy = (id: string) => sum(db.projects.filter((p) => p.clientId === id).map(contractValueOf));
 
   const columns: Column<Client>[] = [
     {

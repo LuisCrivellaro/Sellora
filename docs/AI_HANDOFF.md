@@ -113,7 +113,7 @@ Já existia antes e foi preservado: CRUD de leads com busca, filtros, ordenaçã
 Parcial:
 - **Modo Supabase não validado em projeto real.** Faltam credenciais. A migration nova precisa ser rodada antes de usar os status "Pronta"/"Expirada" e as etapas novas, senão o banco recusa a gravação (check constraint) e a faixa de erro oferece tentar de novo/descartar.
 - **Expiração de propostas**: função pronta e testada, sem gatilho na interface.
-- **Financeiro**: sem período personalizado (só 7D/30D/90D/1A); sem edição de lançamento já criado (só cancelar e recriar); parcelas geradas não são recalculadas se o projeto mudar de valor.
+- **Financeiro** (atualizado 2026-11-11): edição de lançamento com revisão, estorno com motivo, cancelamento de contrato, saldo inicial, forma de pagamento e categoria implementados (ver DECISIONS 2026-11-11). Ainda sem período personalizado (só 7D/30D/90D/1A); parcelas não são recalculadas se o projeto mudar de valor; migration `20261111220000_finance_production.sql` testada só em PGlite, **não aplicada no Supabase real**.
 - **Fechar venda** sempre cria projeto com início hoje e prazo = hoje + prazo da proposta; não há tela para ajustar parcelas antes de gerar (edita-se depois em Projetos/Financeiro).
 - **Diagnóstico do lead** fica nas Observações; não há entidade `website_audits`.
 
@@ -173,7 +173,7 @@ Tudo commitado na `main` local em `1a1e380` (31 arquivos: 26 modificados, 5 novo
 1. Perguntar ao usuário qual identidade visual vale (§5) e se autoriza o push dos commits locais.
 2. Se houver credenciais do Supabase: rodar as migrations, criar usuário, executar `scripts/rls-check.mjs` e repetir o fluxo da §9 logado.
 3. Ligar `expireOverdueProposals()` a uma ação visível em Propostas.
-4. Financeiro: editar lançamento e período personalizado.
+4. Financeiro: aplicar `20261111220000_finance_production.sql` no Supabase (com backup) e validar com login real; período personalizado.
 5. Parte 2: refinamento visual por módulo com `design-review`, depois `quality-assurance`.
 
 **Onde o trabalho parou:** código da Parte 1 completo e verde; documentação atualizada; tudo commitado localmente, sem push. Nenhuma tarefa ficou pela metade.

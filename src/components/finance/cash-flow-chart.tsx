@@ -1,7 +1,7 @@
 "use client";
 
 import { AnimatePresence, motion } from "motion/react";
-import { useId, useMemo, useState, type KeyboardEvent } from "react";
+import { useId, useMemo, useState, type KeyboardEvent, type ReactNode } from "react";
 import { labelEvery, smoothPath, useElementSize } from "@/components/charts/chart-utils";
 import type { Bucket } from "@/lib/dates";
 import { motionTokens, useMotionEnabled } from "@/lib/motion";
@@ -19,6 +19,10 @@ interface Props {
   /** Muda a cada troca de período/modo para reanimar o desenho. */
   animationKey: string;
   height?: number;
+  /** Rótulo da série "saldo": saldo de caixa (com saldo inicial) ou movimentação líquida acumulada. */
+  balanceLabel?: string;
+  /** Estado vazio (com ações reais) quando não há movimentação no período. */
+  emptyState?: ReactNode;
 }
 
 const PAD = { top: 18, right: 14, bottom: 30, left: 62 };
@@ -28,7 +32,8 @@ const RED = "var(--fin-out)";
 function scaleFor(values: number[]) {
   const max = Math.max(0, ...values);
   const min = Math.min(0, ...values);
-  const span = max - min || 1;
+  // Sem valores (tudo zero): escala neutra em reais inteiros, em vez de frações de real.
+  const span = max - min || 1000;
   const rawStep = span / 4;
   const pow = 10 ** Math.floor(Math.log10(rawStep));
   const step = [1, 2, 2.5, 5, 10].map((f) => f * pow).find((s) => s >= rawStep) ?? 10 * pow;
@@ -43,19 +48,19 @@ function scaleFor(values: number[]) {
  * Fluxo financeiro: área com linha suave (entradas em verde, saídas em vermelho)
  * ou saldo acumulado isolado — séries de natureza diferente não se misturam.
  */
-export function CashFlowChart({ buckets, inflow, outflow, balance, mode, animationKey, height = 330 }: Props) {
+export function CashFlowChart({ buckets, inflow, outflow, balance, mode, animationKey, height = 330, balanceLabel = "Saldo de caixa acumulado", emptyState }: Props) {
   const uid = useId().replace(/:/g, "");
   const [ref, { width }] = useElementSize<HTMLDivElement>();
   const enabled = useMotionEnabled();
   const [active, setActive] = useState<number | null>(null);
 
   const series = useMemo(() => {
-    if (mode === "saldo") return [{ key: "saldo", label: "Saldo acumulado", color: GREEN, values: balance, fill: 0.12 }];
+    if (mode === "saldo") return [{ key: "saldo", label: balanceLabel, color: GREEN, values: balance, fill: 0.12 }];
     const out = [];
     if (mode !== "saidas") out.push({ key: "entradas", label: "Entradas", color: GREEN, values: inflow, fill: 0.2 });
     if (mode !== "entradas") out.push({ key: "saidas", label: "Saídas", color: RED, values: outflow, fill: 0.1 });
     return out;
-  }, [mode, inflow, outflow, balance]);
+  }, [mode, inflow, outflow, balance, balanceLabel]);
 
   const n = buckets.length;
   const innerW = Math.max(0, width - PAD.left - PAD.right);
@@ -181,7 +186,7 @@ export function CashFlowChart({ buckets, inflow, outflow, balance, mode, animati
             />
           </svg>
         )}
-        {empty && width > 0 && <p className="pointer-events-none absolute inset-x-0 top-[40%] text-center text-[13px] text-[var(--fin-neutral)]">Sem movimentações registradas neste período</p>}
+        {empty && width > 0 && (emptyState ?? <p className="pointer-events-none absolute inset-x-0 top-[40%] text-center text-[13px] text-[var(--fin-neutral)]">Nenhuma movimentação financeira registrada neste período.</p>)}
       </div>
 
       <AnimatePresence>
@@ -201,7 +206,7 @@ export function CashFlowChart({ buckets, inflow, outflow, balance, mode, animati
             ) : (
               <p className="tnum mt-1 text-[20px] leading-tight font-extrabold"><Money value={net} /></p>
             )}
-            <p className="text-[11px] font-semibold opacity-70">{mode === "saldo" ? "Saldo de caixa acumulado" : "Resultado líquido do período"}</p>
+            <p className="text-[11px] font-semibold opacity-70">{mode === "saldo" ? balanceLabel : "Resultado líquido do período"}</p>
             <dl className="mt-2.5 space-y-1 border-t border-seam-strong pt-2 text-[12px]">
               <div className="flex items-center justify-between">
                 <dt className="flex items-center gap-1.5">
@@ -220,7 +225,7 @@ export function CashFlowChart({ buckets, inflow, outflow, balance, mode, animati
         )}
       </AnimatePresence>
       <p className="sr-only" aria-live="polite">
-        {active !== null ? `${buckets[active].longLabel}: recebido ${formatBRL(inflow[active])}, pago ${formatBRL(outflow[active])}, líquido ${formatBRL(net)}${mode === "saldo" ? `, saldo acumulado ${formatBRL(balance[active])}` : ""}` : ""}
+        {active !== null ? `${buckets[active].longLabel}: recebido ${formatBRL(inflow[active])}, pago ${formatBRL(outflow[active])}, líquido ${formatBRL(net)}${mode === "saldo" ? `, ${balanceLabel.toLowerCase()} ${formatBRL(balance[active])}` : ""}` : ""}
       </p>
     </div>
   );

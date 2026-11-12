@@ -1,5 +1,5 @@
 import { buildBuckets, startOfDay, sumByBucket, type RangeKey } from "../dates";
-import type { Database, Transaction, TransactionStatus } from "../types";
+import type { Database, Project, Transaction, TransactionStatus } from "../types";
 import { round2, sum } from "../utils";
 
 export function paidAmount(tx: Transaction) {
@@ -25,24 +25,35 @@ export function transactionStatus(tx: Transaction, now = new Date()): Transactio
   return "a_receber";
 }
 
+/** Valor contratado que vale como receita: contrato cancelado conta zero. */
+export function contractValueOf(p: Project): number {
+  return p.contractCancelledAt ? 0 : p.contractValue;
+}
+
+export function activeContracts(db: Database): Project[] {
+  return db.projects.filter((p) => !p.contractCancelledAt && p.contractValue > 0);
+}
+
 /**
  * Separação explícita:
- * - contratado: soma do valor de contrato dos projetos;
+ * - contratado: soma do valor dos contratos (projetos) não cancelados;
  * - faturado: soma das receitas lançadas (não canceladas);
- * - recebido: soma dos pagamentos das receitas;
+ * - recebido: soma dos pagamentos registrados em receitas (dinheiro que entrou);
  * - a receber: saldo aberto das receitas; vencido é a parte com vencimento passado;
  * - custos: soma dos custos lançados.
  */
 export function financeSummary(db: Database, now = new Date()) {
   const receitas = db.transactions.filter((t) => t.kind === "receita" && !t.cancelled);
   const custos = db.transactions.filter((t) => t.kind === "custo" && !t.cancelled);
-  const contracted = sum(db.projects.map((p) => p.contractValue));
+  const contracts = activeContracts(db);
+  const contracted = sum(contracts.map((p) => p.contractValue));
   const invoiced = sum(receitas.map((t) => t.amount));
-  const received = sum(receitas.map(paidAmount));
+  // Pagamento registrado é dinheiro que entrou, mesmo que o lançamento seja cancelado depois.
+  const received = sum(db.transactions.filter((t) => t.kind === "receita").map(paidAmount));
   const open = sum(receitas.map(openAmount));
   const overdue = sum(receitas.filter((t) => transactionStatus(t, now) === "vencido").map(openAmount));
   const costs = sum(custos.map((t) => t.amount));
-  const sales = db.projects.length;
+  const sales = contracts.length;
   return {
     contracted: round2(contracted),
     invoiced: round2(invoiced),
@@ -60,12 +71,12 @@ export function financeSeries(db: Database, range: RangeKey, now = new Date()) {
   const buckets = buildBuckets(range, now);
   const contracted = sumByBucket(
     buckets,
-    db.projects.map((p) => ({ date: p.createdAt, value: p.contractValue })),
+    activeContracts(db).map((p) => ({ date: p.createdAt, value: p.contractValue })),
   );
   const received = sumByBucket(
     buckets,
     db.transactions
-      .filter((t) => t.kind === "receita" && !t.cancelled)
+      .filter((t) => t.kind === "receita")
       .flatMap((t) => t.payments.map((p) => ({ date: p.date, value: p.amount }))),
   );
   return { buckets, contracted, received };
@@ -74,9 +85,16 @@ export function financeSeries(db: Database, range: RangeKey, now = new Date()) {
 /* ───────────── Fluxo de caixa (página Financeiro) ─────────────
  * Entradas = pagamentos registrados em receitas (dinheiro que entrou).
  * Saídas   = pagamentos registrados em custos (dinheiro que saiu).
- * Saldo de caixa registrado = entradas − saídas acumuladas. Não há saldo
- * bancário inicial no sistema, então o saldo nunca é apresentado como saldo
- * de conta. Contratos não recebidos nunca entram no caixa.
+ * Pagamentos contam pela data do pagamento, inclusive em lançamento cancelado
+ * depois (o dinheiro já se moveu; para desfazer, estorna-se o pagamento).
+ *
+ * Saldo:
+ * - com saldo inicial informado (valor V na data D):
+ *   saldo(t) = V + líquido(movimentos < t) − líquido(movimentos < início de D).
+ *   É o saldo de caixa reconstruído a partir do saldo informado.
+ * - sem saldo informado: só a movimentação líquida registrada (entradas −
+ *   saídas). Nunca é apresentada como saldo bancário.
+ * Contratos não recebidos nunca entram no caixa.
  */
 
 export interface CashMovement {
@@ -92,7 +110,6 @@ export interface CashMovement {
 
 export function cashMovements(db: Database): CashMovement[] {
   return db.transactions
-    .filter((t) => !t.cancelled)
     .flatMap((t) =>
       t.payments.map((p) => ({
         id: p.id,
@@ -126,38 +143,61 @@ export function variation(current: number, previous: number): number | null {
   return previous > 0 ? ((current - previous) / previous) * 100 : null;
 }
 
+const signed = (m: CashMovement) => (m.kind === "entrada" ? m.amount : -m.amount);
+
 export function cashFlow(db: Database, range: RangeKey, now = new Date()) {
   const { buckets, start, end, prevStart, prevEnd } = rangeBounds(range, now);
   const moves = cashMovements(db);
   const inflow = sumByBucket(buckets, moves.filter((m) => m.kind === "entrada").map((m) => ({ date: m.date, value: m.amount })));
   const outflow = sumByBucket(buckets, moves.filter((m) => m.kind === "saida").map((m) => ({ date: m.date, value: m.amount })));
-  // Saldo acumulado: parte do saldo registrado antes do período (sem saldo bancário inicial).
-  const before = round2(sum(moves.filter((m) => new Date(m.date).getTime() < start).map((m) => (m.kind === "entrada" ? m.amount : -m.amount))));
+  const netBefore = (t: number) => sum(moves.filter((m) => new Date(m.date).getTime() < t).map(signed));
+
+  const opening = db.settings.openingBalance;
+  // Ajuste que transforma "líquido acumulado" em saldo de caixa a partir do saldo informado.
+  const offset = opening ? opening.amount - netBefore(startOfDay(opening.date).getTime()) : 0;
+  const before = round2(netBefore(start) + offset);
   let acc = before;
   const balance = inflow.map((v, i) => (acc = round2(acc + v - outflow[i])));
   const total = (kind: CashMovement["kind"], from: number, to: number) => round2(sum(moves.filter((m) => m.kind === kind && within(m.date, from, to)).map((m) => m.amount)));
-  const contracted = (from: number, to: number) => round2(sum(db.projects.filter((p) => within(p.createdAt, from, to)).map((p) => p.contractValue)));
+  const contracted = (from: number, to: number) => round2(sum(activeContracts(db).filter((p) => within(p.createdAt, from, to)).map((p) => p.contractValue)));
+  const net = round2(sum(moves.map(signed)));
   return {
     buckets,
     inflow: inflow.map(round2),
     outflow: outflow.map(round2),
     balance,
+    /** "saldo" quando há saldo inicial informado; "liquido" = só movimentação registrada. */
+    balanceKind: opening ? ("saldo" as const) : ("liquido" as const),
     openingBalance: before,
+    /** Houve alguma entrada ou saída no período selecionado. */
+    hasMovement: inflow.some((v) => v > 0) || outflow.some((v) => v > 0),
+    /** Existe ao menos um registro no período anterior (base de comparação). */
+    hasPrevious: moves.some((m) => within(m.date, prevStart, prevEnd)) || activeContracts(db).some((p) => within(p.createdAt, prevStart, prevEnd)),
     period: { inflow: total("entrada", start, end), outflow: total("saida", start, end), contracted: contracted(start, end) },
     previous: { inflow: total("entrada", prevStart, prevEnd), outflow: total("saida", prevStart, prevEnd), contracted: contracted(prevStart, prevEnd) },
-    cashBalance: round2(sum(moves.map((m) => (m.kind === "entrada" ? m.amount : -m.amount)))),
+    /** Movimentação líquida de todos os registros (entradas − saídas). */
+    netMovement: net,
+    /** Saldo de caixa até agora; null quando o saldo inicial não foi informado. */
+    cashBalance: opening ? round2(net + offset) : null,
   };
 }
 
-/** Recebíveis em aberto por faixa de vencimento. */
+/** Recebíveis em aberto: a vencer, vencidos e parcialmente recebidos, com faixas de vencimento. */
 export function receivablesAging(db: Database, now = new Date()) {
   const today = startOfDay(now).getTime();
   const day = 86_400_000;
   const open = db.transactions.filter((t) => t.kind === "receita" && openAmount(t) > 0);
   const bucket = (from: number, to: number) => round2(sum(open.filter((t) => { const d = new Date(t.dueDate).getTime(); return d >= from && d < to; }).map(openAmount)));
+  const overdue = open.filter((t) => transactionStatus(t, now) === "vencido");
+  const partial = open.filter((t) => paidAmount(t) > 0);
   return {
     total: round2(sum(open.map(openAmount))),
-    overdueCount: open.filter((t) => transactionStatus(t, now) === "vencido").length,
+    overdueCount: overdue.length,
+    overdue: round2(sum(overdue.map(openAmount))),
+    notDue: round2(sum(open.filter((t) => transactionStatus(t, now) !== "vencido").map(openAmount))),
+    /** Parcelas com pagamento parcial (saldo restante; podem estar vencidas ou não). */
+    partialCount: partial.length,
+    partial: round2(sum(partial.map(openAmount))),
     count: open.length,
     buckets: [
       { key: "vencido", label: "Vencido", value: bucket(-Infinity, today) },
@@ -192,11 +232,12 @@ export function projectResults(db: Database) {
       const hasCosts = txs.some((t) => t.kind === "custo");
       return {
         project: p,
-        contracted: p.contractValue,
+        cancelled: !!p.contractCancelledAt,
+        contracted: contractValueOf(p),
         received,
         costs,
         result: hasCosts ? round2(received - costsPaid) : null,
-        receivedShare: p.contractValue > 0 ? received / p.contractValue : 0,
+        receivedShare: p.contractValue > 0 ? Math.min(1, received / p.contractValue) : 0,
       };
     })
     .sort((a, b) => b.contracted - a.contracted);

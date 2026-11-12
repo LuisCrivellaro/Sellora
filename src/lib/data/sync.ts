@@ -214,7 +214,7 @@ export function assembleDatabase(
     })),
     transactions: parts.transactions.map((t) => ({
       ...t,
-      payments: (payments.get(t.id) ?? []).map(({ id, amount, date, note }) => ({ id, amount, date, note })),
+      payments: (payments.get(t.id) ?? []).map(({ id, amount, date, method, note }) => ({ id, amount, date, method, note })),
     })),
     settings,
   };

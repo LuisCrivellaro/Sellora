@@ -1,35 +1,35 @@
 "use client";
 
-import { ArrowDownRight, ArrowUpRight, CircleDollarSign, ExternalLink, List, MoreHorizontal, Ban, RotateCcw, Receipt } from "lucide-react";
+import { ArrowDownRight, ArrowUpRight, CircleDollarSign, ExternalLink, Eye, List, MoreHorizontal, Ban, Pencil, RotateCcw, Receipt } from "lucide-react";
 import Link from "next/link";
 import { motion } from "motion/react";
 import { useMemo, useState } from "react";
 import { CashFlowChart, type FlowMode } from "@/components/finance/cash-flow-chart";
 import { FinCard, FinLabel, GrowBar, MiniBars, PillGroup, RingIndicator } from "@/components/finance/fin-ui";
-import { PaymentForm, TransactionForm } from "@/components/finance/finance-forms";
+import { CancelContractForm, EditTransactionForm, OpeningBalanceForm, PaymentForm, ReversePaymentForm, TransactionForm } from "@/components/finance/finance-forms";
 import { useUrlParams } from "@/components/shared/use-url-state";
 import { StatusBadge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { DataTable, type Column } from "@/components/ui/data-table";
 import { SearchInput } from "@/components/ui/field";
-import { Menu, Modal } from "@/components/ui/overlay";
+import { ConfirmDialog, Menu, Modal } from "@/components/ui/overlay";
 import { Segmented } from "@/components/ui/segmented";
 import { EmptyState, PageSkeleton } from "@/components/ui/states";
 import { useToast } from "@/components/ui/toast";
-import { transactionStatusMeta } from "@/lib/constants";
-import { setTransactionCancelled } from "@/lib/data/repository";
+import { expenseCategoryLabel, paymentMethodLabel, transactionStatusMeta } from "@/lib/constants";
+import { reactivateProjectContract, setTransactionCancelled } from "@/lib/data/repository";
 import { useStore } from "@/lib/data/store";
 import { formatDate, formatRelative, RANGE_OPTIONS, type RangeKey } from "@/lib/dates";
 import { cashFlow, cashMovements, financeSummary, lastPaymentDate, openAmount, paidAmount, projectResults, receivablesAging, transactionStatus, upcomingReceivables, variation } from "@/lib/metrics/finance";
 import { cardEntrance, motionTokens, useMotionEnabled } from "@/lib/motion";
-import type { Transaction } from "@/lib/types";
+import type { Payment, Project, Transaction } from "@/lib/types";
 import { cn, formatBRL, formatPercent, matchesQuery } from "@/lib/utils";
 import { Money } from "@/components/ui/money";
 
-type StatusFilter = "todos" | "pendente" | "vencido" | "pago" | "custo";
+type StatusFilter = "todos" | "pendente" | "parcial" | "vencido" | "pago" | "custo" | "cancelado";
 
 function Delta({ value, inverse = false }: { value: number | null; inverse?: boolean }) {
-  if (value === null) return <span className="text-[11.5px] text-[var(--fin-neutral)]">Sem base anterior</span>;
+  if (value === null) return <span className="text-[11.5px] text-[var(--fin-neutral)]">Sem comparação disponível</span>;
   const up = value >= 0;
   const good = inverse ? !up : up;
   const Icon = up ? ArrowUpRight : ArrowDownRight;
@@ -50,6 +50,12 @@ export function FinanceView() {
   const [mode, setMode] = useState<FlowMode>("tudo");
   const [txForm, setTxForm] = useState<{ kind: "receita" | "custo"; projectId?: string | null } | null>(null);
   const [paying, setPaying] = useState<Transaction | null>(null);
+  const [detailId, setDetailId] = useState<string | null>(null);
+  const [editing, setEditing] = useState<Transaction | null>(null);
+  const [reversing, setReversing] = useState<{ tx: Transaction; payment: Payment } | null>(null);
+  const [confirmCancel, setConfirmCancel] = useState<Transaction | null>(null);
+  const [cancellingContract, setCancellingContract] = useState<Project | null>(null);
+  const [openingOpen, setOpeningOpen] = useState(false);
   const [picker, setPicker] = useState(false);
   const [movesOpen, setMovesOpen] = useState(params.get("status") !== null);
   const [query, setQuery] = useState("");
@@ -74,14 +80,31 @@ export function FinanceView() {
   const clientName = (id: string | null) => (id ? (db.clients.find((c) => c.id === id)?.name ?? "—") : "—");
   const projectTitle = (id: string | null) => (id ? (db.projects.find((p) => p.id === id)?.title ?? "—") : "—");
   const flowMax = Math.max(flow.period.inflow, flow.period.outflow, 1);
-  const receivedShare = summary.invoiced > 0 ? summary.received / summary.invoiced : 0;
+  const receivedShare = summary.invoiced > 0 ? Math.min(1, summary.received / summary.invoiced) : 0;
   const contractedVar = variation(flow.period.contracted, flow.previous.contracted);
   const selectedProject = projectId ? data.results.find((r) => r.project.id === projectId) : null;
+  const detail = detailId ? (db.transactions.find((t) => t.id === detailId) ?? null) : null;
+  const opening = db.settings.openingBalance;
+  const balanceLabel = flow.balanceKind === "saldo" ? "Saldo de caixa acumulado" : "Movimentação líquida acumulada";
+
+  /** Erros de regra (ex.: cancelar lançamento já pago) aparecem como aviso, sem quebrar a tela. */
+  const run = (fn: () => void, success: { title: string; description?: string }) => {
+    try {
+      fn();
+      notify({ kind: "success", ...success });
+    } catch (err) {
+      notify({ kind: "error", title: "Não foi possível concluir", description: err instanceof Error ? err.message : undefined });
+    }
+  };
 
   const rows = db.transactions.filter((t) => {
     const st = transactionStatus(t);
-    const ok = status === "todos" || (status === "custo" ? t.kind === "custo" : t.kind === "receita" && (status === "pendente" ? ["a_receber", "parcial", "vencido"].includes(st) : st === status));
-    return ok && matchesQuery(query, t.description, clientName(t.clientId), projectTitle(t.projectId));
+    const ok =
+      status === "todos" ||
+      (status === "custo" ? t.kind === "custo" && !t.cancelled
+        : status === "cancelado" ? t.cancelled
+        : t.kind === "receita" && (status === "pendente" ? ["a_receber", "parcial", "vencido"].includes(st) : st === status));
+    return ok && matchesQuery(query, t.description, clientName(t.clientId), projectTitle(t.projectId), t.notes);
   });
   const columns: Column<Transaction>[] = [
     { key: "client", header: "Cliente", sortValue: (t) => clientName(t.clientId), cell: (t) => <span className="font-semibold">{clientName(t.clientId)}</span> },
@@ -115,9 +138,29 @@ export function FinanceView() {
           </div>
         </div>
         <div>
-          <FinLabel>Saldo de caixa registrado</FinLabel>
-          <Money animated value={flow.cashBalance} className="mt-1 block text-[36px] leading-none font-extrabold tracking-[-0.03em] sm:text-[42px]" />
-          <p className="mt-2 text-[12px] text-[var(--fin-neutral)]">Entradas − saídas registradas. Sem saldo bancário inicial informado.</p>
+          {flow.cashBalance !== null && opening ? (
+            <>
+              <FinLabel>Saldo de caixa registrado</FinLabel>
+              <Money animated value={flow.cashBalance} className="mt-1 block text-[36px] leading-none font-extrabold tracking-[-0.03em] sm:text-[42px]" />
+              <p className="mt-2 text-[12px] text-[var(--fin-neutral)]">
+                Saldo informado de <Money value={opening.amount} /> em {formatDate(opening.date)} + entradas − saídas registradas.{" "}
+                <button type="button" onClick={() => setOpeningOpen(true)} className="font-semibold text-[var(--fin-in)] hover:underline">
+                  Alterar
+                </button>
+              </p>
+            </>
+          ) : (
+            <>
+              <FinLabel>Movimentação líquida registrada</FinLabel>
+              <Money animated value={flow.netMovement} className="mt-1 block text-[36px] leading-none font-extrabold tracking-[-0.03em] sm:text-[42px]" />
+              <p className="mt-2 text-[12px] text-[var(--fin-neutral)]">
+                Entradas − saídas registradas. Saldo inicial não informado: não é saldo bancário.{" "}
+                <button type="button" onClick={() => setOpeningOpen(true)} className="font-semibold text-[var(--fin-in)] hover:underline">
+                  Informar saldo inicial
+                </button>
+              </p>
+            </>
+          )}
         </div>
         <div className="grid gap-4">
           {[
@@ -147,7 +190,7 @@ export function FinanceView() {
             <div className="mt-2 flex items-center justify-between gap-3">
               <div className="min-w-0">
                 <Money animated value={flow.period.contracted} className="block text-[24px] leading-tight font-bold" />
-                <p className="mt-1 text-[11.5px] text-[var(--fin-neutral)]">Projetos criados · {rangeInfo.label}</p>
+                <p className="mt-1 text-[11.5px] text-[var(--fin-neutral)]">Contratos fechados (não cancelados) · {rangeInfo.label}</p>
               </div>
               {contractedVar !== null ? (
                 <RingIndicator value={Math.min(1, flow.period.contracted / (flow.previous.contracted || 1))} label={`Contratado no período equivale a ${formatPercent(contractedVar + 100)} do período anterior`}>
@@ -155,7 +198,7 @@ export function FinanceView() {
                   {Math.abs(Math.round(contractedVar))}%
                 </RingIndicator>
               ) : (
-                <span className="max-w-[90px] text-right text-[11px] text-[var(--fin-neutral)]">Sem base anterior</span>
+                <span className="max-w-[90px] text-right text-[11px] text-[var(--fin-neutral)]">Sem comparação disponível</span>
               )}
             </div>
             <p className="mt-3 text-[11px] text-[var(--fin-neutral)]">Contratado não é caixa: entra no saldo só quando recebido.</p>
@@ -168,11 +211,15 @@ export function FinanceView() {
                 <Money animated value={summary.received} className="block text-[24px] leading-tight font-bold" />
                 <p className="mt-1 text-[11.5px] text-[var(--fin-neutral)]">Acumulado · de <Money value={summary.invoiced} /> faturados</p>
               </div>
-              <RingIndicator value={receivedShare} label={`${formatPercent(receivedShare * 100)} dos recebíveis lançados já quitados`}>
-                {Math.round(receivedShare * 100)}%
-              </RingIndicator>
+              {summary.invoiced > 0 ? (
+                <RingIndicator value={receivedShare} label={`${formatPercent(receivedShare * 100)} dos recebíveis lançados já quitados`}>
+                  {Math.round(receivedShare * 100)}%
+                </RingIndicator>
+              ) : (
+                <span className="max-w-[90px] text-right text-[11px] text-[var(--fin-neutral)]">Sem dados disponíveis</span>
+              )}
             </div>
-            <p className="mt-3 text-[11px] text-[var(--fin-neutral)]">Anel: parcela do faturado já recebida.</p>
+            <p className="mt-3 text-[11px] text-[var(--fin-neutral)]">Só pagamentos registrados como recebidos. Anel: parcela do faturado já recebida.</p>
           </FinCard>
 
           <FinCard index={3} interactive label="Pagamentos pendentes">
@@ -181,7 +228,21 @@ export function FinanceView() {
               {aging.overdueCount > 0 && <span className="rounded-full bg-[rgba(217,103,123,0.14)] px-2 py-0.5 text-[11px] font-semibold text-[#ff8da2]">{aging.overdueCount} vencida{aging.overdueCount > 1 ? "s" : ""}</span>}
             </div>
             <Money animated value={aging.total} className="mt-2 block text-[24px] leading-tight font-bold" />
-            <p className="mt-1 mb-3 text-[11.5px] text-[var(--fin-neutral)]">{aging.count} parcelas em aberto, por vencimento</p>
+            <p className="mt-1 text-[11.5px] text-[var(--fin-neutral)]">{aging.count} {aging.count === 1 ? "parcela" : "parcelas"} em aberto, por vencimento</p>
+            <dl className="mt-2 mb-3 grid grid-cols-3 gap-2 text-[11px] text-[var(--fin-neutral)]">
+              <div>
+                <dt>A vencer</dt>
+                <dd className="tnum font-semibold text-ink"><Money value={aging.notDue} /></dd>
+              </div>
+              <div>
+                <dt>Vencidos</dt>
+                <dd className="tnum font-semibold text-ink"><Money value={aging.overdue} /></dd>
+              </div>
+              <div>
+                <dt>Parciais ({aging.partialCount})</dt>
+                <dd className="tnum font-semibold text-ink"><Money value={aging.partial} /></dd>
+              </div>
+            </dl>
             <MiniBars items={aging.buckets.map((b) => ({ ...b, tone: b.key === "vencido" ? ("danger" as const) : ("default" as const) }))} format={formatBRL} />
           </FinCard>
         </div>
@@ -196,7 +257,7 @@ export function FinanceView() {
                 { value: "tudo", label: "Tudo" },
                 { value: "entradas", label: "Entradas" },
                 { value: "saidas", label: "Saídas" },
-                { value: "saldo", label: "Saldo", title: "Saldo de caixa acumulado (entradas − saídas)" },
+                { value: "saldo", label: "Saldo", title: flow.balanceKind === "saldo" ? "Saldo de caixa: saldo inicial informado + entradas − saídas" : "Movimentação líquida acumulada (entradas − saídas); saldo inicial não informado" },
               ]}
             />
             <PillGroup<RangeKey> size="sm" label="Período" value={range} onChange={setRange} options={RANGE_OPTIONS.map((r) => ({ value: r.value, label: r.label, title: r.description }))} />
@@ -212,10 +273,37 @@ export function FinanceView() {
                 <span className="h-0.5 w-4 rounded bg-[var(--fin-out)]" aria-hidden /> Saídas <b><Money value={-flow.period.outflow} compact /></b>
               </span>
             )}
-            {mode === "saldo" && <span>Saldo acumulado a partir de <Money value={flow.openingBalance} /> registrados antes do período</span>}
+            {mode === "saldo" && (
+              <span>
+                {flow.balanceKind === "saldo" ? "Saldo de caixa" : "Movimentação líquida acumulada (sem saldo inicial)"} a partir de <Money value={flow.openingBalance} /> antes do período
+              </span>
+            )}
             <span className="ml-auto text-[var(--fin-neutral)]">{rangeInfo.description}</span>
           </div>
-          <CashFlowChart buckets={flow.buckets} inflow={flow.inflow} outflow={flow.outflow} balance={flow.balance} mode={mode} animationKey={`${range}-${mode}`} height={390} />
+          <CashFlowChart
+            buckets={flow.buckets}
+            inflow={flow.inflow}
+            outflow={flow.outflow}
+            balance={flow.balance}
+            mode={mode}
+            animationKey={`${range}-${mode}`}
+            height={390}
+            balanceLabel={balanceLabel}
+            emptyState={
+              <div className="absolute inset-x-4 top-[30%] flex flex-col items-center gap-3 text-center">
+                <p className="text-[13.5px] font-semibold text-ink">Nenhuma movimentação financeira registrada neste período.</p>
+                <p className="max-w-[420px] text-[12px] text-[var(--fin-neutral)]">O gráfico mostra só pagamentos registrados. Nenhuma curva é estimada.</p>
+                <div className="flex flex-wrap justify-center gap-2">
+                  <Button size="sm" variant="secondary" className="border-[var(--fin-border-strong)]" onClick={() => setPicker(true)}>
+                    <CircleDollarSign aria-hidden /> Registrar recebimento
+                  </Button>
+                  <Button size="sm" variant="secondary" className="border-[var(--fin-border-strong)]" onClick={() => setTxForm({ kind: "custo" })}>
+                    <Receipt aria-hidden /> Registrar despesa
+                  </Button>
+                </div>
+              </div>
+            }
+          />
         </FinCard>
       </div>
 
@@ -272,6 +360,7 @@ export function FinanceView() {
                       <GrowBar value={r.receivedShare} color="var(--fin-in)" label={`${r.project.title}: recebido sobre contratado`} valueText={`${formatPercent(r.receivedShare * 100)}`} />
                     </span>
                     <span className="mt-1 block text-[11px] text-[var(--fin-neutral)]">
+                      {r.cancelled && <span className="font-semibold text-[#ff8da2]">Contrato cancelado · </span>}
                       {r.result === null ? "Sem custos registrados — resultado não calculado" : <>Custos <Money value={-r.costs} /> · resultado realizado <Money value={r.result} /></>}
                     </span>
                   </button>
@@ -319,8 +408,12 @@ export function FinanceView() {
       {/* Escolher recebível para registrar pagamento */}
       <Modal open={picker} onOpenChange={setPicker} title="Registrar recebimento" description="Escolha a parcela em aberto. Valores menores que o saldo ficam como pagamento parcial.">
         {upcomingReceivables(db, new Date(), 100).length === 0 ? (
-          <EmptyState title="Nenhum recebível em aberto" description="Lance um recebível pelo botão abaixo." action={<Button variant="primary" onClick={() => { setPicker(false); setTxForm({ kind: "receita" }); }}>Lançar recebível</Button>} />
+          <EmptyState title="Nenhuma parcela em aberto" description="Registre um recebimento avulso ou lance uma parcela a receber." action={<Button variant="primary" onClick={() => { setPicker(false); setTxForm({ kind: "receita" }); }}>Novo recebimento</Button>} />
         ) : (
+          <>
+          <Button size="sm" variant="secondary" className="mb-3" onClick={() => { setPicker(false); setTxForm({ kind: "receita" }); }}>
+            <CircleDollarSign aria-hidden /> Novo recebimento (sem parcela)
+          </Button>
           <ul className="flex flex-col gap-1.5">
             {upcomingReceivables(db, new Date(), 100).map(({ tx, open, status: st }) => (
               <li key={tx.id}>
@@ -334,6 +427,7 @@ export function FinanceView() {
               </li>
             ))}
           </ul>
+          </>
         )}
       </Modal>
 
@@ -348,9 +442,11 @@ export function FinanceView() {
             options={[
               { value: "todos", label: "Todos" },
               { value: "pendente", label: "Pendentes" },
+              { value: "parcial", label: "Parciais" },
               { value: "vencido", label: "Vencidos" },
               { value: "pago", label: "Recebidos" },
               { value: "custo", label: "Despesas" },
+              { value: "cancelado", label: "Cancelados" },
             ]}
           />
         </div>
@@ -372,11 +468,13 @@ export function FinanceView() {
                 </Button>
               }
               items={[
+                { label: "Ver detalhes", icon: <Eye />, onSelect: () => setDetailId(t.id) },
                 { label: t.kind === "custo" ? "Registrar pagamento da despesa" : "Registrar recebimento", icon: <CircleDollarSign />, disabled: t.cancelled || openAmount(t) <= 0, onSelect: () => setPaying(t) },
+                { label: "Corrigir lançamento", icon: <Pencil />, disabled: t.cancelled, onSelect: () => setEditing(t) },
                 "separator",
                 t.cancelled
-                  ? { label: "Reativar lançamento", icon: <RotateCcw />, onSelect: () => { setTransactionCancelled(t.id, false); notify({ kind: "success", title: "Lançamento reativado" }); } }
-                  : { label: "Cancelar lançamento", icon: <Ban />, destructive: true, onSelect: () => { setTransactionCancelled(t.id, true); notify({ kind: "success", title: "Lançamento cancelado", description: "Deixa de contar nos indicadores." }); } },
+                  ? { label: "Reativar lançamento", icon: <RotateCcw />, onSelect: () => run(() => setTransactionCancelled(t.id, false), { title: "Lançamento reativado" }) }
+                  : { label: "Cancelar lançamento", icon: <Ban />, destructive: true, disabled: t.payments.length > 0, onSelect: () => setConfirmCancel(t) },
               ]}
             />
           )}
@@ -411,10 +509,27 @@ export function FinanceView() {
               ))}
             </dl>
             {selectedProject.result === null && <p className="text-[12px] text-[var(--fin-neutral)]">Sem custos registrados: o resultado não é calculado para não exibir margem fictícia.</p>}
+            {selectedProject.cancelled && (
+              <p className="rounded-2xl border border-[rgba(217,103,123,0.35)] px-3 py-2 text-[12.5px] text-[#ff8da2]">
+                Contrato cancelado em {formatDate(selectedProject.project.contractCancelledAt)}. Não conta como receita contratada; o já recebido continua no caixa.
+              </p>
+            )}
             <div className="flex flex-wrap gap-2">
+              <Button size="sm" variant="secondary" onClick={() => setTxForm({ kind: "receita", projectId: selectedProject.project.id })}>
+                <CircleDollarSign aria-hidden /> Lançar parcela/recebimento
+              </Button>
               <Button size="sm" variant="secondary" onClick={() => setTxForm({ kind: "custo", projectId: selectedProject.project.id })}>
                 <Receipt aria-hidden /> Registrar despesa do projeto
               </Button>
+              {selectedProject.cancelled ? (
+                <Button size="sm" variant="ghost" onClick={() => run(() => reactivateProjectContract(selectedProject.project.id), { title: "Contrato reativado", description: "Parcelas canceladas não voltam sozinhas: relance o que faltar receber." })}>
+                  <RotateCcw aria-hidden /> Reativar contrato
+                </Button>
+              ) : (
+                <Button size="sm" variant="ghost" onClick={() => setCancellingContract(selectedProject.project)}>
+                  <Ban aria-hidden /> Cancelar contrato
+                </Button>
+              )}
               <Button size="sm" variant="ghost" asChild>
                 <Link href={`/projetos?id=${selectedProject.project.id}`}>
                   <ExternalLink aria-hidden /> Abrir projeto
@@ -426,12 +541,12 @@ export function FinanceView() {
                 .filter((t) => t.projectId === selectedProject.project.id)
                 .map((t) => (
                   <li key={t.id} className="flex items-center gap-3 py-2.5">
-                    <span className="min-w-0 flex-1">
-                      <span className="block truncate text-[13px] font-semibold text-ink">{t.description}</span>
+                    <button type="button" onClick={() => setDetailId(t.id)} className="min-w-0 flex-1 text-left" aria-label={`Detalhes de ${t.description}`}>
+                      <span className="block truncate text-[13px] font-semibold text-ink">{t.description}{t.cancelled ? " (cancelado)" : ""}</span>
                       <span className="block text-[11.5px] text-[var(--fin-neutral)]">
                         vence {formatDate(t.dueDate)} · pago <Money value={t.kind === "custo" ? -paidAmount(t) : paidAmount(t)} />
                       </span>
-                    </span>
+                    </button>
                     <Money value={t.kind === "custo" ? -t.amount : t.amount} className="text-[13px] font-bold" />
                     {openAmount(t) > 0 && !t.cancelled && (
                       <Button size="sm" variant="outline" onClick={() => setPaying(t)}>
@@ -445,8 +560,78 @@ export function FinanceView() {
         )}
       </Modal>
 
+      {/* Detalhe de um lançamento: pagamentos, forma, observações, estorno */}
+      <Modal open={!!detail} onOpenChange={(o) => !o && setDetailId(null)} variant="sheet" title={detail?.description ?? "Lançamento"} description={detail ? `${detail.kind === "custo" ? "Despesa" : "Recebível"} · ${clientName(detail.clientId)} · ${projectTitle(detail.projectId)}` : undefined}>
+        {detail && (
+          <div className="flex flex-col gap-4">
+            <dl className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+              {([
+                ["Valor", detail.kind === "custo" ? -detail.amount : detail.amount],
+                [detail.kind === "custo" ? "Pago" : "Recebido", detail.kind === "custo" ? -paidAmount(detail) : paidAmount(detail)],
+                ["Em aberto", detail.kind === "custo" ? -openAmount(detail) : openAmount(detail)],
+                ["Vencimento", formatDate(detail.dueDate)],
+              ] as const).map(([k, v]) => (
+                <div key={k} className="rounded-2xl border border-[var(--fin-border-strong)] p-3">
+                  <dt className="text-[11.5px] text-[var(--fin-neutral)]">{k}</dt>
+                  <dd className="tnum mt-1 text-[15px] font-bold text-ink">{typeof v === "number" ? <Money value={v} /> : v}</dd>
+                </div>
+              ))}
+            </dl>
+            <p className="text-[12.5px] text-ink-soft">
+              Status:{" "}
+              <b className="text-ink">{detail.kind === "custo" ? (detail.cancelled ? "Cancelada" : openAmount(detail) > 0 ? "A pagar" : "Paga") : transactionStatusMeta[transactionStatus(detail)].label}</b>
+              {detail.kind === "custo" && <> · Categoria: <b className="text-ink">{expenseCategoryLabel[detail.category]}</b></>}
+              {detail.notes && <> · {detail.notes}</>}
+            </p>
+            <div className="flex flex-wrap gap-2">
+              <Button size="sm" variant="secondary" disabled={detail.cancelled || openAmount(detail) <= 0} onClick={() => setPaying(detail)}>
+                <CircleDollarSign aria-hidden /> {detail.kind === "custo" ? "Registrar pagamento" : "Registrar recebimento"}
+              </Button>
+              <Button size="sm" variant="ghost" disabled={detail.cancelled} onClick={() => setEditing(detail)}>
+                <Pencil aria-hidden /> Corrigir lançamento
+              </Button>
+            </div>
+            <div>
+              <h3 className="mb-2 text-[13px] font-semibold text-ink">Pagamentos registrados</h3>
+              {detail.payments.length === 0 ? (
+                <p className="text-[12.5px] text-[var(--fin-neutral)]">Nenhum pagamento registrado.</p>
+              ) : (
+                <ul className="flex flex-col divide-y divide-[var(--fin-border)]">
+                  {detail.payments.map((p) => (
+                    <li key={p.id} className="flex items-center gap-3 py-2.5">
+                      <span className="min-w-0 flex-1">
+                        <span className="block text-[13px] font-semibold text-ink">{formatDate(p.date)} · {paymentMethodLabel[p.method]}</span>
+                        {p.note && <span className="block truncate text-[11.5px] text-[var(--fin-neutral)]">{p.note}</span>}
+                      </span>
+                      <Money value={detail.kind === "custo" ? -p.amount : p.amount} className="text-[13px] font-bold" />
+                      <Button size="sm" variant="outline" onClick={() => setReversing({ tx: detail, payment: p })}>
+                        Estornar
+                      </Button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+            <p className="text-[11.5px] text-[var(--fin-neutral)]">Correções, estornos e cancelamentos ficam registrados no histórico do cliente/projeto. Lançamentos não são apagados.</p>
+          </div>
+        )}
+      </Modal>
+
+      <ConfirmDialog
+        open={!!confirmCancel}
+        onOpenChange={(o) => !o && setConfirmCancel(null)}
+        title="Cancelar lançamento?"
+        description={confirmCancel ? <>“{confirmCancel.description}” (<Money value={confirmCancel.amount} />) deixa de contar nos indicadores. O registro não é apagado e pode ser reativado; o cancelamento fica no histórico.</> : ""}
+        confirmLabel="Cancelar lançamento"
+        onConfirm={() => confirmCancel && run(() => setTransactionCancelled(confirmCancel.id, true), { title: "Lançamento cancelado", description: "Deixa de contar nos indicadores." })}
+      />
+
       <TransactionForm key={txForm ? `tx-${txForm.kind}-${txForm.projectId ?? ""}` : "tx-none"} open={!!txForm} onOpenChange={(o) => !o && setTxForm(null)} defaultKind={txForm?.kind ?? "receita"} defaultProjectId={txForm?.projectId ?? null} />
       <PaymentForm key={paying ? `pay-${paying.id}` : "pay-none"} tx={paying} onOpenChange={(o) => !o && setPaying(null)} />
+      <EditTransactionForm key={editing ? `edit-${editing.id}-${editing.updatedAt}` : "edit-none"} tx={editing} onOpenChange={(o) => !o && setEditing(null)} />
+      <ReversePaymentForm key={reversing ? `rev-${reversing.payment.id}` : "rev-none"} target={reversing} onOpenChange={(o) => !o && setReversing(null)} />
+      <CancelContractForm key={cancellingContract ? `cc-${cancellingContract.id}` : "cc-none"} project={cancellingContract} onOpenChange={(o) => !o && setCancellingContract(null)} />
+      <OpeningBalanceForm key={openingOpen ? "ob-open" : "ob-closed"} open={openingOpen} onOpenChange={setOpeningOpen} />
       <p className="mt-6 text-[11.5px] text-[var(--fin-neutral)]" style={{ transitionDuration: `${motionTokens.ui}s` }}>
         Valores {db.demo ? "fictícios do modo demonstração" : dataMode === "supabase" ? "registrados manualmente no banco de dados" : "registrados manualmente neste navegador"}. Nenhum banco, gateway ou emissão fiscal está conectado.
       </p>

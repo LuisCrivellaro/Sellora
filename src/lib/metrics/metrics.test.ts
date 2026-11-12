@@ -100,6 +100,7 @@ describe("projetos", () => {
     publishedUrl: "",
     publishedAt: null,
     deliveredAt,
+    contractCancelledAt: null,
     notes: "",
     createdAt: NOW.toISOString(),
     updatedAt: NOW.toISOString(),
@@ -128,7 +129,9 @@ describe("financeiro", () => {
     description: "x",
     amount,
     dueDate: addDays(NOW, dueOffset).toISOString(),
-    payments: paid.map((a, i) => ({ id: String(i), amount: a, date: NOW.toISOString(), note: "" })),
+    payments: paid.map((a, i) => ({ id: String(i), amount: a, date: NOW.toISOString(), method: "" as const, note: "" })),
+    category: "" as const,
+    notes: "",
     cancelled,
     createdAt: NOW.toISOString(),
     updatedAt: NOW.toISOString(),
@@ -215,9 +218,10 @@ describe("fluxo de caixa do Financeiro", () => {
     const moves = cashMovements(db);
     const inAll = moves.filter((m) => m.kind === "entrada").reduce((s, m) => s + m.amount, 0);
     const outAll = moves.filter((m) => m.kind === "saida").reduce((s, m) => s + m.amount, 0);
-    expect(flow.cashBalance).toBeCloseTo(inAll - outAll, 2);
+    expect(flow.cashBalance).toBeNull(); // sem saldo inicial informado, não há "saldo de caixa"
+    expect(flow.netMovement).toBeCloseTo(inAll - outAll, 2);
     // Último ponto do saldo acumulado = saldo de caixa registrado (todos os movimentos estão no último ano).
-    expect(flow.balance.at(-1)).toBeCloseTo(flow.cashBalance, 2);
+    expect(flow.balance.at(-1)).toBeCloseTo(flow.netMovement, 2);
     // Contratos não entram no caixa.
     expect(flow.period.inflow).toBeLessThanOrEqual(financeSummary(db, NOW).received + 0.001);
     const aging = receivablesAging(db, NOW);

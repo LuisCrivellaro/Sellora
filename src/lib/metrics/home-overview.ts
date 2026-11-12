@@ -2,7 +2,7 @@ import { activityTypeMeta } from "../constants";
 import { addDays, daysBetween, startOfDay, type RangeKey } from "../dates";
 import type { Database, Lead } from "../types";
 import { sourceDistribution, funnel, isContactActivity } from "./leads";
-import { openAmount, transactionStatus } from "./finance";
+import { contractValueOf, openAmount, transactionStatus } from "./finance";
 import { projectStatus } from "./projects";
 import { round2, sum } from "../utils";
 import { commercialSeries } from "./home";
@@ -116,10 +116,10 @@ export function homeIndicators(db: Database, start: number, end: number, now = n
     /** período: captados no período que já saíram de "Novo" e não foram perdidos */
     qualified: captured.filter((lead) => lead.stage !== "novo" && lead.stage !== "perdido").length,
     captured: captured.length,
-    /** período: valor de contrato dos projetos criados */
-    contracted: round2(sum(db.projects.filter((p) => within(p.createdAt)).map((p) => p.contractValue))),
+    /** período: valor de contrato dos projetos criados (contratos cancelados contam zero) */
+    contracted: round2(sum(db.projects.filter((p) => within(p.createdAt)).map(contractValueOf))),
     /** período: pagamentos registrados em receitas */
-    received: round2(sum(receitas.flatMap((t) => t.payments.filter((p) => within(p.date)).map((p) => p.amount)))),
+    received: round2(sum(db.transactions.filter((t) => t.kind === "receita").flatMap((t) => t.payments.filter((p) => within(p.date)).map((p) => p.amount)))),
     /** atual: saldo aberto das receitas lançadas */
     receivable: round2(sum(receitas.map(openAmount))),
     overdueReceivable: round2(sum(receitas.filter((t) => transactionStatus(t, now) === "vencido").map(openAmount))),

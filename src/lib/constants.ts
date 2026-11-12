@@ -1,10 +1,12 @@
 import type {
   ActivityType,
   ClientStatus,
+  ExpenseCategory,
   LeadSource,
   LeadStage,
   LeadTemperature,
   PackageId,
+  PaymentMethod,
   Priority,
   ProjectStage,
   ProjectStatus,
@@ -197,4 +199,29 @@ export const transactionStatusMeta: Record<TransactionStatus, Meta> = {
   a_receber: { label: "A receber", tone: "lilac" },
   vencido: { label: "Vencido", tone: "danger" },
   cancelado: { label: "Cancelado", tone: "ghost" },
+};
+
+export const PAYMENT_METHODS = ["pix", "transferencia", "boleto", "cartao", "dinheiro", "outro"] as const satisfies readonly Exclude<PaymentMethod, "">[];
+export const paymentMethodLabel: Record<PaymentMethod, string> = {
+  "": "Não informada",
+  pix: "Pix",
+  transferencia: "Transferência",
+  boleto: "Boleto",
+  cartao: "Cartão",
+  dinheiro: "Dinheiro",
+  outro: "Outra",
+};
+
+export const EXPENSE_CATEGORIES = ["ferramentas", "hospedagem", "dominio", "marketing", "terceiros", "impostos", "taxas", "equipamentos", "outros"] as const satisfies readonly Exclude<ExpenseCategory, "">[];
+export const expenseCategoryLabel: Record<ExpenseCategory, string> = {
+  "": "Sem categoria",
+  ferramentas: "Ferramentas e softwares",
+  hospedagem: "Hospedagem",
+  dominio: "Domínio",
+  marketing: "Marketing e anúncios",
+  terceiros: "Serviços de terceiros",
+  impostos: "Impostos",
+  taxas: "Taxas bancárias",
+  equipamentos: "Equipamentos",
+  outros: "Outros",
 };
