@@ -1,11 +1,12 @@
 import { requireAccess, json } from "@/lib/prospecting/access";
-import { agentRegistry, claw3dRegistry, claw3dState, liveJobIds, lifecycleEvents, readJobs, type AgentRun } from "@/lib/agents/bridge";
+import { agentRegistry, claw3dRegistry, claw3dScene, claw3dState, liveJobIds, lifecycleEvents, readJobs, type AgentRun } from "@/lib/agents/bridge";
 
 export const runtime = "nodejs";
 
 /**
  * Sellora Agent Bridge. Observação apenas: nenhuma rota inicia, altera ou cancela execuções.
- * /api/agents/health · /state · /registry (contrato do runtime `custom` do Claw3D) · /agents (registro detalhado) · /events (SSE).
+ * /api/agents/health · /state · /registry (contrato do runtime `custom` do Claw3D) · /agents (registro detalhado) · /events (SSE)
+ * · /scene (o escritório 3D local está no ar?).
  */
 export async function GET(request: Request, context: { params: Promise<{ resource: string }> }) {
   const access = await requireAccess(request);
@@ -15,6 +16,7 @@ export async function GET(request: Request, context: { params: Promise<{ resourc
   if (resource === "state") return json(await claw3dState());
   if (resource === "registry") return json(claw3dRegistry());
   if (resource === "agents") return json({ agents: await agentRegistry() });
+  if (resource === "scene") return json(await claw3dScene());
   if (resource !== "events") return json({ error: "Recurso não encontrado." }, 404);
 
   const encoder = new TextEncoder();

@@ -1,7 +1,7 @@
 import { sha256 } from "./store";
 import type { SiteBrief } from "./schema";
 
-export type ImageEngine = "codex" | "gemini" | "fallback";
+export type ImageEngine = "codex" | "fallback";
 export interface SiteAsset { id: string; path: string; data: Buffer; source: ImageEngine; alt: string; error?: string }
 
 const ratio = (aspect: string) => { const [w, h] = aspect.split(":").map(Number); return w / h; };

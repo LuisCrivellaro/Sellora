@@ -9,7 +9,6 @@ const qa = vi.hoisted(() => ({ browserQa: vi.fn() }));
 const scope = vi.hoisted(() => ({ dir: "" }));
 vi.mock("../claude-server", () => ({ ClaudeWriter: { withSystemPrompt: vi.fn(async () => writer) } }));
 vi.mock("../codex-server", () => ({ demoDataRoot: () => scope.dir, LocalCodex: { connect: vi.fn(async () => codex) } }));
-vi.mock("../gemini-server", () => ({ geminiImageStatus: vi.fn(async () => ({ available: false, message: "sem chave" })), geminiImageBuffer: vi.fn() }));
 vi.mock("./qa-browser", () => ({ browserQa: qa.browserQa }));
 
 import { generateV6 } from "./generator";
@@ -69,11 +68,11 @@ it("sem nenhum gerador de imagem a demo sai com composições SVG, sem chamar se
   codex.status.mockResolvedValue({ available: false, connected: false, message: "Codex sem login" });
   writer.structured.mockResolvedValueOnce(brief("Fraunces")).mockResolvedValueOnce(page("Barbearia em Campinas"));
   qa.browserQa.mockResolvedValue({ executed: false, reason: "Nenhum Edge ou Chrome encontrado.", fixable: [], warnings: [], shots: {} });
-  const { geminiImageBuffer } = await import("../gemini-server");
-  const result = await generateV6(randomUUID(), { business: { name: "Barbearia Teste", city: "Campinas", uf: "SP", segment: "beleza" }, phone: "", history: [], textProvider: "claude", imageProvider: "codex" }, { phase: () => {} });
+  // Telefone inválido conta como "sem telefone": o modelo não pode criar "Ligar para" sem número.
+  const result = await generateV6(randomUUID(), { business: { name: "Barbearia Teste", city: "Campinas", uf: "SP", segment: "beleza" }, phone: "(00) 0000-0000", history: [], textProvider: "claude", imageProvider: "codex" }, { phase: () => {} });
+  expect(String(writer.structured.mock.calls[0][0])).toContain("não há telefone cadastrado");
   expect(result.site.images.every((image) => image.source === "fallback" && image.path.endsWith(".svg"))).toBe(true);
   expect(result.site.qa.browser).toBe("unavailable");
   expect(result.site.preview).toBe(false);
-  expect(geminiImageBuffer).not.toHaveBeenCalled();
   expect(codex.imageBuffer).not.toHaveBeenCalled();
 });

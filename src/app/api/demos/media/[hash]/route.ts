@@ -3,7 +3,7 @@ import path from "node:path";
 import { demoDataRoot } from "@/lib/demos/codex-server";
 
 export const runtime = "nodejs";
-// Codex grava PNG; o Gemini pode devolver JPEG. O hash identifica o arquivo nos dois casos.
+// Codex grava PNG; arquivos antigos podem ser JPEG. O hash identifica o arquivo nos dois casos.
 const formats = [["png", "image/png"], ["jpg", "image/jpeg"]] as const;
 export async function GET(_request: Request, context: { params: Promise<{ hash: string }> }) {
   const { hash } = await context.params;

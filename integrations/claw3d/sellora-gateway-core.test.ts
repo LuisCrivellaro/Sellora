@@ -40,7 +40,8 @@ describe("Sellora gateway adapter (núcleo)", () => {
     const end = core.applyBridgeEvent(state, "agent", { ...base, phase: "end", text: "Demo pronta para revisão", siteId: "s1" });
     expect(lifecycle(end)).toEqual(["job-1:end"]);
     expect(end.filter((f: Frame) => f.event === "chat").map((f: Frame) => (f.payload as { state: string }).state)).toEqual(["final"]);
-    expect(texts(end)[0]).toContain("aguardando revisão humana");
+    const final = end.find((f: Frame) => f.event === "chat")?.payload as { message: { content: string } };
+    expect(final.message.content).toContain("aguardando revisão humana");
     const history = core.handleMethod(state, "chat.history", { sessionKey: "agent:gerador-de-demos:main" }, "2") as Frame;
     expect((history.payload as { messages: { content: string }[] }).messages.map((m) => m.content)).toEqual([
       "Gerar demo V6: Clínica Teste", "Clínica Teste · Etapas 1–3", "Clínica Teste · Gerando imagem 1 de 3", "Clínica Teste · Demo pronta para revisão",
@@ -54,7 +55,9 @@ describe("Sellora gateway adapter (núcleo)", () => {
     core.applyBridgeEvent(state, "agent", { ...base, phase: "start", text: "Etapas 1–3" });
     const error = core.applyBridgeEvent(state, "agent", { ...base, phase: "error", text: "Codex indisponível" });
     expect(lifecycle(error)).toEqual(["job-2:error"]);
-    expect(texts(error)).toEqual(["Restaurante · Falhou: Codex indisponível"]);
+    expect(texts(error)).toEqual([]);
+    const history = core.handleMethod(state, "chat.history", { sessionKey: "agent:gerador-de-demos:main" }, "h") as Frame;
+    expect((history.payload as { messages: { content: string }[] }).messages.at(-1)?.content).toBe("Restaurante · Falhou: Codex indisponível");
     // Sem `chat` de erro: ele fecharia a execução antes e o Claw3D ignoraria o estado "error".
     expect(error.filter((f: Frame) => f.event === "chat")).toEqual([]);
   });

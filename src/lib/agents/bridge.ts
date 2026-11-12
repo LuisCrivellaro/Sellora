@@ -101,3 +101,31 @@ export function lifecycleEvents(previous: Map<string, AgentRun>, runs: AgentRun[
   }
   return events;
 }
+
+/** Endereço local do escritório 3D (Claw3D + Sellora Gateway Adapter, ver integrations/claw3d). */
+export const claw3dBaseUrl = () => (process.env.SELLORA_CLAW3D_URL || "http://127.0.0.1:3190").replace(/\/$/, "");
+const adapterHealthUrl = () => (process.env.SELLORA_CLAW3D_ADAPTER_HEALTH || "http://127.0.0.1:18790/health");
+
+export interface Claw3dSceneStatus {
+  available: boolean; url: string | null; bridge: "connected" | "disconnected" | "unknown"; message: string;
+}
+
+/** Confere se o escritório 3D local está no ar. Só localhost; nada de credenciais na resposta. */
+export async function claw3dScene(fetcher: typeof fetch = fetch): Promise<Claw3dSceneStatus> {
+  const base = claw3dBaseUrl();
+  if (!/^http:\/\/(127\.0\.0\.1|localhost)(:\d+)?$/i.test(base)) {
+    return { available: false, url: null, bridge: "unknown", message: "SELLORA_CLAW3D_URL precisa apontar para 127.0.0.1 ou localhost." };
+  }
+  const probe = async (url: string) => {
+    try { const response = await fetcher(url, { cache: "no-store", signal: AbortSignal.timeout(1500) }); return response.ok ? await response.json().catch(() => ({})) : null; } catch { return null; }
+  };
+  const [studio, adapter] = await Promise.all([probe(`${base}/api/health`), probe(adapterHealthUrl())]);
+  if (!studio) {
+    return { available: false, url: null, bridge: "unknown", message: "Escritório 3D desligado. No aplicativo Windows ele inicia junto com a Sellora quando o Claw3D está preparado; no desenvolvimento rode `node integrations/claw3d/setup.mjs` uma vez e depois `node integrations/claw3d/launcher.mjs`." };
+  }
+  const bridge = adapter?.bridge === "connected" ? "connected" : adapter ? "disconnected" : "unknown";
+  return {
+    available: true, url: `${base}/__sellora/office`, bridge,
+    message: bridge === "connected" ? "Escritório 3D conectado aos eventos reais da Sellora." : "Escritório 3D no ar, mas o adaptador ainda não recebe eventos da Sellora (reconectando).",
+  };
+}

@@ -118,9 +118,9 @@ function finish(state, agentId, run, phase) {
   state.active.delete(agentId);
   const summary = phase === "error" ? `Falhou: ${run.text}` : `Concluído, aguardando revisão humana: ${run.text}`;
   const text = statusText(run.business, summary);
-  frames.push(assistant(state, agentId, run.runId, text));
   if (phase === "error") {
-    // Só o lifecycle: um `chat` de erro fecharia a execução antes e o Claw3D ignoraria o estado "error".
+    // Só o lifecycle: um `chat` de erro (ou texto novo do assistente) faria o Claw3D tratar a execução
+    // como respondida e ignorar o estado "error". O motivo fica no histórico (chat.history/preview).
     frames.push(lifecycle(state, agentId, run.runId, "error", run.at));
     return frames;
   }

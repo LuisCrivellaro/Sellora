@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { DashboardCard } from "@/components/ui/card";
-import type { AgentRecord, AgentRun } from "@/lib/agents/bridge";
+import type { AgentRecord, AgentRun, Claw3dSceneStatus } from "@/lib/agents/bridge";
 
 const statusLabel: Record<string, { text: string; tone: string }> = {
   running: { text: "Executando", tone: "text-mint" }, idle: { text: "Disponível", tone: "text-ink-soft" },
@@ -16,13 +16,20 @@ const time = (iso: string | null) => iso ? new Date(iso).toLocaleTimeString("pt-
 
 /**
  * Aba Cloud 3D: observação dos agentes reais pelo Sellora Agent Bridge (/api/agents/*).
- * A cena 3D do Claw3D ainda não está conectada (docs/CLAW3D_INTEGRATION.md); nada aqui é simulado.
+ * A cena é o Claw3D local (integrations/claw3d) alimentado pelo mesmo bridge; nada aqui é simulado.
  */
 export function Cloud3dView() {
   const [agents, setAgents] = useState<AgentRecord[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [live, setLive] = useState(false);
   const [lastEvent, setLastEvent] = useState<string | null>(null);
+  const [scene, setScene] = useState<Claw3dSceneStatus | null>(null);
+  const loadScene = useCallback(async () => {
+    try {
+      const response = await fetch("/api/agents/scene", { cache: "no-store" });
+      if (response.ok) setScene(await response.json());
+    } catch { setScene({ available: false, url: null, bridge: "unknown", message: "Não foi possível consultar o escritório 3D." }); }
+  }, []);
   const load = useCallback(async () => {
     try {
       const response = await fetch("/api/agents/agents", { cache: "no-store" });
@@ -32,25 +39,44 @@ export function Cloud3dView() {
     } catch (failure) { setError(failure instanceof Error ? failure.message : "Ponte de agentes indisponível."); }
   }, []);
   useEffect(() => {
-    const first = setTimeout(() => void load(), 0);
+    const first = setTimeout(() => { void load(); void loadScene(); }, 0);
+    const sceneTimer = setInterval(() => void loadScene(), 15_000);
     const source = new EventSource("/api/agents/events");
     source.addEventListener("open", () => setLive(true));
     source.addEventListener("error", () => setLive(false));
     source.addEventListener("agent", (event) => { const data = JSON.parse((event as MessageEvent).data); setLastEvent(`${time(data.at)} · ${data.business}: ${data.text}`); void load(); });
-    return () => { clearTimeout(first); source.close(); };
-  }, [load]);
+    return () => { clearTimeout(first); clearInterval(sceneTimer); source.close(); };
+  }, [load, loadScene]);
 
   return <div className="grid grid-cols-12 gap-3.5">
     <DashboardCard index={0} className="col-span-12" title="Cloud 3D" description="Acompanhe os agentes de IA da Sellora com estados reais. Somente observação: nada aqui inicia ou interrompe execuções."
-      actions={<Button size="sm" variant="secondary" onClick={() => void load()}><RefreshCw aria-hidden /> Atualizar conexão</Button>}>
+      actions={<Button size="sm" variant="secondary" onClick={() => { void load(); void loadScene(); }}><RefreshCw aria-hidden /> Atualizar conexão</Button>}>
       <div className="mb-4 rounded-xl border border-seam p-3 text-[12.5px] leading-relaxed text-ink-soft">
-        <p><span className="font-semibold text-ink">Escritório 3D (Claw3D):</span> ainda não conectado. A ponte com dados reais já funciona e alimenta este painel; a cena 3D entra quando o provider da Sellora no Claw3D estiver pronto.</p>
+        <p><span className="font-semibold text-ink">Escritório 3D (Claw3D):</span>{" "}
+          {!scene ? "verificando…" : <span className={scene.available && scene.bridge === "connected" ? "text-mint" : "text-warn"}>{scene.message}</span>}</p>
         <p className="mt-1">Ponte Sellora: <span className={live ? "text-mint" : "text-warn"}>{live ? "eventos ao vivo conectados" : "eventos ao vivo desconectados"}</span>{lastEvent && <> · último evento: {lastEvent}</>}</p>
       </div>
-      {error && <p role="alert" className="text-[13px] text-warn">{error}</p>}
-      {!agents && !error && <p role="status" className="text-[13px] text-ink-soft">Carregando agentes…</p>}
-      {agents?.map((agent) => <AgentPanel key={agent.id} agent={agent} />)}
+      <div className="grid gap-3.5 xl:grid-cols-[minmax(0,1fr)_24rem]">
+        <OfficeScene scene={scene} />
+        <div className="min-w-0 space-y-3">
+          {error && <p role="alert" className="text-[13px] text-warn">{error}</p>}
+          {!agents && !error && <p role="status" className="text-[13px] text-ink-soft">Carregando agentes…</p>}
+          {agents?.map((agent) => <AgentPanel key={agent.id} agent={agent} />)}
+        </div>
+      </div>
     </DashboardCard>
+  </div>;
+}
+
+/** Cena do Claw3D em iframe (origem local separada). Sem cena, mostra o estado real em vez de um substituto. */
+function OfficeScene({ scene }: { scene: Claw3dSceneStatus | null }) {
+  if (!scene?.available || !scene.url) {
+    return <div role="status" className="grid min-h-[22rem] place-items-center rounded-xl border border-dashed border-seam-strong p-6 text-center text-[13px] text-ink-soft">
+      <p className="max-w-md">{scene ? scene.message : "Verificando o escritório 3D…"}</p>
+    </div>;
+  }
+  return <div className="overflow-hidden rounded-xl border border-seam-strong bg-black">
+    <iframe src={scene.url} title="Escritório 3D da Sellora (Claw3D) com os agentes reais" className="block h-[min(70vh,44rem)] min-h-[22rem] w-full" referrerPolicy="no-referrer" />
   </div>;
 }
 
@@ -71,7 +97,7 @@ function AgentPanel({ agent }: { agent: AgentRecord }) {
 
 function RunDetails({ run, current }: { run: AgentRun; current: boolean }) {
   const status = statusLabel[run.status] ?? statusLabel.idle;
-  return <div className="mt-3 grid gap-3 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+  return <div className="mt-3 grid gap-3">
     <dl className="grid grid-cols-[8rem_minmax(0,1fr)] gap-y-1 text-[12.5px]">
       <dt className="text-ink-faint">{current ? "Tarefa atual" : "Última tarefa"}</dt><dd className="text-ink">{run.task}</dd>
       <dt className="text-ink-faint">Estabelecimento</dt><dd className="text-ink">{run.business}</dd>

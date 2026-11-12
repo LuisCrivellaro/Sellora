@@ -15,7 +15,7 @@ it("cria com Sonnet 5.5 em esforço alto, ajusta em esforço médio e roda sem f
 it("o gerador usa o Claude quando o pedido não escolhe provedor", () => {
   const parsed = generationRequestSchema.parse({ id: crypto.randomUUID(), business: { name: "Padaria Teste", city: "Campinas", uf: "SP", segment: "restaurantes" }, history: [] });
   expect(parsed.textProvider).toBe("claude");
-  expect(parsed.imageProvider).toBe("gemini");
+  expect(parsed.imageProvider).toBe("codex");
 });
 import { generatedFixture } from "./generation-fixtures";
 

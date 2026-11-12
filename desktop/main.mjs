@@ -1,9 +1,11 @@
 import { app, BrowserWindow, dialog, shell, utilityProcess } from "electron";
 import path from "node:path";
-import { appendFileSync } from "node:fs";
+import { appendFileSync, existsSync } from "node:fs";
+import { pathToFileURL } from "node:url";
 import { navigationKind } from "./policy.mjs";
 
 let server;
+let office; // Escritório 3D (Claw3D + Sellora Gateway Adapter), opcional.
 let origin;
 let quitting = false;
 const port = 3187; // Origem estável: localStorage não muda a cada execução.
@@ -43,8 +45,28 @@ else {
         return win;
       }
       windowFor(`${origin}/leads?aba=demos`);
+      void startOffice(root, log);
     } catch (error) { dialog.showErrorBox("Não foi possível abrir o Sellora", error.code === "EADDRINUSE" ? `A porta ${port} está ocupada. Feche outra instância do Sellora ou o serviço nessa porta.` : error.message); app.quit(); }
   });
   app.on("window-all-closed", () => app.quit());
-  app.on("before-quit", () => { quitting = true; server?.kill(); });
+  app.on("before-quit", () => { quitting = true; office?.stop(); server?.kill(); });
+
+  /**
+   * Cloud 3D: sobe o Claw3D local (só 127.0.0.1, token por sessão, somente leitura) se ele estiver preparado
+   * em SELLORA_CLAW3D_DIR ou em <userData>/claw3d/app (node integrations/claw3d/setup.mjs --dir ...).
+   * Sem Claw3D preparado, a aba mostra o estado real e o restante do app segue normal.
+   */
+  async function startOffice(root, log) {
+    try {
+      const appDir = process.env.SELLORA_CLAW3D_DIR || (app.isPackaged ? path.join(app.getPath("userData"), "claw3d", "app") : path.resolve(".claw3d", "app"));
+      if (!existsSync(path.join(appDir, ".next", "BUILD_ID"))) { log(`[cloud-3d] Claw3D não preparado em ${appDir}; aba Cloud 3D sem escritório.
+`); return; }
+      const { startClaw3d } = await import(pathToFileURL(path.join(root, "integrations", "claw3d", "launcher.mjs")).href);
+      office = startClaw3d({ appDir, stateDir: path.join(app.getPath("userData"), "claw3d", "state"), bridgeUrl: origin, nodePath: process.execPath, log: (line) => log(`${line}
+`) });
+      office.done.then((code) => { if (!quitting) log(`[cloud-3d] escritório encerrou (código ${code}); o restante do app continua.
+`); });
+    } catch (error) { log(`[cloud-3d] não iniciou: ${error.message}
+`); }
+  }
 }

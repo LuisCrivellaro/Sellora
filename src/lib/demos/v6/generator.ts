@@ -4,11 +4,11 @@ import path from "node:path";
 import type { z } from "zod";
 import { ClaudeWriter, type ClaudeEffort } from "../claude-server";
 import { demoDataRoot, LocalCodex } from "../codex-server";
-import { geminiImageBuffer, geminiImageStatus } from "../gemini-server";
 import { normalizeCreativeText } from "../concepts";
 import type { DemoImageProvider, DemoTextProvider } from "../creation";
 import { fallbackArtwork, optimizeForWeb, type ImageEngine } from "./images";
 import { postprocessSite } from "./postprocess";
+import { normalizeWhatsappPhone } from "../whatsapp";
 import { briefPrompt, codePrompt, correctBriefPrompt, fixPrompt, imagePrompt, v6Instructions, type V6Business, type V6HistoryItem } from "./prompts";
 import { browserQa } from "./qa-browser";
 import { headlineOf, staticQa, visibleText } from "./qa-static";
@@ -42,12 +42,11 @@ async function openWriter(provider: DemoTextProvider, workspace: string, instruc
   return { structured: (prompt, schema) => codex.structured(thread, prompt, schema), estimatedUsd: null, close: () => codex.close() };
 }
 
-/** Escolhe o gerador de imagem sem nunca cair num serviço pago que não foi escolhido: Gemini só quando selecionado e configurado. */
-async function resolveImageEngine(preferred: DemoImageProvider, workspace: string): Promise<{ engine: ImageEngine; codex?: LocalCodex; thread?: string; note?: string }> {
-  if (preferred === "gemini") {
-    const gemini = await geminiImageStatus();
-    if (gemini.available) return { engine: "gemini" };
-  }
+/**
+ * Imagens só pelo Codex da conta ChatGPT do computador (sem API paga). Sem Codex com geração de imagem
+ * disponível, cada imagem vira a composição gráfica gratuita (SVG) e o motivo fica registrado.
+ */
+async function resolveImageEngine(workspace: string): Promise<{ engine: ImageEngine; codex?: LocalCodex; thread?: string; note?: string }> {
   try {
     const codex = await LocalCodex.connect(workspace, () => {}, 20 * 60_000);
     const status = await codex.status();
@@ -91,12 +90,14 @@ export async function generateV6(jobId: string, request: V6Request, progress: V6
   const workspace = path.join(demoDataRoot(), "workspace", jobId);
   await mkdir(workspace, { recursive: true });
   const instructions = await v6Instructions();
-  const contact = { hasPhone: !!request.phone.trim() };
+  // Só um telefone que vira link válido conta: um número inválido seria apagado no pós-processamento e
+  // deixaria chamadas como "Ligar para" sem o número.
+  const contact = { hasPhone: !!normalizeWhatsappPhone(request.phone) };
   let writer: Writer | undefined;
   let images: Awaited<ReturnType<typeof resolveImageEngine>> | undefined;
   try {
     progress.phase("Conferindo geradores de texto e imagem");
-    images = await resolveImageEngine(request.imageProvider, workspace);
+    images = await resolveImageEngine(workspace);
     writer = await openWriter(request.textProvider, workspace, instructions);
 
     progress.phase("Etapas 1–3: analisando o negócio e definindo a direção de arte");
@@ -171,8 +172,8 @@ async function produceImages(brief: SiteBrief, request: V6Request, images: Await
     let error: string | undefined;
     if (engine !== "fallback" && index < V6_LIMITS.generatedImages) {
       try {
-        progress.phase(`Gerando imagem ${index + 1} de ${brief.images.length} (${engine === "codex" ? "Codex" : "Gemini"})`);
-        const raw = engine === "codex" ? (await images.codex!.imageBuffer(images.thread!, imagePrompt(image, brief))).buffer : await geminiImageBuffer(imagePrompt(image, brief), image.aspect);
+        progress.phase(`Gerando imagem ${index + 1} de ${brief.images.length} (Codex)`);
+        const raw = (await images.codex!.imageBuffer(images.thread!, imagePrompt(image, brief))).buffer;
         const optimized = await optimizeForWeb(raw, hero);
         out.push({ id: image.id, path: `assets/${image.id}.${optimized.extension}`, data: optimized.data, source: engine, alt: image.alt });
         continue;

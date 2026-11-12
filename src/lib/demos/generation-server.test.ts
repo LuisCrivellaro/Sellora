@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { beforeEach, expect, it, vi } from "vitest";
 import { generatedFixture } from "./generation-fixtures";
 import { creationDraftSchema, creationSignature } from "./creation";
-import { draftIssues, getDemoGenerationJob, startDemoGeneration } from "./generation-server";
+import { draftIssues, generationRequestSchema, getDemoGenerationJob, startDemoGeneration } from "./generation-server";
 
 const client = vi.hoisted(() => ({
   status: vi.fn(), startThread: vi.fn(), draft: vi.fn(), image: vi.fn(), close: vi.fn(),
@@ -14,10 +14,8 @@ vi.mock("./codex-server", () => ({
 }));
 const writer = vi.hoisted(() => ({ draft: vi.fn(), estimatedUsd: 0.0123 }));
 vi.mock("./claude-server", () => ({ ClaudeWriter: { create: vi.fn(async () => writer) } }));
-const gemini = vi.hoisted(() => ({ status: vi.fn(), image: vi.fn() }));
-vi.mock("./gemini-server", () => ({ geminiImageStatus: gemini.status, generateGeminiImage: gemini.image }));
 const draft = creationDraftSchema.parse({ ...Object.fromEntries(Object.entries(generatedFixture).filter(([key]) => !["id", "image"].includes(key))), imagePrompt: "Composição conceitual com luz lateral, objetos sem marca e enquadramento inédito.", imageAlt: generatedFixture.image.alt, message: "Um estudo visual concebido a partir de luz e movimento para abrir uma conversa sobre o negócio." });
-const request = () => ({ id: randomUUID(), business: { name: "Studio Teste", city: "Campinas", uf: "SP", segment: "beleza" as const }, history: [], textProvider: "codex" as "codex" | "claude", imageProvider: "codex" as "codex" | "gemini", generator: "v5" as "v5" | "v6", phone: "" });
+const request = () => ({ id: randomUUID(), business: { name: "Studio Teste", city: "Campinas", uf: "SP", segment: "beleza" as const }, history: [], textProvider: "codex" as "codex" | "claude", imageProvider: "codex" as const, generator: "v5" as "v5" | "v6", phone: "" });
 beforeEach(() => {
   testScope.id = randomUUID();
   vi.clearAllMocks();
@@ -26,28 +24,21 @@ beforeEach(() => {
   client.draft.mockResolvedValue(draft);
   client.image.mockResolvedValue(generatedFixture.image);
   writer.draft.mockResolvedValue(draft);
-  gemini.status.mockResolvedValue({ available: true, message: "ok" });
-  gemini.image.mockResolvedValue({ ...generatedFixture.image, src: "/api/demos/media/" + "c".repeat(64), sourceHash: "c".repeat(64) });
 });
 
-it("Claude nos textos e Gemini na imagem: o Codex nem é aberto", async () => {
-  const { LocalCodex } = await import("./codex-server");
-  const input = { ...request(), textProvider: "claude" as const, imageProvider: "gemini" as const };
-  await startDemoGeneration(input);
-  await expect.poll(async () => (await getDemoGenerationJob(input.id))?.status).toBe("completed");
-  const job = await getDemoGenerationJob(input.id);
-  expect(LocalCodex.connect).not.toHaveBeenCalled();
-  expect(gemini.image).toHaveBeenCalledExactlyOnceWith(draft);
-  expect(job?.result?.creation?.image.sourceHash).toBe("c".repeat(64));
-  expect(job?.result?.imageProvider).toBe("gemini");
+it("pedido antigo com imagem \"gemini\" vira Codex: nenhuma API paga de imagem existe no fluxo", () => {
+  const parsed = generationRequestSchema.parse({ ...request(), imageProvider: "gemini" });
+  expect(parsed.imageProvider).toBe("codex");
+  expect(generationRequestSchema.parse({ ...request(), imageProvider: undefined }).imageProvider).toBe("codex");
+  expect(generationRequestSchema.safeParse({ ...request(), imageProvider: "imagen" }).success).toBe(false);
 });
 
-it("sem Gemini configurado, falha antes de gastar a cota do Claude", async () => {
-  gemini.status.mockResolvedValue({ available: false, message: "Configure a variável GEMINI_API_KEY neste computador." });
-  const input = { ...request(), textProvider: "claude" as const, imageProvider: "gemini" as const };
+it("v5 sem Codex disponível falha antes de gastar a cota do Claude", async () => {
+  client.status.mockResolvedValue({ available: false, message: "Entre no Codex com sua conta ChatGPT." });
+  const input = { ...request(), textProvider: "claude" as const };
   await startDemoGeneration(input);
   await expect.poll(async () => (await getDemoGenerationJob(input.id))?.status).toBe("failed");
-  expect((await getDemoGenerationJob(input.id))?.error).toContain("GEMINI_API_KEY");
+  expect((await getDemoGenerationJob(input.id))?.error).toContain("Codex");
   expect(writer.draft).not.toHaveBeenCalled();
 });
 

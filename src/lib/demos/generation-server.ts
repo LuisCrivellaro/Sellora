@@ -4,10 +4,9 @@ import path from "node:path";
 import { z } from "zod";
 import { demoBusinessSchema } from "./model";
 import { normalizeCreativeText } from "./concepts";
-import { creationContrastIssues, creationSignature, creativeReferenceSchema, demoImageProviderSchema, demoTextProviderSchema, generatedCreationSchema, generationResultSchema, type CreationDraft, type DemoGenerationJob, type GenerationResult } from "./creation";
+import { creationContrastIssues, creationSignature, creativeReferenceSchema, demoTextProviderSchema, generatedCreationSchema, generationResultSchema, type CreationDraft, type DemoGenerationJob, type DemoImageProvider, type GenerationResult } from "./creation";
 import { demoDataRoot, LocalCodex } from "./codex-server";
 import { ClaudeWriter } from "./claude-server";
-import { generateGeminiImage, geminiImageStatus } from "./gemini-server";
 import { generateV6 } from "./v6/generator";
 import { withoutBusinessFields } from "./creative-review";
 import { correctionPrompt, draftPrompt, skillInstructions } from "./generation-prompts";
@@ -15,7 +14,8 @@ import { correctionPrompt, draftPrompt, skillInstructions } from "./generation-p
 export const generationRequestSchema = z.object({
   id: z.uuid(), business: demoBusinessSchema.omit({ phone: true }), history: z.array(creativeReferenceSchema).max(500),
   textProvider: demoTextProviderSchema.default("claude"),
-  imageProvider: demoImageProviderSchema.default("gemini"),
+  /** Sempre Codex (Gemini removido em 2026-11-12). Um pedido antigo com "gemini" é tratado como Codex, nunca como API paga. */
+  imageProvider: z.enum(["codex", "gemini"]).default("codex").transform((): DemoImageProvider => "codex"),
   generator: z.enum(["v5", "v6"]).default("v6"),
   /** Só para os marcadores de contato do site V6. Nunca entra em prompt de modelo. */
   phone: z.string().max(80).default(""),
@@ -109,15 +109,10 @@ async function execute(job: DemoGenerationJob, request: GenerationRequest) {
     request = await withSavedHistory(request);
     const workspace = path.join(demoDataRoot(), "workspace");
     await mkdir(workspace, { recursive: true });
-    // Os serviços de imagem são conferidos primeiro: sem imagem não há demo, então a cota do texto não é gasta à toa.
-    if (request.imageProvider === "gemini") {
-      job.phase = "Conferindo o Gemini";
-      const gemini = await geminiImageStatus();
-      if (!gemini.available) throw new Error(gemini.message);
-    }
     const instructions = await skillInstructions();
     let threadId = "";
-    if (request.textProvider === "codex" || request.imageProvider === "codex") {
+    // v5: a imagem vem sempre do Codex; ele é conferido antes do texto para não gastar a cota do Claude à toa.
+    {
       job.phase = "Conectando ao Codex local";
       codex = await LocalCodex.connect(workspace, (phase) => { job.phase = phase; });
       const status = await codex.status();
@@ -138,8 +133,8 @@ async function execute(job: DemoGenerationJob, request: GenerationRequest) {
     }
     if (claude) job.textEstimatedUsd = Math.round(claude.estimatedUsd * 10_000) / 10_000;
     if (issues.length) throw new Error(`A direção precisa de uma nova tentativa. ${issues.join(" ")}`);
-    job.phase = request.imageProvider === "gemini" ? "Gerando imagem exclusiva com o Gemini" : "Gerando imagem exclusiva";
-    const image = request.imageProvider === "gemini" ? await generateGeminiImage(draft) : await activeCodex!.image(threadId, draft);
+    job.phase = "Gerando imagem exclusiva";
+    const image = await activeCodex!.image(threadId, draft);
     if (request.history.some((previous) => previous.photoOrigin === image.sourceHash)) throw new Error("A imagem gerada repete uma origem do histórico. Gere novamente.");
     job.phase = "Conferindo e salvando a demo";
     const publicDraft = generatedCreationSchema.omit({ id: true, image: true }).strip().parse(draft);

@@ -57,7 +57,7 @@ export const siteFileSchema = z.object({
 export type SiteFile = z.infer<typeof siteFileSchema>;
 
 export const siteImageSchema = z.object({
-  id: assetIdSchema, path: siteFileSchema.shape.path, source: z.enum(["codex", "gemini", "fallback"]), sha256: z.string().regex(/^[a-f0-9]{64}$/), alt: text(200),
+  id: assetIdSchema, path: siteFileSchema.shape.path, source: z.enum(["codex", "gemini", "fallback"]) /* "gemini": só leitura de registros antigos */, sha256: z.string().regex(/^[a-f0-9]{64}$/), alt: text(200),
 }).strict();
 
 export const siteQaSchema = z.object({

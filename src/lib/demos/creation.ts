@@ -67,14 +67,17 @@ export function creationContrastIssues(c: Pick<CreationDraft, "paper" | "ink" | 
 export const demoTextProviderSchema = z.enum(["codex", "claude"]);
 export type DemoTextProvider = z.infer<typeof demoTextProviderSchema>;
 
-/** Quem gera a imagem: Gemini (padrão, API paga por imagem) ou Codex (cota do ChatGPT). */
-export const demoImageProviderSchema = z.enum(["gemini", "codex"]);
+/** Imagens das demos: só o Codex da conta ChatGPT do computador (sem API paga); sem ele, composição gráfica gratuita. */
+export const demoImageProviderSchema = z.literal("codex");
 export type DemoImageProvider = z.infer<typeof demoImageProviderSchema>;
+/** Registros salvos antes de 2026-11-12 podem citar "gemini" (integração removida): aceito só para leitura do histórico. */
+export const storedImageProviderSchema = z.enum(["codex", "gemini"]);
+export type StoredImageProvider = z.infer<typeof storedImageProviderSchema>;
 
 /** v5: `creation` (dados no renderizador compartilhado). V6: `site` (código próprio gravado por id). */
 export const generationResultSchema = z.object({
   creation: generatedCreationSchema.optional(), site: siteRefSchema.optional(),
-  message: creationDraftSchema.shape.message, textProvider: demoTextProviderSchema.optional(), imageProvider: demoImageProviderSchema.optional(),
+  message: creationDraftSchema.shape.message, textProvider: demoTextProviderSchema.optional(), imageProvider: storedImageProviderSchema.optional(),
 }).refine((result) => !!result.creation !== !!result.site, "O resultado precisa ter uma criação v5 ou um site V6.");
 export type GenerationResult = z.infer<typeof generationResultSchema>;
 
@@ -91,15 +94,13 @@ export interface DemoGenerationStatus {
   message: string;
   /** Conta Claude no Claude Code local, usada para direção e textos quando escolhida. */
   claude?: DemoTextProviderStatus;
-  /** Chave do Gemini no servidor, usada para a imagem quando escolhido. */
-  gemini?: DemoTextProviderStatus;
 }
 
 export interface DemoGenerationJob {
   id: string;
   businessKey: string;
   textProvider?: DemoTextProvider;
-  imageProvider?: DemoImageProvider;
+  imageProvider?: StoredImageProvider;
   generator?: "v5" | "v6";
   leadId?: string;
   /** Linha do tempo real das etapas (horário ISO + descrição), base para acompanhar o agente. */

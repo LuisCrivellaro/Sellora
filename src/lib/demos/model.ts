@@ -3,7 +3,7 @@ import type { Lead } from "../types";
 import { uid } from "../utils";
 import { createDemoPersonalization, demoPersonalizationSchema } from "./personalization";
 import { approvedConceptIdSchema, approvedConcepts, conceptMatchesBusiness, findApprovedConcept, type ApprovedConceptId } from "./concepts";
-import { demoImageProviderSchema, demoTextProviderSchema, generatedCreationSchema, type GeneratedCreation } from "./creation";
+import { storedImageProviderSchema, demoTextProviderSchema, generatedCreationSchema, type GeneratedCreation } from "./creation";
 import { siteRefSchema, type SiteRef } from "./v6/schema";
 
 // Lista explícita: observações, e-mail, score e dados do CRM nunca entram na prévia.
@@ -31,7 +31,7 @@ export const leadDemoSchema = z.object({
   site: siteRefSchema.optional(),
   /** Uso interno do CRM (comparação Codex × Claude). Não entra no link público. */
   textProvider: demoTextProviderSchema.optional(),
-  imageProvider: demoImageProviderSchema.optional(),
+  imageProvider: storedImageProviderSchema.optional(),
   message: demoMessageSchema,
   generatedMessage: demoMessageSchema.optional(),
   /** rejected = demo recusada pelo operador: sai da fila e não pode ser aprovada nem enviada até ser restaurada. */

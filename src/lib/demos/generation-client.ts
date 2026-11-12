@@ -5,7 +5,7 @@ import { z } from "zod";
 import { applyGeneratedLeadDemo } from "../data/repository";
 import { getDb } from "../data/store";
 import { demoBusinessSchema, demoRevision } from "./model";
-import { creationSignature, demoImageProviderSchema, demoTextProviderSchema, type CreativeReference, type DemoGenerationJob, type DemoGenerationStatus, type DemoImageProvider, type DemoTextProvider } from "./creation";
+import { creationSignature, storedImageProviderSchema, demoTextProviderSchema, type CreativeReference, type DemoGenerationJob, type DemoGenerationStatus, type DemoImageProvider, type DemoTextProvider } from "./creation";
 import { demoCreativeContent, withoutBusinessFields } from "./creative-review";
 import { approvedConcepts } from "./concepts";
 import { demoDesigns } from "./designs";
@@ -17,11 +17,11 @@ const queueItemSchema = z.object({
   expectedBusiness: z.string().optional(),
   /** Fixado ao entrar na fila: trocar a opção não altera um lote já em andamento. */
   textProvider: demoTextProviderSchema.optional(),
-  imageProvider: demoImageProviderSchema.optional(),
+  imageProvider: storedImageProviderSchema.optional(),
 });
 export type DemoQueueItem = z.infer<typeof queueItemSchema>;
 interface GeneratorState { connection: DemoGenerationStatus | null; items: DemoQueueItem[]; textProvider: DemoTextProvider; imageProvider: DemoImageProvider }
-const initialState: GeneratorState = { connection: null, items: [], textProvider: "claude", imageProvider: "gemini" };
+const initialState: GeneratorState = { connection: null, items: [], textProvider: "claude", imageProvider: "codex" };
 let state = initialState;
 let loaded = false;
 let pumping = false;
@@ -29,7 +29,6 @@ const listeners = new Set<() => void>();
 const storageKey = "sellora-demo-generator-v1";
 // v2: o padrão passou a ser Claude; preferências gravadas antes da troca não prevalecem.
 const providerKey = "sellora-demo-text-provider-v2";
-const imageProviderKey = "sellora-demo-image-provider";
 const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 function set(next: GeneratorState) {
@@ -37,7 +36,8 @@ function set(next: GeneratorState) {
   try {
     window.localStorage.setItem(storageKey, JSON.stringify(state.items));
     window.localStorage.setItem(providerKey, state.textProvider);
-    window.localStorage.setItem(imageProviderKey, state.imageProvider);
+    // Preferência antiga de imagem (Gemini/Codex) não existe mais: imagens são sempre do Codex.
+    window.localStorage.removeItem("sellora-demo-image-provider");
   } catch { /* CRM reports its own storage failures */ }
   for (const listener of listeners) listener();
 }
@@ -46,11 +46,7 @@ export function setDemoTextProvider(textProvider: DemoTextProvider) {
   set({ ...state, textProvider });
 }
 
-export function setDemoImageProvider(imageProvider: DemoImageProvider) {
-  set({ ...state, imageProvider });
-}
-
-/** Cada serviço escolhido precisa estar conectado: texto (Claude ou Codex) e imagem (Gemini ou Codex). */
+/** O serviço de texto escolhido precisa estar conectado. Imagens vêm do Codex ou, sem ele, da composição gráfica gratuita. */
 export function canGenerateDemos(snapshot: Pick<GeneratorState, "connection" | "textProvider" | "imageProvider">): boolean {
   const connection = snapshot.connection;
   if (!connection) return false;
@@ -165,8 +161,6 @@ function initialize() {
   try {
     const provider = demoTextProviderSchema.safeParse(window.localStorage.getItem(providerKey));
     if (provider.success) state = { ...state, textProvider: provider.data };
-    const image = demoImageProviderSchema.safeParse(window.localStorage.getItem(imageProviderKey));
-    if (image.success) state = { ...state, imageProvider: image.data };
   } catch { /* default provider */ }
   try {
     const parsed = z.array(queueItemSchema).safeParse(JSON.parse(window.localStorage.getItem(storageKey) || "[]"));
