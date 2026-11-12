@@ -19,7 +19,7 @@ import { demoDesignName } from "@/lib/demos/personalization";
 import { DemoCover } from "./demo-cover";
 import { DemoReview } from "./demo-review";
 import { findApprovedConcept } from "@/lib/demos/concepts";
-import { enqueueDemoGeneration, useDemoGenerator } from "@/lib/demos/generation-client";
+import { canGenerateDemos, enqueueDemoGeneration, useDemoGenerator } from "@/lib/demos/generation-client";
 import { DemoGeneratorStatus } from "./demo-generator-status";
 
 const stageMeta = { pending: { label: "Aguardando aprovação", icon: MessageSquareText, color: "text-warn" }, approved: { label: "Aprovada · envio manual", icon: CheckCheck, color: "text-mint" }, sent: { label: "Envio registrado", icon: Send, color: "text-ink-soft" }, rejected: { label: "Recusada", icon: Ban, color: "text-[#e3a1a1]" } };
@@ -65,7 +65,7 @@ export function DemoQueue({ onOpenLead }: { onOpenLead: (id: string) => void }) 
       <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
         <Segmented label="Filtrar mensagens" value={filter} onChange={setFilter} options={[{ value: "pending", label: `Para aprovar (${pending.length})` }, { value: "approved", label: `Aprovadas (${approved.length})` }, { value: "sent", label: `Envios (${sent.length})` }, { value: "all", label: "Todas" }, { value: "rejected", label: `Recusadas (${rejected.length})` }]} />
         <SearchInput label="Buscar demos" value={query} onChange={setQuery} placeholder="Nome, cidade ou telefone…" className="w-full sm:w-64" />
-        {aiLeads.length > 0 && <Button size="sm" disabled={blocked || !generator.connection?.available} onClick={() => enqueueDemoGeneration(aiLeads.map((lead) => lead.id))}>Gerar demos exclusivas com IA ({aiLeads.length})</Button>}
+        {aiLeads.length > 0 && <Button size="sm" disabled={blocked || !canGenerateDemos(generator)} onClick={() => enqueueDemoGeneration(aiLeads.map((lead) => lead.id))}>Gerar demos exclusivas com IA ({aiLeads.length})</Button>}
         {legacyLeads.length > 0 && <Button size="sm" variant="secondary" disabled={blocked} onClick={() => setConfirmUpgrade(true)}>Personalizar demos antigas ({legacyLeads.length})</Button>}
         {conceptLeads.length > 0 && <Button size="sm" disabled={blocked} onClick={() => setConfirmConcepts(true)}>Aplicar conceitos aprovados ({conceptLeads.length})</Button>}
       </div>

@@ -5,7 +5,7 @@ import { z } from "zod";
 import { applyGeneratedLeadDemo } from "../data/repository";
 import { getDb } from "../data/store";
 import { demoBusinessSchema, demoRevision } from "./model";
-import { creationSignature, type CreativeReference, type DemoGenerationJob, type DemoGenerationStatus } from "./creation";
+import { creationSignature, demoImageProviderSchema, demoTextProviderSchema, type CreativeReference, type DemoGenerationJob, type DemoGenerationStatus, type DemoImageProvider, type DemoTextProvider } from "./creation";
 import { demoCreativeContent, withoutBusinessFields } from "./creative-review";
 import { approvedConcepts } from "./concepts";
 import { demoDesigns } from "./designs";
@@ -15,21 +15,48 @@ const queueItemSchema = z.object({
   resumeStatus: z.enum(["queued", "running"]).optional(),
   phase: z.string(), error: z.string().nullable(), expectedRevision: z.string().nullable(),
   expectedBusiness: z.string().optional(),
+  /** Fixado ao entrar na fila: trocar a opção não altera um lote já em andamento. */
+  textProvider: demoTextProviderSchema.optional(),
+  imageProvider: demoImageProviderSchema.optional(),
 });
 export type DemoQueueItem = z.infer<typeof queueItemSchema>;
-interface GeneratorState { connection: DemoGenerationStatus | null; items: DemoQueueItem[] }
-const initialState: GeneratorState = { connection: null, items: [] };
+interface GeneratorState { connection: DemoGenerationStatus | null; items: DemoQueueItem[]; textProvider: DemoTextProvider; imageProvider: DemoImageProvider }
+const initialState: GeneratorState = { connection: null, items: [], textProvider: "claude", imageProvider: "gemini" };
 let state = initialState;
 let loaded = false;
 let pumping = false;
 const listeners = new Set<() => void>();
 const storageKey = "sellora-demo-generator-v1";
+// v2: o padrão passou a ser Claude; preferências gravadas antes da troca não prevalecem.
+const providerKey = "sellora-demo-text-provider-v2";
+const imageProviderKey = "sellora-demo-image-provider";
 const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 function set(next: GeneratorState) {
   state = next;
-  try { window.localStorage.setItem(storageKey, JSON.stringify(state.items)); } catch { /* CRM reports its own storage failures */ }
+  try {
+    window.localStorage.setItem(storageKey, JSON.stringify(state.items));
+    window.localStorage.setItem(providerKey, state.textProvider);
+    window.localStorage.setItem(imageProviderKey, state.imageProvider);
+  } catch { /* CRM reports its own storage failures */ }
   for (const listener of listeners) listener();
+}
+
+export function setDemoTextProvider(textProvider: DemoTextProvider) {
+  set({ ...state, textProvider });
+}
+
+export function setDemoImageProvider(imageProvider: DemoImageProvider) {
+  set({ ...state, imageProvider });
+}
+
+/** Cada serviço escolhido precisa estar conectado: texto (Claude ou Codex) e imagem (Gemini ou Codex). */
+export function canGenerateDemos(snapshot: Pick<GeneratorState, "connection" | "textProvider" | "imageProvider">): boolean {
+  const connection = snapshot.connection;
+  if (!connection) return false;
+  const text = snapshot.textProvider === "claude" ? !!connection.claude?.available : connection.available;
+  const image = snapshot.imageProvider === "gemini" ? !!connection.gemini?.available : connection.available;
+  return text && image;
 }
 function update(id: string, changes: Partial<DemoQueueItem>) {
   set({ ...state, items: state.items.map((item) => item.id === id ? { ...item, ...changes } : item) });
@@ -71,7 +98,7 @@ async function run(item: DemoQueueItem) {
       item = { ...item, expectedRevision: demoRevision(lead.demo), expectedBusiness: JSON.stringify(business) };
       update(item.id, { expectedRevision: item.expectedRevision, expectedBusiness: item.expectedBusiness });
     }
-    const response = await fetch("/api/demos/jobs", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: item.id, business: publicContext, history }) });
+    const response = await fetch("/api/demos/jobs", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: item.id, business: publicContext, history, textProvider: item.textProvider ?? "claude", imageProvider: item.imageProvider ?? "gemini" }) });
     if (response.status === 429) { await delay(3000); return false; }
     const data = await response.json();
     if (!response.ok) throw new Error(data.error || "Não foi possível iniciar a geração.");
@@ -123,7 +150,7 @@ export function enqueueDemoGeneration(leadIds: string[]) {
   const additions: DemoQueueItem[] = ids.filter((id) => !active.has(id)).map((leadId) => {
     const paused = state.items.find((item) => item.leadId === leadId && item.status === "paused");
     return paused ? { ...paused, status: paused.resumeStatus ?? "queued", phase: "Retomando geração solicitada", error: null }
-      : { leadId, id: crypto.randomUUID(), status: "queued", phase: "Na fila de geração", error: null, expectedRevision: null };
+      : { leadId, id: crypto.randomUUID(), status: "queued", phase: "Na fila de geração", error: null, expectedRevision: null, textProvider: state.textProvider, imageProvider: state.imageProvider };
   });
   set({ ...state, items: [...pending, ...additions] });
   void pump();
@@ -132,6 +159,13 @@ export function enqueueDemoGeneration(leadIds: string[]) {
 function initialize() {
   if (loaded || typeof window === "undefined") return;
   loaded = true;
+  // Lida antes de qualquer set(), que regrava a preferência.
+  try {
+    const provider = demoTextProviderSchema.safeParse(window.localStorage.getItem(providerKey));
+    if (provider.success) state = { ...state, textProvider: provider.data };
+    const image = demoImageProviderSchema.safeParse(window.localStorage.getItem(imageProviderKey));
+    if (image.success) state = { ...state, imageProvider: image.data };
+  } catch { /* default provider */ }
   try {
     const parsed = z.array(queueItemSchema).safeParse(JSON.parse(window.localStorage.getItem(storageKey) || "[]"));
     if (parsed.success) set({ ...state, items: parsed.data.map((item) => item.status === "queued" || item.status === "running"

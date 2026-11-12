@@ -300,7 +300,7 @@ export function applyGeneratedLeadDemo(leadId: ID, result: GenerationResult, exp
     const base = previous ?? createLeadDemo(lead);
     const messageWasEdited = previous && previous.message !== previous.generatedMessage && previous.message !== defaultDemoMessage(previous.business)
       && !(previous.conceptId && previous.message === approvedConcepts[previous.conceptId].message);
-    saved = leadDemoSchema.parse({ ...base, version: 5, design: undefined, conceptId: undefined, creation: generated.creation,
+    saved = leadDemoSchema.parse({ ...base, version: 5, design: undefined, conceptId: undefined, creation: generated.creation, textProvider: generated.textProvider ?? "codex", imageProvider: generated.imageProvider ?? "codex",
       message: messageWasEdited ? previous.message : generated.message, generatedMessage: generated.message,
       status: "pending", approvedAt: null, approvedBy: null, updatedAt: nowIso() });
     const issues = demoCreativeIssues({ ...saved, message: generated.message }, db.leads.flatMap((item) => item.demo ? [item.demo] : []));

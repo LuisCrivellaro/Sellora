@@ -15,13 +15,14 @@ import { isCurrentDemoSent, normalizeWhatsappPhone, whatsappDraftUrl } from "@/l
 import { ConfirmDialog } from "@/components/ui/overlay";
 import { findApprovedConcept } from "@/lib/demos/concepts";
 import { demoCreativeIssues } from "@/lib/demos/creative-review";
-import { enqueueDemoGeneration, useDemoGenerator } from "@/lib/demos/generation-client";
-import { DemoGeneratorStatus } from "./demo-generator-status";
+import { canGenerateDemos, enqueueDemoGeneration, useDemoGenerator } from "@/lib/demos/generation-client";
+import { DemoGeneratorStatus, imageProviderLabel, textProviderLabel } from "./demo-generator-status";
 
 export function LeadDemoPanel({ lead, embedded = false }: { lead: Lead; embedded?: boolean }) {
   const { notify } = useToast();
   const { db, sync, mode, storageError } = useStore();
   const generator = useDemoGenerator();
+  const ready = canGenerateDemos(generator);
   const generating = generator.items.some((item) => item.leadId === lead.id && (item.status === "queued" || item.status === "running"));
   const demo = lead.demo;
   const [text, setText] = useState(demo?.message ?? "");
@@ -43,7 +44,7 @@ export function LeadDemoPanel({ lead, embedded = false }: { lead: Lead; embedded
       <h3 className="text-[14px] font-semibold text-ink">Uma prévia para começar a conversa</h3>
       <p className="mt-1 mb-3 text-[12.5px] text-ink-faint">Prepare uma composição visual para este negócio e uma mensagem para revisão.</p>
       <DemoGeneratorStatus leadId={lead.id} />
-      <Button size="sm" variant="secondary" loading={generating} disabled={blocked || !generator.connection?.available} onClick={() => enqueueDemoGeneration([lead.id])}><Monitor aria-hidden /> Gerar demo e mensagem com IA</Button>
+      <Button size="sm" variant="secondary" loading={generating} disabled={blocked || !ready} onClick={() => enqueueDemoGeneration([lead.id])}><Monitor aria-hidden /> Gerar demo e mensagem com IA</Button>
     </section>
   );
 
@@ -77,9 +78,9 @@ export function LeadDemoPanel({ lead, embedded = false }: { lead: Lead; embedded
         <h3 className="text-[14px] font-semibold text-ink">Demo e mensagem</h3>
         <span className={demo.status === "approved" && !dirty ? "text-[12px] font-semibold text-mint" : "text-[12px] font-semibold text-warn"} role="status">{sent && !dirty ? "Envio registrado" : demo.status === "approved" && !dirty ? "Aprovada · envio manual" : "Aguardando aprovação"}</span>
       </div>
-      <p className="text-[12px] text-ink-faint">{demo.version === 5 ? "Criada pelo gerador com Unique Site Designer. Imagem, textos e composição foram produzidos para este negócio e comparados com o histórico acessível." : demo.version === 4 ? "Conceito exclusivo revisado com Unique Site Designer, com imagem ilustrativa criada por IA e textos próprios." : demo.version === 3 ? "Variação visual por negócio. Confira a imagem e os textos na revisão criativa." : "Modelo por segmento com nome, cidade e telefone disponíveis."} Demonstração não oficial. Revise os dados antes de aprovar.</p>
+      <p className="text-[12px] text-ink-faint">{demo.version === 5 ? `Criada pelo gerador com Unique Site Designer (textos: ${textProviderLabel[demo.textProvider ?? "codex"]} · imagem: ${imageProviderLabel[demo.imageProvider ?? "codex"]}). Imagem, textos e composição foram produzidos para este negócio e comparados com o histórico acessível.` : demo.version === 4 ? "Conceito exclusivo revisado com Unique Site Designer, com imagem ilustrativa criada por IA e textos próprios." : demo.version === 3 ? "Variação visual por negócio. Confira a imagem e os textos na revisão criativa." : "Modelo por segmento com nome, cidade e telefone disponíveis."} Demonstração não oficial. Revise os dados antes de aprovar.</p>
       <DemoGeneratorStatus leadId={lead.id} />
-      <Button size="sm" className="self-start" variant="secondary" loading={generating} disabled={blocked || dirty || !generator.connection?.available} onClick={() => enqueueDemoGeneration([lead.id])}><Monitor aria-hidden /> {demo.version === 5 ? "Gerar outra direção com IA" : "Gerar demo exclusiva com IA"}</Button>
+      <Button size="sm" className="self-start" variant="secondary" loading={generating} disabled={blocked || dirty || !ready} onClick={() => enqueueDemoGeneration([lead.id])}><Monitor aria-hidden /> {demo.version === 5 ? "Gerar outra direção com IA" : "Gerar demo exclusiva com IA"}</Button>
       {!embedded && <Button size="sm" variant="secondary" className="self-start" onClick={() => window.open(demoPreviewUrl(demo, window.location.origin), "_blank", "noopener,noreferrer")}><ExternalLink aria-hidden /> Abrir demo</Button>}
       {(availableConcept || demo.version < 3) && <div className="rounded-xl border border-seam p-3 text-[12px] text-ink-soft"><p className="mb-2">{availableConcept ? "Este negócio tem um conceito aprovado, com imagem e textos próprios. A aplicação devolve a mensagem à revisão e conserva textos editados por você." : "Atualize a composição e confira possíveis repetições de imagem e texto antes da aprovação."}</p><Button size="sm" variant="secondary" disabled={blocked || dirty} onClick={() => act(() => { upgradeLeadDemoDesign(lead.id); setReviewed(false); }, "Visual pronto para revisão")}>{availableConcept ? "Aplicar conceito aprovado" : "Personalizar visual da demo"}</Button></div>}
       {creativeIssues.length > 0 && demo.status !== "approved" && <div role="status" className="rounded-xl border border-warn/30 bg-warn/5 p-3 text-[12px] text-ink-soft"><p className="font-semibold text-warn">Revisão criativa pendente</p><ul className="mt-2 list-disc space-y-1 pl-4">{creativeIssues.map((issue) => <li key={issue}>{issue}</li>)}</ul><p className="mt-2">Use “Gerar demo exclusiva com IA” para o Sellora criar uma imagem, textos e composição próprios com a skill.</p></div>}

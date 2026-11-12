@@ -57,19 +57,41 @@ export function creationContrastIssues(c: Pick<CreationDraft, "paper" | "ink" | 
   return ratio(c.paper, c.ink) < 4.5 || ratio(c.paper, c.accent) < 4.5 ? ["Aumente o contraste do texto e dos links para pelo menos 4,5:1."] : [];
 }
 
-export const generationResultSchema = z.object({ creation: generatedCreationSchema, message: creationDraftSchema.shape.message });
+/** Quem escreve direção e textos. A imagem continua sempre com o Codex. */
+export const demoTextProviderSchema = z.enum(["codex", "claude"]);
+export type DemoTextProvider = z.infer<typeof demoTextProviderSchema>;
+
+/** Quem gera a imagem: Gemini (padrão, API paga por imagem) ou Codex (cota do ChatGPT). */
+export const demoImageProviderSchema = z.enum(["gemini", "codex"]);
+export type DemoImageProvider = z.infer<typeof demoImageProviderSchema>;
+
+export const generationResultSchema = z.object({ creation: generatedCreationSchema, message: creationDraftSchema.shape.message, textProvider: demoTextProviderSchema.optional(), imageProvider: demoImageProviderSchema.optional() });
 export type GenerationResult = z.infer<typeof generationResultSchema>;
 
+export interface DemoTextProviderStatus {
+  available: boolean;
+  message: string;
+}
+
 export interface DemoGenerationStatus {
+  /** Codex conectado com geração de imagens: necessário quando o Codex escreve os textos ou gera a imagem. */
   available: boolean;
   connected: boolean;
   imageGeneration: boolean;
   message: string;
+  /** Conta Claude no Claude Code local, usada para direção e textos quando escolhida. */
+  claude?: DemoTextProviderStatus;
+  /** Chave do Gemini no servidor, usada para a imagem quando escolhido. */
+  gemini?: DemoTextProviderStatus;
 }
 
 export interface DemoGenerationJob {
   id: string;
   businessKey: string;
+  textProvider?: DemoTextProvider;
+  imageProvider?: DemoImageProvider;
+  /** Consumo estimado pelo Claude Code em dólares equivalentes de API. No plano de assinatura, sai da cota do plano. */
+  textEstimatedUsd?: number | null;
   status: "running" | "completed" | "failed";
   phase: string;
   result: GenerationResult | null;

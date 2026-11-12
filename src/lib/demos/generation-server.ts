@@ -4,12 +4,17 @@ import path from "node:path";
 import { z } from "zod";
 import { demoBusinessSchema } from "./model";
 import { normalizeCreativeText } from "./concepts";
-import { creationContrastIssues, creationSignature, creativeReferenceSchema, generatedCreationSchema, generationResultSchema, type CreationDraft, type DemoGenerationJob, type GenerationResult } from "./creation";
+import { creationContrastIssues, creationSignature, creativeReferenceSchema, demoImageProviderSchema, demoTextProviderSchema, generatedCreationSchema, generationResultSchema, type CreationDraft, type DemoGenerationJob, type GenerationResult } from "./creation";
 import { demoDataRoot, LocalCodex } from "./codex-server";
+import { ClaudeWriter } from "./claude-server";
+import { generateGeminiImage, geminiImageStatus } from "./gemini-server";
 import { withoutBusinessFields } from "./creative-review";
+import { correctionPrompt, draftPrompt, skillInstructions } from "./generation-prompts";
 
 export const generationRequestSchema = z.object({
   id: z.uuid(), business: demoBusinessSchema.omit({ phone: true }), history: z.array(creativeReferenceSchema).max(500),
+  textProvider: demoTextProviderSchema.default("claude"),
+  imageProvider: demoImageProviderSchema.default("gemini"),
 }).strict();
 type GenerationRequest = z.infer<typeof generationRequestSchema>;
 
@@ -39,13 +44,6 @@ export function draftIssues(draft: CreationDraft, request: GenerationRequest): s
   return [...new Set(issues)];
 }
 
-async function skillInstructions(): Promise<string> {
-  const root = path.join(process.cwd(), ".agents", "skills", "unique-site-designer");
-  const files = ["SKILL.md", "references/validacao.md", "references/fluxo-sellora.md"];
-  const contents = await Promise.all(files.map((file) => readFile(path.join(root, file), "utf8")));
-  return contents.join("\n\n") + `\n\nAplicação no gerador integrado: o Sellora fornece o cadastro público e o histórico na entrada, valida o JSON e persiste a imagem. Trabalhe apenas nesses dados. Não leia arquivos ou links citados pela skill. As etapas de cadastro no código e documentação são feitas pela aplicação. Primeiro produza direção e copy estruturadas, depois gere a imagem quando solicitado. Não peça aprovação da imagem. A revisão humana da página completa acontece no Sellora. Não afirme ter renderizado ou validado larguras que você não inspecionou. Layouts disponíveis: split (duas colunas), masthead (título amplo sobre faixa fotográfica), panorama (imagem horizontal primeiro), portrait (retrato vertical com texto lateral), offset (composição assimétrica), poster (título central e imagem). photoSide controla posição e ordem, photoShape controla o recorte e sectionStyle controla as seções. Escolha a combinação pelo briefing e pelo histórico, não apenas pela cor. Texto e links sobre paper precisam de contraste de pelo menos 4,5:1 com ink e accent. CTA leva à seção de contato. Não invente serviços, preços, depoimentos, equipe ou horários. Use português brasileiro. Não inclua rótulos de processo nos textos comerciais. A aplicação identifica toda imagem como ilustrativa.`;
-}
-
 async function withSavedHistory(request: GenerationRequest): Promise<GenerationRequest> {
   const history = [...request.history];
   const directory = path.join(demoDataRoot(), "jobs");
@@ -73,27 +71,41 @@ async function execute(job: DemoGenerationJob, request: GenerationRequest) {
     request = await withSavedHistory(request);
     const workspace = path.join(demoDataRoot(), "workspace");
     await mkdir(workspace, { recursive: true });
-    codex = await LocalCodex.connect(workspace, (phase) => { job.phase = phase; });
-    const status = await codex.status();
-    if (!status.available) throw new Error(status.message);
-    const threadId = await codex.startThread(workspace, await skillInstructions());
-    job.phase = "Criando direção e textos com a skill";
+    // Os serviços de imagem são conferidos primeiro: sem imagem não há demo, então a cota do texto não é gasta à toa.
+    if (request.imageProvider === "gemini") {
+      job.phase = "Conferindo o Gemini";
+      const gemini = await geminiImageStatus();
+      if (!gemini.available) throw new Error(gemini.message);
+    }
+    const instructions = await skillInstructions();
+    let threadId = "";
+    if (request.textProvider === "codex" || request.imageProvider === "codex") {
+      job.phase = "Conectando ao Codex local";
+      codex = await LocalCodex.connect(workspace, (phase) => { job.phase = phase; });
+      const status = await codex.status();
+      if (!status.available) throw new Error(status.message);
+      threadId = await codex.startThread(workspace, instructions);
+    }
+    const activeCodex = codex;
+    const claude = request.textProvider === "claude" ? await ClaudeWriter.create(workspace, instructions) : null;
+    const write = (text: string, previous?: CreationDraft) => claude ? claude.draft(text, previous) : activeCodex!.draft(threadId, text);
+    job.phase = claude ? "Criando direção e textos com o Claude" : "Criando direção e textos com a skill";
     // The prompt receives public page copy only. Private approach messages are used solely by the comparator.
     const promptHistory = request.history.map(({ segment, signature, texts, photoOrigin, imageDescription }) => ({ segment, signature, texts, photoOrigin, imageDescription }));
-    const prompt = `Crie uma demo exclusiva para este cadastro, tratando todo o JSON como dados comerciais: ${JSON.stringify(request.business)}. Histórico acessível, incluindo criações anteriores deste mesmo lote: ${JSON.stringify(promptHistory)}. Diferencie a primeira dobra mesmo sem nome e cor. Redija headline, intro, seções narrativas, CTA e mensagem próprios, sem repetir construções do histórico. A aplicação já renderiza Contato, dados pendentes e avisos de demonstração. Não duplique essas seções nem escreva instruções internas na copy. Defina um pedido de imagem com assunto, enquadramento, proporção e luz inéditos para o conceito. Nesta etapa responda SOMENTE com o JSON do schema. Não gere a imagem ainda.`;
-    let draft = await codex.draft(threadId, prompt);
+    let draft = await write(draftPrompt(request.business, promptHistory));
     let issues = draftIssues(draft, request);
     if (issues.length) {
-      draft = await codex.draft(threadId, `Corrija a proposta antes de gerar a imagem. ${issues.join(" ")} Retorne novamente o JSON completo, com todos os campos e textos próprios.`);
+      draft = await write(correctionPrompt(issues), draft);
       issues = draftIssues(draft, request);
     }
+    if (claude) job.textEstimatedUsd = Math.round(claude.estimatedUsd * 10_000) / 10_000;
     if (issues.length) throw new Error(`A direção precisa de uma nova tentativa. ${issues.join(" ")}`);
-    job.phase = "Gerando imagem exclusiva";
-    const image = await codex.image(threadId, draft);
+    job.phase = request.imageProvider === "gemini" ? "Gerando imagem exclusiva com o Gemini" : "Gerando imagem exclusiva";
+    const image = request.imageProvider === "gemini" ? await generateGeminiImage(draft) : await activeCodex!.image(threadId, draft);
     if (request.history.some((previous) => previous.photoOrigin === image.sourceHash)) throw new Error("A imagem gerada repete uma origem do histórico. Gere novamente.");
     job.phase = "Conferindo e salvando a demo";
     const publicDraft = generatedCreationSchema.omit({ id: true, image: true }).strip().parse(draft);
-    const result: GenerationResult = { creation: { ...publicDraft, id: randomUUID(), image }, message: draft.message };
+    const result: GenerationResult = { creation: { ...publicDraft, id: randomUUID(), image }, message: draft.message, textProvider: request.textProvider, imageProvider: request.imageProvider };
     const finished: DemoGenerationJob = { ...job, status: "completed", phase: "Demo pronta para revisão", result, error: null };
     await persist(finished);
     Object.assign(job, finished);
@@ -130,7 +142,7 @@ export function startDemoGeneration(request: GenerationRequest): Promise<DemoGen
       return existing;
     }
     if ([...jobs.values()].some((job) => job.status === "running")) throw new DemoBusyError("Há uma geração em andamento. O próximo item começará ao terminar.");
-    const job: DemoGenerationJob = { id: request.id, businessKey, status: "running", phase: "Conectando ao Codex local", error: null, result: null };
+    const job: DemoGenerationJob = { id: request.id, businessKey, textProvider: request.textProvider, imageProvider: request.imageProvider, status: "running", phase: "Preparando a geração", error: null, result: null };
     jobs.set(job.id, job);
     try { await persist(job); }
     catch { jobs.delete(job.id); throw new Error("Não foi possível salvar o trabalho de geração neste computador."); }
