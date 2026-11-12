@@ -18,7 +18,7 @@ else {
       const { createServer } = await import("node:net");
       await new Promise((resolve, reject) => { const check = createServer(); check.once("error", reject); check.listen(port, "127.0.0.1", () => check.close(resolve)); });
       const root = app.isPackaged ? path.join(process.resourcesPath, "web") : path.resolve(".desktop-web");
-      server = utilityProcess.fork(path.join(root, "server.js"), [], { cwd: root, env: { ...process.env, NODE_ENV: "production", HOSTNAME: "127.0.0.1", PORT: String(port), PROSPECCAO_EXECUTOR: "osm" }, stdio: "pipe" });
+      server = utilityProcess.fork(path.join(root, "server.js"), [], { cwd: root, env: { ...process.env, NODE_ENV: "production", HOSTNAME: "127.0.0.1", PORT: String(port), PROSPECCAO_EXECUTOR: "osm", SELLORA_DATA_DIR: path.join(app.getPath("userData"), "demo-generator") }, stdio: "pipe" });
       const log = (data) => appendFileSync(path.join(app.getPath("userData"), "startup.log"), data.toString());
       server.stderr?.on("data", log);
       server.stdout?.on("data", log);

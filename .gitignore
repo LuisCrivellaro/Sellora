@@ -15,5 +15,6 @@ test-results/
 next-env.d.ts
 *.tsbuildinfo
 .desktop-web/
+.sellora-data/
 release/
 supabase/.temp/

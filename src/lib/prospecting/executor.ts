@@ -3,6 +3,7 @@ import { classify, normalizeName, phoneDigits, socialPlatform, type Candidate } 
 import { buildOverpassQuery, fetchOverpass, geocodeCity, OSM_ATTRIBUTION, SourceError, toCandidate } from "./osm";
 import { checkSite } from "./site-check";
 import type { JobPhase, ProspectParams, ProspectResult, SiteCheck } from "./types";
+import { selectTopProspects, SHORTLIST_SIZE } from "./shortlist";
 
 /**
  * Executor "osm": implementa o fluxo da skill local-client-prospector
@@ -42,7 +43,7 @@ export async function runOsmProspecting(params: ProspectParams, signal: AbortSig
   if (signal.aborted) throw new SourceError("Pesquisa cancelada.");
 
   report({ phase: "discovering", message: `Buscando estabelecimentos em até ${params.radiusKm} km…` });
-  const limit = Math.min(1500, Math.max(300, params.maxResults * 15));
+  const limit = 1500;
   const elements = await fetchOverpass(buildOverpassQuery(segmentsFor(params.segment), center, params.radiusKm, limit), signal);
   if (elements.length >= limit) report({ warning: `O OpenStreetMap devolveu o limite de ${limit} registros; parte do raio pode ter ficado de fora.` });
 
@@ -50,7 +51,7 @@ export async function runOsmProspecting(params: ProspectParams, signal: AbortSig
   const candidates: Candidate[] = [];
   for (const el of elements) {
     const c = toCandidate(el, params, center);
-    if (c && !seen.has(c.id)) {
+    if (c && c.distanceKm !== null && c.distanceKm <= params.radiusKm && !seen.has(c.id)) {
       seen.add(c.id);
       candidates.push(c);
     }
@@ -85,32 +86,18 @@ export async function runOsmProspecting(params: ProspectParams, signal: AbortSig
   }
 
   const results: ProspectResult[] = [];
-  const maxSkips = Math.ceil(params.maxResults / 2);
-  let skips = 0;
   let analyzed = 0;
   let blocked = 0;
   let failedChecks = 0;
-  const countable = () => results.filter((r) => r.classification !== "SKIP").length;
-
-  const accept = (r: ProspectResult): boolean => {
-    if (r.classification === "SKIP") {
-      if (skips >= maxSkips) return false;
-      skips++;
-    } else if (countable() >= params.maxResults) return false;
-    if (params.opportunity === "desatualizado" && r.classification !== "WARM" && r.classification !== "SKIP") return false;
-    results.push(r);
-    return true;
-  };
-
-  const needsCheck = params.opportunity === "desatualizado";
-  const planned = needsCheck ? Math.min(pool1.length, MAX_SITE_CHECKS, params.maxResults * 4) : Math.min(pool1.length, params.maxResults + maxSkips);
+  let unchecked = 0;
+  const planned = pool1.length;
   report({ phase: "verifying", planned, analyzed: 0, found: 0, message: pool1.length ? "Verificando presença digital…" : "Nenhum estabelecimento corresponde ao filtro." });
 
   // Lotes na ordem de prioridade: os sites do lote são conferidos em paralelo e
   // os resultados entram na ordem original (resultado determinístico).
-  const queue = pool1.slice(0, needsCheck ? planned : pool1.length);
+  const queue = pool1;
   let checks = 0;
-  for (let i = 0; i < queue.length && countable() < params.maxResults && !signal.aborted; i += SITE_CONCURRENCY) {
+  for (let i = 0; i < queue.length && !signal.aborted; i += SITE_CONCURRENCY) {
     const batch = queue.slice(i, i + SITE_CONCURRENCY);
     const checked = await Promise.all(
       batch.map(async (c) => {
@@ -126,18 +113,17 @@ export async function runOsmProspecting(params: ProspectParams, signal: AbortSig
     );
     if (signal.aborted) break;
     for (const { c, dup, check, skipped } of checked) {
-      if (skipped || countable() >= params.maxResults) continue;
       analyzed++;
-      accept(classify(c, check, { radiusKm: params.radiusKm, now, duplicateOf: dup }));
+      if (skipped) { unchecked++; continue; }
+      results.push(classify(c, check, { radiusKm: params.radiusKm, now, duplicateOf: dup }));
     }
-    report({ analyzed: Math.min(analyzed, planned), found: countable() });
+    report({ analyzed, found: Math.min(SHORTLIST_SIZE, results.filter((result) => ["HOT", "WARM"].includes(result.classification)).length) });
   }
   if (signal.aborted) throw new SourceError("Pesquisa cancelada.");
 
   report({ phase: "classifying", message: "Classificando e ordenando…" });
   if (blocked) report({ warning: `${blocked} site(s) recusaram a verificação automática; ficaram como LOW com confiança baixa.` });
   if (failedChecks) report({ warning: `${failedChecks} site(s) não responderam durante a verificação (registrado como problema verificável).` });
-  const order = { HOT: 0, WARM: 1, LOW: 2, SKIP: 3 } as const;
-  results.sort((a, b) => order[a.classification] - order[b.classification] || b.score - a.score);
-  return { results, attribution: OSM_ATTRIBUTION };
+  if (unchecked) report({ warning: `${unchecked} site(s) ficaram fora do ranking por atingir o limite de ${MAX_SITE_CHECKS} verificações HTTP. A seleção considera os candidatos verificados na fonte.` });
+  return { results: selectTopProspects(results, params.radiusKm), attribution: OSM_ATTRIBUTION };
 }

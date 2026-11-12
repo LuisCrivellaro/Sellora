@@ -6,7 +6,7 @@ import type { ExecutorStatus } from "./types";
  * Prospecção IA faz requisições a serviços externos, então só roda quando o
  * administrador habilita em `.env.local`.
  */
-export const JOB_LIMITS = { maxResults: 100, maxRadiusKm: 50, jobsPerHour: 10, activePerOwner: 1, activeGlobal: 2, timeoutMs: 5 * 60_000, keepMs: 60 * 60_000 };
+export const JOB_LIMITS = { maxResults: 10, maxRadiusKm: 50, jobsPerHour: 10, activePerOwner: 1, activeGlobal: 2, timeoutMs: 5 * 60_000, keepMs: 60 * 60_000 };
 
 export type ExecutorId = "osm";
 

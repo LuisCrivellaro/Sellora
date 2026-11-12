@@ -1,6 +1,9 @@
 import { z } from "zod";
 import type { Lead } from "../types";
 import { uid } from "../utils";
+import { createDemoPersonalization, demoPersonalizationSchema } from "./personalization";
+import { approvedConceptIdSchema, approvedConcepts, conceptMatchesBusiness, findApprovedConcept, type ApprovedConceptId } from "./concepts";
+import { generatedCreationSchema, type GeneratedCreation } from "./creation";
 
 // Lista explícita: observações, e-mail, score e dados do CRM nunca entram na prévia.
 export const demoBusinessSchema = z.object({
@@ -12,12 +15,17 @@ export const demoBusinessSchema = z.object({
 });
 export type DemoBusiness = z.infer<typeof demoBusinessSchema>;
 export const demoMessageSchema = z.string().trim().min(10, "Escreva ao menos 10 caracteres.").max(2000, "Use até 2.000 caracteres.");
-export const demoDesignVersionSchema = z.union([z.literal(1), z.literal(2)]);
+export const CURRENT_DEMO_VERSION = 4;
+export const demoDesignVersionSchema = z.union([z.literal(1), z.literal(2), z.literal(3), z.literal(4), z.literal(5)]);
 export const leadDemoSchema = z.object({
   id: z.uuid(),
   version: demoDesignVersionSchema,
   business: demoBusinessSchema,
+  design: demoPersonalizationSchema.optional(),
+  conceptId: approvedConceptIdSchema.optional(),
+  creation: generatedCreationSchema.optional(),
   message: demoMessageSchema,
+  generatedMessage: demoMessageSchema.optional(),
   status: z.enum(["pending", "approved"]),
   createdAt: z.iso.datetime({ offset: true }),
   updatedAt: z.iso.datetime({ offset: true }),
@@ -28,14 +36,31 @@ export const leadDemoSchema = z.object({
     phone: z.string().regex(/^\d{8,15}$/), body: demoMessageSchema,
     text: z.string().max(6000), designVersion: demoDesignVersionSchema,
   }).nullable().optional(),
-}).refine((d) => d.status === "approved" ? !!d.approvedAt && !!d.approvedBy : d.approvedAt === null && d.approvedBy === null, "A aprovação precisa corresponder à versão da mensagem.");
+}).refine(validPresentation, "A apresentação precisa corresponder ao negócio e à versão da demo.").refine((d) => d.status === "approved" ? !!d.approvedAt && !!d.approvedBy : d.approvedAt === null && d.approvedBy === null, "A aprovação precisa corresponder à versão da mensagem.");
 export type LeadDemo = z.infer<typeof leadDemoSchema>;
+
+export function demoRevision(demo: LeadDemo | null | undefined): string | null {
+  return demo ? JSON.stringify([demo.id, demo.updatedAt, demo.message, demo.status, demo.creation?.id, demo.lastManualSend?.at]) : null;
+}
+
+function validPresentation(doc: { version: number; business: DemoBusiness; design?: z.infer<typeof demoPersonalizationSchema>; conceptId?: ApprovedConceptId; creation?: GeneratedCreation }): boolean {
+  if (doc.version === 3) return !!doc.design;
+  if (doc.version === 4) return !!doc.conceptId && conceptMatchesBusiness(doc.conceptId, doc.business);
+  if (doc.version === 5) return !!doc.creation;
+  return true;
+}
+
+export function defaultDemoMessage(business: DemoBusiness): string {
+  return `Olá, equipe ${business.name}! Sou da Sellora, criamos sites para negócios locais. Preparei uma demonstração não oficial de como a presença digital de vocês em ${business.city} poderia ficar. É uma proposta visual inicial, sem compromisso. Posso conversar com a pessoa responsável para entender se faz sentido para vocês?`;
+}
 
 export function createLeadDemo(lead: Lead): LeadDemo {
   const business = demoBusinessSchema.parse(lead);
+  const conceptId = findApprovedConcept(business);
   const t = new Date().toISOString();
-  return leadDemoSchema.parse({ id: uid(), version: 2, business,
-    message: `Olá, equipe ${business.name}! Sou da Sellora, criamos sites para negócios locais. Preparei uma demonstração não oficial de como a presença digital de vocês em ${business.city} poderia ficar. É uma proposta visual inicial, sem compromisso. Posso conversar com a pessoa responsável para entender se faz sentido para vocês?`,
+  return leadDemoSchema.parse({ id: uid(), version: conceptId ? CURRENT_DEMO_VERSION : 3, business, conceptId,
+    design: conceptId ? undefined : createDemoPersonalization(business),
+    message: conceptId ? approvedConcepts[conceptId].message : defaultDemoMessage(business),
     status: "pending", createdAt: t, updatedAt: t, approvedAt: null, approvedBy: null });
 }
 
@@ -44,17 +69,21 @@ export function demoPreviewUrl(demo: LeadDemo, origin: string): string {
   const base = new URL(origin);
   if (!["http:", "https:"].includes(base.protocol) || base.username || base.password) throw new Error("Endereço de prévia inválido.");
   const business = demoBusinessSchema.parse(demo.business);
-  const bytes = new TextEncoder().encode(JSON.stringify({ version: demo.version, business }));
+  const valid = leadDemoSchema.parse(demo);
+  const bytes = new TextEncoder().encode(JSON.stringify({ version: valid.version, business, ...(valid.version === 3 ? { design: valid.design } : {}), ...(valid.version === 4 ? { conceptId: valid.conceptId } : {}), ...(valid.version === 5 ? { creation: valid.creation } : {}) }));
   const encoded = btoa(String.fromCharCode(...bytes)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
   return `${base.origin}/demo#${encoded}`;
 }
 
-export function parseDemoDocument(fragment: string): { version: 1 | 2; business: DemoBusiness } | null {
+const demoDocumentSchema = z.object({ version: demoDesignVersionSchema, business: demoBusinessSchema, design: demoPersonalizationSchema.optional(), conceptId: approvedConceptIdSchema.optional(), creation: generatedCreationSchema.optional() })
+  .refine(validPresentation);
+
+export function parseDemoDocument(fragment: string): z.infer<typeof demoDocumentSchema> | null {
   try {
-    if (fragment.length > 5000 || !/^#[A-Za-z0-9_-]+$/.test(fragment)) return null;
+    if (fragment.length > 16000 || !/^#[A-Za-z0-9_-]+$/.test(fragment)) return null;
     const binary = atob(fragment.slice(1).replace(/-/g, "+").replace(/_/g, "/"));
     const value: unknown = JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(Uint8Array.from(binary, (c) => c.charCodeAt(0))));
-    return z.object({ version: demoDesignVersionSchema, business: demoBusinessSchema }).parse(value);
+    return demoDocumentSchema.parse(value);
   } catch { return null; }
 }
 

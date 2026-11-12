@@ -1,63 +1,38 @@
-# Skills — locais e externas
+# Skills do Sellora
 
-Inventário verificado em 2026-11-06. **Reverificado em 2026-11-07 (outra sessão do desktop):** `interface-design`, `ui-ux-pro-max`, `web-design-guidelines`, `webapp-testing`, `vercel-react-best-practices` e `humanizer` **não apareceram** na listagem. Estavam disponíveis `anthropic-skills:frontend-design`, `skill-creator`, `security-review`, `code-review`, `simplify`, `run` e o navegador embutido. A disponibilidade varia por sessão e conta: confira antes de citar uma skill. "Disponível" significa observado na listagem de skills da sessão do Claude desktop (Code tab) daquela data; outra máquina, o CLI puro ou outra conta podem não ter as mesmas skills. Nenhuma skill externa foi instalada no repositório.
+Inventário do repositório atualizado em 2026-11-12. Skills externas variam por conta e sessão; confira o catálogo ativo em vez de presumir instalação.
 
-## Skills locais (versionadas em `.claude/skills/`)
+## Skills versionadas
 
-| Skill | Quando usar | Referências principais |
-|---|---|---|
-| `dashboard-builder` | Implementar um módulo do dashboard (só com autorização) | DASHBOARD_SPEC, DESIGN_SYSTEM, FRONTEND_PLAYBOOK |
-| `design-review` | Revisar UI/UX renderizada antes de entregar | DESIGN_SYSTEM, FRONTEND_PLAYBOOK, WORKFLOW §6 |
-| `quality-assurance` | Rodar verificações e relatar PASS/FAIL/SKIP | WORKFLOW §5–7, CLIENT_WEBSITES §6 |
-| `prompt-architect` | Escrever ou consolidar prompts para agentes | WORKFLOW §2–4 |
-| `lead-research` | Montar e qualificar lista de leads | PRODUCT_CONTEXT, ROADMAP |
-| `local-client-prospector` | Prospectar estabelecimentos locais e classificar HOT/WARM/LOW/SKIP (chat ou revisão da aba Prospecção IA) | SKILL.md, ORIGEM.md, `src/lib/prospecting/classify.ts` |
-| `website-audit` | Diagnosticar o site/presença de um lead | FRONTEND_PLAYBOOK §3, §9–10; CLIENT_WEBSITES §5 |
-| `sales-strategy` | Abordagem consultiva e follow-up (rascunhos) | PRODUCT_CONTEXT, ROADMAP |
-| `proposal-writer` | Rascunho de proposta comercial | PRODUCT_CONTEXT, CLIENT_WEBSITES §4 |
-| `website-builder` | Construir site de cliente com briefing aprovado | CLIENT_WEBSITES, FRONTEND_PLAYBOOK |
+| Skill em .claude/skills | Uso |
+| --- | --- |
+| dashboard-builder | Implementação de módulos do dashboard |
+| design-review | Revisão visual e de interação |
+| quality-assurance | Verificações e relato de evidências |
+| prompt-architect | Prompts para agentes |
+| lead-research | Pesquisa e qualificação de leads |
+| local-client-prospector | Critérios de prospecção HOT/WARM/LOW/SKIP |
+| website-audit | Diagnóstico de presença digital |
+| modernizar-sites-locais | Diagnóstico por URL, prévia e comparativo visual |
+| unique-site-designer | Demos com composição, textos e imagens próprios |
+| sales-strategy | Abordagem consultiva e follow-up |
+| proposal-writer | Propostas comerciais |
+| website-builder | Sites com briefing aprovado |
 
-As 8 skills originais foram reescritas preservando nome e propósito, com gatilho mais claro no `description`, leituras obrigatórias, processo, proibições e formato de saída. `prompt-architect` é nova.
+Escolha apenas as skills pertinentes à tarefa. Os arquivos orientam os agentes; sua presença não torna cada habilidade uma funcionalidade do aplicativo.
 
-**2026-11-09 — `local-client-prospector` instalada no repositório** (primeira skill externa versionada). Fonte: `Kappaemme-git/local-client-prospector-skill`, commit `2340d02`, MIT. Auditoria completa em `.claude/skills/local-client-prospector/ORIGEM.md`: só instruções e um CSV; o instalador `npx` (que grava em `~/.codex`) e o `agents/openai.yaml` do Codex **não** foram usados. Adaptada para Claude Code (ferramentas verificadas na sessão, pt-BR, LGPD, níveis de evidência, mesmos critérios do executor do app). Verificado: a skill passou a aparecer na listagem de skills da sessão do Claude desktop logo após a cópia.
+## Skill executada pelo aplicativo
 
-## Skills externas
+Unique Site Designer tem fonte canônica em `.agents/skills/unique-site-designer/` e espelho em `.claude/skills/unique-site-designer/` para Claude Code. Mantenha SKILL.md e references iguais nos dois diretórios. O build Windows empacota somente a fonte canônica.
 
-| Skill | Fonte | Status nesta máquina | Uso na Sellora |
-|---|---|---|---|
-| Frontend Design | `anthropics/skills` (repositório oficial da Anthropic; pasta com `SKILL.md` e `LICENSE.txt`, sem scripts) | **Disponível** na sessão como `anthropic-skills:frontend-design` (catálogo da conta). Não instalada no repo | Direção estética de sites de clientes |
-| Interface Design | Catálogo `anthropic-skills` | **Disponível** na sessão | Dashboard e telas de produto |
-| UI UX Pro Max | Upstream `nextlevelbuilder/ui-ux-pro-max-skill` (MIT; contém scripts) | **Disponível** na sessão como `anthropic-skills:ui-ux-pro-max` | Consulta de paletas, pares tipográficos, padrões — referência, não regra |
-| Web Design Guidelines | Catálogo `anthropic-skills` | **Disponível** na sessão | Auditoria de conformidade de UI |
-| Humanizer | Catálogo `anthropic-skills` | **Disponível** na sessão | Revisão de textos de sites e propostas |
-| Webapp Testing | Catálogo `anthropic-skills` (Python Playwright) | **Disponível** na sessão; Python/Playwright **não verificados** | E2E e screenshots locais |
-| Vercel React Best Practices | Catálogo `anthropic-skills` | **Disponível** na sessão | Performance Next.js/React |
-| Skill Creator | Catálogo `anthropic-skills` | **Disponível** na sessão | Criar/avaliar skills locais |
-| Taste (`design-taste-frontend`, "tasteskill v2") | Sincronizada pela conta em `~/.claude/skills/synced/`; upstream **não verificado** | Arquivo presente em disco; **não listado** como skill ativa nesta sessão | Anti-genérico em landing pages e telas — avaliar antes de habilitar |
-| Prompt Engineer (`prompt-engineer`, MIT, autor Jeffallan) | Sincronizada pela conta em `~/.claude/skills/synced/` | Arquivo presente; **não listado** nesta sessão | Opcional; `prompt-architect` cobre o padrão Sellora |
-| Impeccable | Upstream `pbakaus/impeccable` (Apache-2.0, segundo catálogos de terceiros) | **Não instalada.** O instalador para Claude Code adiciona um **hook** que roda após edições de UI | Candidata para revisão de design; exige autorização por alterar configuração de hooks |
+O gerador v5 lê SKILL.md, references/fluxo-sellora.md e references/validacao.md a cada geração. `generation-server.ts` aplica o fluxo e as validações; `codex-server.ts` usa o Codex local autenticado com ChatGPT; `generation-client.ts` coordena a fila. A geração começa por ação do administrador, usa os limites/créditos do plano e retorna à revisão. Detalhes no README e no guia da skill.
 
-## Instalação (não executada)
+Modernizar Sites Locais foi copiada da instalação local a pedido do usuário. Seus scripts de captura/comparação exigem Playwright ou Playwright Core com Chromium compatível. Ela orienta tarefas assistidas por agente e não é chamada pelo gerador v5. Não use o endereço de exemplo como lead real.
 
-Antes de instalar qualquer skill externa: confirmar fonte oficial, ler `SKILL.md` e scripts, verificar dependências, hooks e permissões, checar sobreposição com as skills acima e pedir autorização. Registrar em `docs/DECISIONS.md`.
+## Origem e manutenção
 
-Comandos de referência, a revisar no README oficial antes de usar:
+- Local Client Prospector: upstream `Kappaemme-git/local-client-prospector-skill`, commit `2340d02`, licença MIT; adaptações e auditoria em seu ORIGEM.md.
+- Modernizar Sites Locais: skill local do usuário, com dois guias e dois scripts Node.
+- Unique Site Designer: fornecida pelo usuário, incorporada após aprovação. Conceitos e evidências em DEMO_DESIGN_HISTORY; mídias/fontes e licenças em public/demos/unique.
 
-```bash
-npx skills add https://github.com/anthropics/skills --skill frontend-design
-```
-
-```bash
-npx skills add https://github.com/pbakaus/impeccable --skill impeccable
-```
-
-No Claude Code também existe a via de marketplace de plugins (`/plugin marketplace add <owner>/<repo>`), executada pelo usuário em um terminal `claude` interativo.
-
-## Combinações recomendadas
-
-1. **Dashboard:** `dashboard-builder` + `interface-design` + `vercel-react-best-practices` → `design-review` + `web-design-guidelines` → `quality-assurance` + `webapp-testing`.
-2. **Site de cliente:** `website-builder` + `frontend-design` (+ `ui-ux-pro-max` como consulta) + `humanizer` → `design-review` → `quality-assurance`.
-3. **Venda:** `lead-research` → `website-audit` → `sales-strategy` → `proposal-writer` (+ `humanizer`).
-4. **Prompts para outros agentes:** `prompt-architect`.
-
-Não instalar dezenas de skills parecidas; quando duas cobrem o mesmo tema, a skill local e os docs da Sellora prevalecem sobre a genérica.
+Antes de adicionar outra skill, confira fonte, licença, scripts, dependências e hooks. Preserve o escopo autorizado e registre decisões relevantes. Não instale pacotes ou cadeias de skills apenas porque aparecem como referência nos guias.

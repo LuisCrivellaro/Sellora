@@ -1,16 +1,27 @@
 import { spawnSync } from "node:child_process";
-import { cp, mkdir, readdir, unlink } from "node:fs/promises";
+import { cp, mkdir, readdir, rm, unlink } from "node:fs/promises";
 import path from "node:path";
+const projectRoot = path.resolve(import.meta.dirname, "..");
+if (process.cwd() !== projectRoot) throw new Error("Execute o build desktop na pasta do projeto Sellora.");
+const standalone = path.join(projectRoot, ".next", "standalone");
+if (!standalone.startsWith(projectRoot + path.sep)) throw new Error("Destino de build fora do projeto.");
+// O Next mantém arquivos de rastreamentos anteriores. A distribuição deve conter apenas o build atual.
+await rm(standalone, { recursive: true, force: true });
 const run = (file, args) => {
   const result = spawnSync(process.execPath, [file, ...args], { stdio: "inherit", env: { ...process.env, SELLORA_DESKTOP_BUILD: "1" } });
   if (result.status !== 0) throw new Error(`Build falhou: ${file}`);
 };
 run("node_modules/next/dist/bin/next", ["build"]);
-const target = path.resolve(".desktop-web");
+const target = path.join(projectRoot, ".desktop-web");
+// O estágio anterior pode conter cache de rotas que ainda referencia o código antigo.
+await rm(target, { recursive: true, force: true });
 await mkdir(target, { recursive: true });
 await cp(".next/standalone", target, { recursive: true });
 await cp(".next/static", path.join(target, ".next/static"), { recursive: true });
 await cp("public", path.join(target, "public"), { recursive: true });
+await cp(".agents/skills/unique-site-designer", path.join(target, ".agents/skills/unique-site-designer"), { recursive: true });
+const unexpected = (await readdir(target)).filter((name) => [".sellora-data", "test-results", "release", "src"].includes(name));
+if (unexpected.length) throw new Error(`O rastreamento incluiu artefatos locais: ${unexpected.join(", ")}`);
 async function removeEnv(dir) {
   for (const item of await readdir(dir, { withFileTypes: true })) {
     const file = path.join(dir, item.name);

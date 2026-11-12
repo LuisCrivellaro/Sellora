@@ -4,14 +4,24 @@ import { ArrowRight, MapPin, Phone, MoveUpRight } from "lucide-react";
 import type { CSSProperties } from "react";
 import { demoDesigns } from "@/lib/demos/designs";
 import type { DemoBusiness } from "@/lib/demos/model";
+import type { DemoPersonalization } from "@/lib/demos/personalization";
 import styles from "./demo-site.module.css";
 import { handleDemoAnchor } from "./demo-anchor";
 
-export function DemoSite({ business: b }: { business: DemoBusiness }) {
-  const d = demoDesigns[b.segment];
+export function DemoSite({ business: b, design }: { business: DemoBusiness; design?: DemoPersonalization }) {
+  const d = { ...demoDesigns[b.segment], ...design };
   const detailsTitle = { restaurantes: "Antes de escolher sua mesa.", beleza: "O próximo passo é seu.", saude: "O que você precisa saber.", servicos: "Vamos entender sua necessidade.", comercio: "Encontre o que faz sentido para você.", outros: "Informação por perto." }[b.segment];
+  const story = <section className={styles.story} id="sobre">
+    <div><p className={styles.sectionLabel}>Uma ideia para {b.name}</p><h2>{d.storyTitle}</h2></div>
+    <div className={styles.storyText}><p>{d.story}</p></div>
+  </section>;
+  const information = <section className={styles.details} id="informacoes" aria-labelledby="demo-info-title">
+    <div className={styles.detailsIntro}><p className={styles.sectionLabel}>Para conhecer melhor</p><h2 id="demo-info-title">{detailsTitle}</h2><p>Converse com a equipe para confirmar as informações e planejar o próximo passo.</p></div>
+    <div className={styles.topicList}>{d.topics.map((topic) => <a key={topic} href="#contato"><span>{topic}</span><MoveUpRight size={22} aria-hidden /></a>)}<p className={styles.editorNote}>Seções sugeridas. Disponibilidade e conteúdo a confirmar.</p></div>
+  </section>;
+  const visualClass = design ? `${styles.personalized} ${styles[design.layout]} ${styles[design.typography]}` : styles[b.segment];
   return (
-    <article onClick={handleDemoAnchor} className={`${styles.site} ${styles[b.segment]}`} style={{ "--paper": d.paper, "--ink": d.ink, "--accent": d.accent } as CSSProperties}>
+    <article onClick={handleDemoAnchor} className={`${styles.site} ${visualClass}`} data-demo-layout={design?.layout} style={{ "--paper": d.paper, "--ink": d.ink, "--accent": d.accent, "--photo-position": design?.photoPosition ?? "center" } as CSSProperties}>
       <div className={styles.notice}>Demonstração não oficial por Sellora. Imagens ilustrativas; conteúdo a validar com o estabelecimento.</div>
       <header className={styles.header} id="inicio">
         <a className={styles.brand} href="#inicio">{b.name}</a>
@@ -28,14 +38,7 @@ export function DemoSite({ business: b }: { business: DemoBusiness }) {
         <figure className={styles.heroPhoto}><img src={`/demos/${d.photo}.jpg`} width={1400} height={1000} alt={d.alt} fetchPriority="high" /><figcaption>Fotografia de referência, não representa o estabelecimento.</figcaption></figure>
       </section>
       <div className={styles.localLine}><span>{b.name}</span><span>{b.city} / {b.uf}</span><a href="#contato">Vamos conversar <MoveUpRight size={14} aria-hidden /></a></div>
-      <section className={styles.story} id="sobre">
-        <div><p className={styles.sectionLabel}>Uma ideia para {b.name}</p><h2>{d.storyTitle}</h2></div>
-        <div className={styles.storyText}><p>{d.story}</p></div>
-      </section>
-      <section className={styles.details} id="informacoes" aria-labelledby="demo-info-title">
-        <div className={styles.detailsIntro}><p className={styles.sectionLabel}>Para conhecer melhor</p><h2 id="demo-info-title">{detailsTitle}</h2><p>Converse com a equipe para confirmar as informações e planejar o próximo passo.</p></div>
-        <div className={styles.topicList}>{d.topics.map((topic) => <a key={topic} href="#contato"><span>{topic}</span><MoveUpRight size={22} aria-hidden /></a>)}<p className={styles.editorNote}>Seções sugeridas. Disponibilidade e conteúdo a confirmar.</p></div>
-      </section>
+      {design?.informationFirst ? <>{information}{story}</> : <>{story}{information}</>}
       <section className={styles.contact} id="contato">
         <div><p className={styles.sectionLabel}>Por perto, em {b.city}</p><h2>Vamos conversar?</h2><p>{b.name}</p></div>
         <dl className={styles.contactData}><div><dt><MapPin size={17} aria-hidden />Localização</dt><dd>{b.city} / {b.uf}<span>Endereço completo a confirmar</span></dd></div><div><dt><Phone size={17} aria-hidden />Contato</dt><dd>{b.phone || "Telefone a confirmar"}<span>Horários de atendimento a confirmar</span></dd></div></dl>

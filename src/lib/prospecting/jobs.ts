@@ -48,6 +48,7 @@ function finish(job: Job, status: JobView["status"], error: string | null) {
 }
 
 export function startJob(owner: string, params: ProspectParams, executor: ExecutorId): JobView {
+  params = { ...params, maxResults: 10 };
   sweep();
   const now = Date.now();
   const all = [...registry.jobs.values()];

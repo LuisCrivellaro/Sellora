@@ -24,7 +24,7 @@ Fases: (1) validação comercial — sites feitos com Claude Code sob supervisã
 | Integrar instruções, escrever prompts, quality gate, relatório | `docs/WORKFLOW.md` |
 | Skills locais e externas (status verificado) | `docs/SKILLS_SETUP.md` |
 | Decisões registradas | `docs/DECISIONS.md` |
-| Retomar o trabalho (estado atual e próximo passo) | `docs/HANDOFF.md` |
+| Retomar o trabalho (estado atual e próximo passo) | `docs/AI_HANDOFF.md` |
 
 ## Filosofia (inegociável)
 Originalidade sobre clonagem · propósito sobre efeitos · clareza sobre excesso · mobile e acessibilidade desde a origem · performance como parte do design · dados e integrações honestos · preservar o aprovado · testar e relatar com evidência · direção de arte adequada a cada marca · prompts reproduzíveis por qualquer agente.
@@ -38,6 +38,8 @@ Dashboard interno utilizável > dados persistidos e segurança > funcionalidades
 Preferir Next.js App Router + TypeScript + Tailwind + shadcn/ui + Lucide + Zod; Supabase Auth/Postgres se credenciais disponíveis. Escolher versões atuais compatíveis, registrando decisões. Componentes pequenos, serviços separados, acessibilidade e responsividade. Dependência nova só justificada e registrada (motion libs inclusive: CSS primeiro). Evite abstrações excessivas.
 
 ## UI/UX
+
+Para demos em Leads → Demos, aplique a skill local `unique-site-designer` e consulte `docs/DEMO_DESIGN_HISTORY.md` para comparar a criação com o acervo existente.
 Dashboard: seguir `docs/DESIGN_SYSTEM.md` — autoral, refinado, densidade informacional moderada, nada de dashboard genérico com cards decorativos; sidebar funcional; métricas úteis; tabela avançada de leads; Kanban responsivo; empty/loading/error states reais; foco visível; motion apenas funcional. Sites de clientes: direção criativa singular por cliente (`docs/CLIENT_WEBSITES.md`). Skills de design: ver `docs/SKILLS_SETUP.md` (não presumir instalação).
 
 ## Regras de dados e segurança

@@ -114,7 +114,7 @@ export function useProspectJob() {
   useEffect(() => stopPolling, []);
 
   const start = useCallback(
-    async (params: ProspectParams, generateDemos = false) => {
+    async (params: ProspectParams) => {
       setStarting(true);
       setRequestError(null);
       try {
@@ -127,7 +127,7 @@ export function useProspectJob() {
         }
         const view = body.job as JobView;
         setJob(view);
-        startSearch(view, generateDemos);
+        startSearch(view);
         poll(view.id);
         return true;
       } catch {

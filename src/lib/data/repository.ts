@@ -42,7 +42,11 @@ import { findCrmDuplicate, prospectToLeadInput, type CrmMatch } from "../prospec
 import type { ProspectResult } from "../prospecting/types";
 import { createEmptyDatabase, createSeed } from "./seed";
 import { commit, getDb, getMode, getStoreState } from "./store";
-import { createLeadDemo, demoMessageForCopy, demoMessageSchema, leadDemoSchema, type LeadDemo } from "../demos/model";
+import { createLeadDemo, defaultDemoMessage, demoMessageForCopy, demoMessageSchema, demoRevision, leadDemoSchema, type LeadDemo } from "../demos/model";
+import { createDemoPersonalization } from "../demos/personalization";
+import { approvedConcepts, findApprovedConcept } from "../demos/concepts";
+import { demoCreativeIssues } from "../demos/creative-review";
+import { generationResultSchema, type GenerationResult } from "../demos/creation";
 import { isCurrentDemoSent, normalizeWhatsappPhone, MANUAL_DEMO_ACTIVITY } from "../demos/whatsapp";
 
 /**
@@ -281,6 +285,29 @@ export function generateLeadDemo(leadId: ID): LeadDemo {
   return demo!;
 }
 
+/** Aplica somente o resultado da versão solicitada. Edições concorrentes exigem nova tentativa. */
+export function applyGeneratedLeadDemo(leadId: ID, result: GenerationResult, expectedRevision: string | null): LeadDemo {
+  const generated = generationResultSchema.parse(result);
+  let saved: LeadDemo | undefined;
+  commit((db) => {
+    const lead = db.leads.find((item) => item.id === leadId);
+    if (!lead) throw new Error("Lead removido durante a geração.");
+    const previous = lead.demo;
+    if (previous?.creation?.id === generated.creation.id) { saved = previous; return db; }
+    if (demoRevision(previous) !== expectedRevision) throw new Error("A demo foi editada durante a geração. Gere novamente para aplicar ao conteúdo atual.");
+    const base = previous ?? createLeadDemo(lead);
+    const messageWasEdited = previous && previous.message !== previous.generatedMessage && previous.message !== defaultDemoMessage(previous.business)
+      && !(previous.conceptId && previous.message === approvedConcepts[previous.conceptId].message);
+    saved = leadDemoSchema.parse({ ...base, version: 5, design: undefined, conceptId: undefined, creation: generated.creation,
+      message: messageWasEdited ? previous.message : generated.message, generatedMessage: generated.message,
+      status: "pending", approvedAt: null, approvedBy: null, updatedAt: nowIso() });
+    const issues = demoCreativeIssues({ ...saved, message: generated.message }, db.leads.flatMap((item) => item.demo ? [item.demo] : []));
+    if (issues.length) throw new Error(`A criação ainda contém repetições. ${issues.join(" ")}`);
+    return { ...db, leads: db.leads.map((item) => item.id === leadId ? { ...item, demo: saved, updatedAt: nowIso() } : item) };
+  });
+  return saved!;
+}
+
 function updateLeadDemo(leadId: ID, update: (demo: LeadDemo, db: Database) => LeadDemo) {
   commit((db) => {
     const lead = db.leads.find((l) => l.id === leadId);
@@ -296,7 +323,11 @@ export function saveDemoMessage(leadId: ID, message: string) {
 }
 
 export function approveLeadDemo(leadId: ID) {
-  updateLeadDemo(leadId, (demo, db) => ({ ...demo, status: "approved", approvedAt: nowIso(), updatedAt: nowIso(), approvedBy: getMode() === "supabase" ? getStoreState().account?.email || db.settings.profile.name : db.settings.profile.name || "Revisor local" }));
+  updateLeadDemo(leadId, (demo, db) => {
+    const issues = demoCreativeIssues(demo, db.leads.flatMap((lead) => lead.demo ? [lead.demo] : []));
+    if (issues.length) throw new Error(`Revisão criativa pendente. ${issues.join(" ")}`);
+    return { ...demo, status: "approved", approvedAt: nowIso(), updatedAt: nowIso(), approvedBy: getMode() === "supabase" ? getStoreState().account?.email || db.settings.profile.name : db.settings.profile.name || "Revisor local" };
+  });
 }
 
 export function revokeDemoApproval(leadId: ID) {
@@ -304,7 +335,26 @@ export function revokeDemoApproval(leadId: ID) {
 }
 
 export function upgradeLeadDemoDesign(leadId: ID) {
-  updateLeadDemo(leadId, (demo) => demo.version === 2 ? demo : { ...demo, version: 2, status: "pending", approvedAt: null, approvedBy: null, updatedAt: nowIso() });
+  upgradeLeadDemoDesigns([leadId]);
+}
+
+export function upgradeLeadDemoDesigns(leadIds: ID[]): number {
+  const selected = new Set(leadIds);
+  let updated = 0;
+  commit((db) => {
+    const leads = db.leads.map((lead) => {
+      if (!selected.has(lead.id) || !lead.demo || lead.demo.version >= 4) return lead;
+      const conceptId = findApprovedConcept(lead.demo.business);
+      if (!conceptId && lead.demo.version === 3) return lead;
+      const message = conceptId && lead.demo.message === defaultDemoMessage(lead.demo.business) ? approvedConcepts[conceptId].message : lead.demo.message;
+      const demo = leadDemoSchema.parse({ ...lead.demo, version: conceptId ? 4 : 3, conceptId, message,
+        design: conceptId ? undefined : createDemoPersonalization(lead.demo.business), status: "pending", approvedAt: null, approvedBy: null, updatedAt: nowIso() });
+      updated += 1;
+      return { ...lead, demo, updatedAt: nowIso() };
+    });
+    return updated ? { ...db, leads } : db;
+  });
+  return updated;
 }
 
 /** Declaração manual do operador, nunca confirmação de entrega do WhatsApp. */

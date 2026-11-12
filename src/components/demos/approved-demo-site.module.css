@@ -1,0 +1,235 @@
+﻿@font-face {
+  font-family: 'Barlow Condensed';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url(/demos/unique/font-0.ttf) format('truetype');
+}
+@font-face {
+  font-family: 'Barlow Condensed';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url(/demos/unique/font-1.ttf) format('truetype');
+}
+@font-face {
+  font-family: 'DM Sans';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url(/demos/unique/font-2.ttf) format('truetype');
+}
+@font-face {
+  font-family: 'DM Sans';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url(/demos/unique/font-3.ttf) format('truetype');
+}
+@font-face {
+  font-family: 'DM Sans';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url(/demos/unique/font-4.ttf) format('truetype');
+}
+@font-face {
+  font-family: 'DM Sans';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url(/demos/unique/font-5.ttf) format('truetype');
+}
+@font-face {
+  font-family: 'Instrument Serif';
+  font-style: italic;
+  font-weight: 400;
+  font-display: swap;
+  src: url(/demos/unique/font-6.ttf) format('truetype');
+}
+@font-face {
+  font-family: 'Instrument Serif';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url(/demos/unique/font-7.ttf) format('truetype');
+}
+
+
+
+
+.site { font-family: 'DM Sans', Arial, sans-serif; font-size: 16px; line-height: normal; container-type: inline-size; overflow-wrap: anywhere; }
+.site * { box-sizing: border-box; }
+:where(.site) a { color: inherit; text-decoration: none; }
+.site a:focus-visible { outline: 3px solid currentColor; outline-offset: 6px; }
+.site p, .site h1, .site h2, .site h3, .site figure { margin: 0; }
+.site img { display: block; max-width: 100%; }
+.demo-notice { padding: 9px 20px; font-size: 10px; line-height: 1.5; text-align: center; background: #fff; color: #4b4b4b; }
+.eyebrow { font-size: 11px; font-weight: 600; letter-spacing: .12em; text-transform: uppercase; line-height: 1.6; }
+.site .business-phone { font-size: 22px; margin: 20px auto; }
+.cravo { background: #f8f1e7; color: #452d30; }
+.cravo-header { display: flex; justify-content: space-between; align-items: center; padding: 28px 6%; }
+.cravo-brand { font: 34px/.78 'Instrument Serif', Georgia, serif; letter-spacing: -.03em; }
+.cravo-brand span { display: block; margin-left: 17px; margin-top: 8px; }
+.cravo-header nav { display: flex; align-items: center; gap: 38px; font-size: 12px; }
+.cravo-nav-contact { padding: 12px 0 12px 18px; border-bottom: 1px solid #452d30; }
+.cravo-nav-contact span { margin-left: 28px; }
+.cravo-hero { position: relative; min-height: 700px; margin: 0 0 0 6%; display: grid; grid-template-columns: 1.1fr 1fr; align-items: center; padding-top: 28px; }
+.cravo-hero-copy { position: relative; z-index: 1; padding: 30px 0 68px; margin-right: -110px; }
+.cravo-hero .eyebrow { color: #7e4c39; margin-bottom: 34px; }
+.cravo-hero h1 { font: 400 clamp(70px, 8.1cqi, 132px)/.94 'Instrument Serif', Georgia, serif; letter-spacing: -.045em; text-wrap: balance; }
+.cravo-hero h1 em { color: #a14f38; font-weight: 400; }
+.cravo-hero-bottom { margin-top: 42px; max-width: 330px; }
+.cravo-hero-bottom > p { font-size: 14px; line-height: 1.85; color: #695355; }
+.cravo-button { display: inline-flex; align-items: center; justify-content: space-between; gap: 24px; margin-top: 25px; padding: 17px 22px; border-radius: 2px; font-size: 12px; background: #482f33; color: #fff6e9; }
+.cravo-button:hover { background: #6d4347; }
+.cravo-portrait { position: relative; margin-left: 22px; align-self: stretch; }
+.cravo-portrait img { width: 100%; height: 100%; min-height: 640px; object-fit: cover; object-position: 56% center; }
+.cravo-portrait figcaption { position: absolute; right: 12px; bottom: 12px; left: 12px; width: fit-content; margin-left: auto; background: #f8f1e7ed; padding: 5px 9px; font-size: 9px; color: #452d30; }
+.cravo-essence { display: grid; grid-template-columns: 1.15fr 1fr; gap: 12%; padding: 116px 8% 110px 6%; background: #fffbf5; }
+.cravo-essence h2, .cravo-visit h2 { font: 400 clamp(42px, 4.4cqi, 70px)/1.04 'Instrument Serif', Georgia, serif; letter-spacing: -.035em; margin-top: 25px; }
+.cravo-essence h2 em, .cravo-visit h2 em { font-weight: 400; color: #9a513f; }
+.cravo-essence-copy { padding-top: 45px; max-width: 380px; }
+.cravo-essence-copy p { font-size: 15px; line-height: 1.9; }
+.cravo-essence-copy p + p { margin-top: 20px; }
+.cravo-text-link { display: inline-flex; align-items: center; justify-content: space-between; gap: 32px; font-size: 12px; border-bottom: 1px solid currentColor; padding: 12px 0; margin-top: 24px; }
+.cravo-visit { margin: 0 6%; padding: 95px 0; display: grid; grid-template-columns: 1fr 1fr; gap: 13%; align-items: center; }
+.cravo-visit-details { border-left: 1px solid #cdb9ac; padding: 20px 0 20px 55px; }
+.visit-business { font-size: 15px; }
+.visit-city { font: 400 44px 'Instrument Serif', Georgia, serif; margin: 13px 0 20px; }
+.cravo-visit-details > p:nth-child(3) { max-width: 330px; font-size: 14px; line-height: 1.8; }
+.pending { font-size: 11px; line-height: 1.8; color: #705954; margin-top: 20px; max-width: 340px; }
+.cravo-contact { text-align: center; background: #e9dcc8; padding: 85px 24px; }
+.cravo-contact h2 { font: 400 clamp(58px, 7cqi, 104px)/1 'Instrument Serif', Georgia, serif; letter-spacing: -.04em; margin: 25px 0; }
+.cravo-contact h2 em { font-weight: 400; }
+.cravo-contact > p:not(.eyebrow) { max-width: 420px; margin: auto; line-height: 1.8; font-size: 13px; }
+.cravo-footer { display: flex; justify-content: space-between; gap: 32px; padding: 34px 6%; font-size: 10px; line-height: 1.7; align-items: center; }
+.cravo-footer > span:first-child { font: 25px 'Instrument Serif', Georgia, serif; }
+.cravo-footer > p { max-width: 365px; }
+.headmasters { background: #111315; color: #f3f0e8; }
+.headmasters-header { padding: 32px 5%; display: flex; justify-content: space-between; align-items: center; gap: 28px; border-bottom: 1px solid #ffffff28; }
+.headmasters-brand { font: 700 26px/.9 'Barlow Condensed', Impact, sans-serif; letter-spacing: .04em; }
+.headmasters-brand span { font: 400 9px 'DM Sans', Arial, sans-serif; display: block; letter-spacing: .15em; text-transform: uppercase; margin-top: 9px; }
+.headmasters-header nav { display: flex; align-items: center; gap: 34px; font-size: 11px; }
+.headmasters-nav-contact { border: 1px solid #ffffff66; padding: 13px 18px; }
+.headmasters-nav-contact span { margin-left: 25px; }
+.headmasters-hero { padding: 30px 5% 0; }
+.headmasters-kicker { display: flex; justify-content: space-between; gap: 24px; text-transform: uppercase; font-size: 10px; letter-spacing: .14em; }
+.headmasters-hero h1 { margin: 28px 0 24px; font: 600 clamp(82px, 12.4cqi, 195px)/.86 'Barlow Condensed', Impact, sans-serif; letter-spacing: -.035em; }
+.headmasters-hero h1 span { color: #8199ff; }
+.headmasters-hero-intro { display: flex; justify-content: space-between; align-items: end; gap: 30px; padding: 8px 0 32px; }
+.headmasters-hero-intro > p { font-size: 12px; line-height: 1.8; color: #c4c6ca; }
+.headmasters-link { display: inline-flex; justify-content: space-between; gap: 30px; font-size: 11px; border-bottom: 1px solid currentColor; padding: 12px 0; }
+.headmasters-still { position: relative; }
+.headmasters-still img { width: 100%; height: 440px; object-fit: cover; object-position: center 59%; }
+.headmasters-still figcaption { font-size: 9px; color: #c4c6ca; padding: 12px 0 18px; text-align: right; }
+.headmasters-perspective { display: grid; grid-template-columns: 1fr 1fr; column-gap: 15%; padding: 88px 7%; background: #edece7; color: #191b1d; }
+.headmasters-perspective .eyebrow { grid-column: 1 / -1; margin-bottom: 30px; }
+.headmasters-perspective h2 { font: 600 clamp(54px, 6cqi, 84px)/.96 'Barlow Condensed', Impact, sans-serif; letter-spacing: -.03em; }
+.headmasters-perspective h2 em { font-style: normal; color: #244cc7; }
+.headmasters-perspective-copy { max-width: 360px; align-self: end; }
+.headmasters-perspective-copy > p { font-size: 14px; line-height: 1.9; }
+.headmasters-perspective-copy > p + p { margin-top: 18px; }
+.headmasters-before { padding: 80px 5%; }
+.headmasters-before-intro { display: flex; justify-content: space-between; align-items: start; gap: 40px; margin-bottom: 45px; }
+.headmasters-before .eyebrow { color: #a9b8fa; }
+.headmasters-before h2 { font: 600 clamp(48px, 5.8cqi, 76px)/.95 'Barlow Condensed', Impact, sans-serif; letter-spacing: -.025em; width: 51%; }
+.headmasters-steps { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 44px; }
+.headmasters-steps article { padding: 24px 0 0; border-top: 1px solid #ffffff35; }
+.headmasters-steps h3 { font-size: 16px; font-weight: 500; margin-bottom: 8px; }
+.headmasters-steps p { max-width: 360px; font-size: 12px; line-height: 1.9; color: #bfc2ca; }
+.headmasters-contact { display: grid; grid-template-columns: 1.1fr 1fr; padding: 74px 7%; gap: 15%; background: #244cc7; color: #fff; }
+.headmasters-contact h2 { font: 600 clamp(70px, 9cqi, 124px)/.87 'Barlow Condensed', Impact, sans-serif; letter-spacing: -.025em; margin-top: 30px; }
+.headmasters-contact-data { align-self: end; }
+.headmasters-city { font-size: 34px; font-weight: 500; letter-spacing: -.05em; line-height: 1.12; margin-bottom: 25px; }
+.headmasters-contact-data > p:not(.headmasters-city) { max-width: 310px; font-size: 12px; line-height: 1.85; }
+.headmasters-contact-data .headmasters-link { margin-top: 20px; }
+.headmasters-footer { display: flex; gap: 48px; justify-content: space-between; align-items: center; padding: 30px 5%; }
+.headmasters-footer > span { font: 600 23px 'Barlow Condensed', Impact, sans-serif; letter-spacing: .02em; }
+.headmasters-footer > p { max-width: 430px; font-size: 9px; line-height: 1.8; color: #babdc4; }
+@container (max-width: 800px) {
+  .cravo-header, .headmasters-header { padding: 24px 6%; }
+  .cravo-header nav, .headmasters-header nav { gap: 18px; }
+  .cravo-header nav > a:not(:last-child), .headmasters-header nav > a:not(:last-child) { display: none; }
+  .cravo-hero { margin-left: 6%; grid-template-columns: 1fr .85fr; min-height: 580px; }
+  .cravo-hero-copy { margin-right: -120px; }
+  .cravo-hero h1 { font-size: clamp(66px, 10.5cqi, 90px); }
+  .cravo-hero-bottom { max-width: 250px; }
+  .cravo-portrait { margin-left: 0; }
+  .cravo-portrait img { min-height: 570px; }
+  .cravo-essence { padding: 70px 6%; gap: 8%; }
+  .cravo-visit { gap: 7%; padding: 70px 0; }
+  .cravo-visit-details { padding-left: 30px; }
+  .headmasters-header { padding-left: 5%; padding-right: 5%; }
+  .headmasters-hero h1 { font-size: 12.2cqi; }
+  .headmasters-still img { height: 340px; }
+  .headmasters-perspective { column-gap: 8%; padding: 60px 6%; }
+  .headmasters-before { gap: 10%; padding: 65px 6%; }
+  .headmasters-contact { padding: 60px 6%; gap: 10%; }
+}
+@container (max-width: 560px) {
+  .demo-notice { padding: 9px 18px; font-size: 9px; }
+  .cravo-brand { font-size: 29px; }
+  .cravo-header { padding: 25px 6%; }
+  .cravo-nav-contact { padding-left: 0; font-size: 11px; }
+  .cravo-nav-contact span { margin-left: 16px; }
+  .cravo-hero { margin: 0; padding: 18px 6% 0; display: flex; flex-direction: column; align-items: stretch; min-height: auto; }
+  .cravo-hero-copy { margin: 0; padding: 0; }
+  .cravo-hero .eyebrow { font-size: 9px; letter-spacing: .08em; margin-bottom: 25px; }
+  .cravo-hero h1 { font-size: clamp(61px, 15.5cqi, 86px); line-height: .97; }
+  .cravo-hero-bottom { margin-top: 27px; max-width: 100%; }
+  .cravo-hero-bottom > p { font-size: 12px; line-height: 1.85; max-width: 290px; }
+  .cravo-button { margin-top: 19px; padding: 15px 18px; font-size: 11px; }
+  .cravo-portrait { margin: 30px -6.82% 0 18%; }
+  .cravo-portrait img { min-height: 0; height: 390px; object-position: center 32%; }
+  .cravo-portrait figcaption { font-size: 8px; }
+  .cravo-essence { display: block; padding: 56px 7%; }
+  .cravo-essence h2, .cravo-visit h2 { font-size: 43px; margin-top: 18px; }
+  .cravo-essence-copy { padding-top: 28px; }
+  .cravo-essence-copy p { font-size: 13px; }
+  .cravo-text-link { gap: 20px; font-size: 11px; }
+  .cravo-visit { display: block; margin: 0; padding: 54px 7%; }
+  .cravo-visit-details { margin-top: 35px; padding: 0 0 0 23px; }
+  .visit-city { font-size: 38px; }
+  .cravo-visit-details > p:nth-child(3) { font-size: 12px; }
+  .cravo-contact { padding: 55px 7%; }
+  .cravo-contact .eyebrow { font-size: 9px; }
+  .cravo-contact h2 { font-size: 65px; }
+  .cravo-contact > p:not(.eyebrow) { font-size: 12px; }
+  .cravo-footer { flex-wrap: wrap; gap: 18px; padding: 28px 7%; }
+  .cravo-footer > p { order: 3; width: 100%; }
+  .cravo-footer > span:last-child { margin-left: auto; }
+  .headmasters-header { padding: 25px 6%; gap: 15px; }
+  .headmasters-brand { font-size: 22px; }
+  .headmasters-brand span { font-size: 8px; }
+  .headmasters-nav-contact { padding: 11px 12px; font-size: 10px; }
+  .headmasters-nav-contact span { margin-left: 12px; }
+  .headmasters-hero { padding: 25px 6% 0; }
+  .headmasters-kicker { font-size: 8px; letter-spacing: .04em; }
+  .headmasters-hero h1 { font-size: 13.1cqi; margin: 32px 0 25px; line-height: .95; }
+  .headmasters-hero-intro { display: block; padding-bottom: 25px; }
+  .headmasters-hero-intro > p { font-size: 11px; }
+  .headmasters-hero-intro .headmasters-link { margin-top: 15px; }
+  .headmasters-link { font-size: 10px; }
+  .headmasters-still { margin: 0 -6.82%; }
+  .headmasters-still img { height: 310px; object-position: 60% center; }
+  .headmasters-still figcaption { padding: 12px 6%; font-size: 8px; text-align: left; }
+  .headmasters-perspective { display: block; padding: 48px 7%; }
+  .headmasters-perspective .eyebrow { font-size: 9px; margin-bottom: 22px; }
+  .headmasters-perspective h2 { font-size: 68px; }
+  .headmasters-perspective-copy { margin-top: 28px; }
+  .headmasters-perspective-copy > p { font-size: 12px; }
+  .headmasters-before { display: block; padding: 54px 7%; }
+  .headmasters-before-intro { display: block; margin-bottom: 30px; }
+  .headmasters-before h2 { font-size: 62px; width: 100%; margin: 24px 0 0; }
+  .headmasters-steps { display: block; }
+  .headmasters-steps article { padding: 20px 0; }
+  .headmasters-contact { display: block; padding: 52px 7%; }
+  .headmasters-contact .eyebrow { font-size: 9px; }
+  .headmasters-contact h2 { font-size: 100px; }
+  .headmasters-contact-data { margin-top: 38px; }
+  .headmasters-city { font-size: 29px; margin-bottom: 20px; }
+  .headmasters-contact-data > p:not(.headmasters-city) { font-size: 11px; }
+  .headmasters-footer { display: block; padding: 28px 7%; }
+  .headmasters-footer > p { margin-top: 15px; }
+}

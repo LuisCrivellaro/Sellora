@@ -1,6 +1,7 @@
 "use client";
 
 import { motion } from "motion/react";
+import Link from "next/link";
 import { Ban, Database, Download, ExternalLink, Eye, Flame, History, Monitor, MoreHorizontal, PlugZap, Radar, RefreshCw, Thermometer, UserPlus, type LucideIcon } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
@@ -13,7 +14,8 @@ import { EmptyState, ErrorState, Skeleton } from "@/components/ui/states";
 import { useToast } from "@/components/ui/toast";
 import { SEGMENTS, segmentMeta } from "@/lib/constants";
 import { importProspects } from "@/lib/data/repository";
-import { useStore } from "@/lib/data/store";
+import { enqueueDemoGeneration } from "@/lib/demos/generation-client";
+import { getDb, useStore } from "@/lib/data/store";
 import { formatDate, formatRelative } from "@/lib/dates";
 import { cardEntrance, useMotionEnabled } from "@/lib/motion";
 import { opportunityMeta } from "@/lib/prospecting/catalog";
@@ -27,7 +29,8 @@ import { ProspectDetail } from "./prospect-detail";
 import { ProspectForm } from "./prospect-form";
 import { ClassBadge, JobPanel, ScoreMeter, segmentLabel } from "./prospect-ui";
 import { useProspectJob } from "./use-prospect-job";
-import { DemoQueue } from "@/components/demos/demo-queue";
+import { DemoGeneratorStatus } from "@/components/demos/demo-generator-status";
+import { selectTopProspects } from "@/lib/prospecting/shortlist";
 
 const CLASSES: Classification[] = ["HOT", "WARM", "LOW", "SKIP"];
 type CrmState = { kind: "imported"; leadId: string } | { kind: "duplicate"; match: CrmMatch } | null;
@@ -60,6 +63,8 @@ export function ProspectingTab({ onOpenLead }: { onOpenLead: (leadId: string) =>
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [detailId, setDetailId] = useState<string | null>(null);
   const [lastParams, setLastParams] = useState<ProspectParams | null>(null);
+  const [reviewSearchId, setReviewSearchId] = useState<string | null>(null);
+  const [demosRequested, setDemosRequested] = useState(false);
 
   const scope = mode === "supabase" ? `conta:${account?.email ?? "?"}` : "local";
   useEffect(() => {
@@ -80,16 +85,18 @@ export function ProspectingTab({ onOpenLead }: { onOpenLead: (leadId: string) =>
     return map;
   }, [db, prospects.results]);
 
+  const reviewSearch = prospects.searches.find((search) => search.id === (reviewSearchId ?? jobApi.job?.id)) ?? prospects.searches[0];
+  const currentResults = useMemo(() => reviewSearch ? selectTopProspects(prospects.results.filter((result) => result.searchId === reviewSearch.id), reviewSearch.params.radiusKm) : [], [prospects.results, reviewSearch]);
   const filtered = useMemo(
     () =>
-      prospects.results.filter(
+      currentResults.filter(
         (r) =>
           matchesQuery(query, r.name, r.category, r.city, r.phone, r.instagram, r.website) &&
           (!filters.classification.length || filters.classification.includes(r.classification)) &&
           (!filters.segment.length || filters.segment.includes(r.segment)) &&
           (!filters.situation.length || filters.situation.includes(r.discarded ? "descartado" : crmState.get(r.id) ? "no_crm" : "novo")),
       ),
-    [prospects.results, query, filters, crmState],
+    [currentResults, query, filters, crmState],
   );
 
   if (!db || !prospects.ready) {
@@ -102,7 +109,7 @@ export function ProspectingTab({ onOpenLead }: { onOpenLead: (leadId: string) =>
     );
   }
 
-  const results = prospects.results;
+  const results = currentResults;
   const count = (c: Classification) => results.filter((r) => r.classification === c && !r.discarded).length;
   const importedCount = db.leads.filter((l) => l.source === "prospeccao_ia").length;
   const completed = prospects.searches.filter((s) => s.status === "completed").length;
@@ -147,10 +154,15 @@ export function ProspectingTab({ onOpenLead }: { onOpenLead: (leadId: string) =>
   const prepareDemos = (items: StoredProspect[]) => {
     try {
       const report = importProspects(items, { generateDemos: true });
+      setDemosRequested(true);
+      enqueueDemoGeneration(report.demos.filter((item) => {
+        const demo = getDb().leads.find((lead) => lead.id === item.leadId)?.demo;
+        return demo && demo.version < 4 && demo.status === "pending";
+      }).map((item) => item.leadId));
       markImported(report.demos);
       const generated = report.demos.filter((d) => !d.reused).length;
       const reused = report.demos.filter((d) => d.reused).length;
-      notify({ kind: generated ? "success" : "info", title: `${generated} demo(s) preparada(s) · ${reused} reaproveitada(s)`, description: `${report.invalid.length} inválido(s). Apenas HOT/WARM não descartados; ganhos e perdidos ficam de fora. Revise as mensagens na fila abaixo.` });
+      notify({ kind: generated ? "success" : "info", title: `${generated} prospecção(ões) preparada(s) · ${reused} reaproveitada(s)`, description: "A geração solicitada está na fila. Acompanhe o progresso e revise o resultado em Leads → Demos." });
       setSelected(new Set());
     } catch (e) { notify({ kind: "error", title: "Não foi possível preparar as demos", description: e instanceof Error ? e.message : "Tente novamente." }); }
   };
@@ -212,12 +224,12 @@ export function ProspectingTab({ onOpenLead }: { onOpenLead: (leadId: string) =>
     { key: "date", header: "Pesquisa", hideBelow: "2xl", sortValue: (r) => r.checkedAt, cell: (r) => <span className="tnum whitespace-nowrap">{formatDate(r.checkedAt)}</span> },
   ];
 
-  const selectedItems = results.filter((r) => selected.has(r.id));
+  const selectedItems = filtered.filter((r) => selected.has(r.id));
 
   return (
     <div className="grid grid-cols-12 gap-3.5">
       <div className="col-span-12 grid grid-cols-2 gap-3.5 sm:grid-cols-3 xl:grid-cols-5">
-        <Kpi index={0} featured title="Total encontrados" value={results.length} note="Resultados salvos neste navegador, todas as classes" icon={Radar} />
+        <Kpi index={0} featured title="Melhores leads" value={results.length} note="Até 10 qualificados da pesquisa selecionada" icon={Radar} />
         <Kpi index={1} title="HOT" value={count("HOT")} note="Sem site próprio (sem descartados)" icon={Flame} />
         <Kpi index={2} title="WARM" value={count("WARM")} note="Site com problemas verificáveis" icon={Thermometer} />
         <Kpi index={3} title="Importados ao CRM" value={importedCount} note="Leads com origem Prospecção IA" icon={Database} />
@@ -256,9 +268,13 @@ export function ProspectingTab({ onOpenLead }: { onOpenLead: (leadId: string) =>
             <ProspectForm
               disabled={jobApi.running || jobApi.starting}
               busy={jobApi.starting}
-              onSubmit={(p, generateDemos) => {
+              onSubmit={(p) => {
                 setLastParams(p);
-                void jobApi.start(p, generateDemos);
+                setReviewSearchId(null);
+                setSelected(new Set());
+                setQuery("");
+                setFilters({ classification: [], segment: [], situation: [] });
+                void jobApi.start(p);
               }}
             />
             {jobApi.requestError && !jobApi.job && (
@@ -273,7 +289,7 @@ export function ProspectingTab({ onOpenLead }: { onOpenLead: (leadId: string) =>
       <DashboardCard index={6} className="col-span-12 lg:col-span-7" title="Execução" description="Acompanhamento em tempo real e histórico das pesquisas">
         {jobApi.job ? (
           <>
-            <JobPanel job={jobApi.job} onCancel={() => void jobApi.cancel()} onDismiss={jobApi.dismiss} onRetry={() => void jobApi.start(lastParams ?? jobApi.job!.params, prospects.searches.find((s) => s.id === jobApi.job!.id)?.generateDemos)} />
+            <JobPanel job={jobApi.job} onCancel={() => void jobApi.cancel()} onDismiss={jobApi.dismiss} onRetry={() => void jobApi.start(lastParams ?? jobApi.job!.params)} />
             {jobApi.requestError && (
               <p role="alert" className="mt-3 text-[12.5px] font-medium text-danger">
                 {jobApi.requestError}
@@ -285,9 +301,7 @@ export function ProspectingTab({ onOpenLead }: { onOpenLead: (leadId: string) =>
             {prospects.searches.slice(0, 6).map((s) => (
               <li key={s.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 py-2.5 first:pt-0">
                 <span className="min-w-0 flex-1">
-                  <span className="block truncate text-[13px] font-semibold text-ink">
-                    {s.params.city}/{s.params.uf} · {segmentLabel(s.params.segment)}
-                  </span>
+                  <button type="button" className="block max-w-full truncate text-left text-[13px] font-semibold text-ink underline-offset-4 hover:underline focus-visible:outline-2" onClick={() => { setReviewSearchId(s.id); setSelected(new Set()); setQuery(""); setFilters({ classification: [], segment: [], situation: [] }); }}>{s.params.city}/{s.params.uf} · {segmentLabel(s.params.segment)}</button>
                   <span className="block text-[11.5px] text-ink-faint">
                     {s.params.radiusKm} km · até {s.params.maxResults} · {opportunityMeta[s.params.opportunity].label} · {formatRelative(s.startedAt)}
                   </span>
@@ -299,22 +313,16 @@ export function ProspectingTab({ onOpenLead }: { onOpenLead: (leadId: string) =>
             ))}
           </ul>
         ) : (
-          <EmptyState icon={<Radar className="size-5" aria-hidden />} title="Nenhuma pesquisa ainda" description={configured ? "Escolha cidade e segmento e clique em Buscar oportunidades. O progresso aparece aqui." : "Ative o executor para começar. Nada é simulado."} />
+          <EmptyState icon={<Radar className="size-5" aria-hidden />} title="Nenhuma pesquisa ainda" description={configured ? "Escolha cidade, segmento e raio para buscar os 10 melhores leads. O progresso aparece aqui." : "Ative o executor para começar. Nada é simulado."} />
         )}
         {prospects.storageError && <p className="mt-3 text-[12px] text-warn">{prospects.storageError}</p>}
-        {prospects.searches.filter((s) => s.generateDemos && (s.demoSummary || s.demoError)).slice(0, 3).map((s) => <div key={s.id} className="mt-3 rounded-xl border border-seam p-3 text-[12px] text-ink-soft" role="status">
-          <p className="font-semibold text-ink">Demos · {s.params.city}/{s.params.uf}</p>
-          {s.demoError ? <p className="text-danger">{s.demoError} Gere novamente pelos resultados abaixo.</p> : <p>{s.demoSummary!.generated} gerada(s) · {s.demoSummary!.reused} reaproveitada(s) · {s.demoSummary!.ignored} ignorada(s) · {s.demoSummary!.invalid} inválida(s). As mensagens ficam na fila de aprovação.</p>}
-        </div>)}
       </DashboardCard>
-
-      <DemoQueue onOpenLead={onOpenLead} />
 
       <DashboardCard
         index={7}
         className="col-span-12"
-        title="Oportunidades encontradas"
-        description={`${filtered.length} de ${results.length} resultados · histórico salvo neste navegador`}
+        title="10 melhores leads para revisão"
+        description={reviewSearch ? `${reviewSearch.params.city}/${reviewSearch.params.uf} · raio de ${reviewSearch.params.radiusKm} km · ${filtered.length} de ${results.length} qualificados` : "Escolha uma região para encontrar oportunidades"}
         actions={
           <Menu
             label="Exportar resultados filtrados"
@@ -331,18 +339,20 @@ export function ProspectingTab({ onOpenLead }: { onOpenLead: (leadId: string) =>
           />
         }
       >
+        <p className="mb-4 text-[12.5px] leading-relaxed text-ink-soft">Ranking por pontuação comercial, com desempate por confiança dos dados e proximidade. Abra o diagnóstico para conferir as evidências. A prospecção com demo começa quando você apertar o botão abaixo.</p>
+        {reviewSearch?.status === "completed" && results.length < 10 && <p role="status" className="mb-4 text-[12px] text-ink-faint">Esta pesquisa encontrou {results.length} lead(s) qualificado(s) dentro do raio selecionado.</p>}
         <div className="mb-4 flex flex-wrap items-center gap-2">
-          <SearchInput label="Buscar por nome" value={query} onChange={setQuery} placeholder="Buscar por nome, categoria, telefone…" className="w-full sm:w-[320px]" />
+          <SearchInput label="Buscar por nome" value={query} onChange={(value) => { setQuery(value); setSelected(new Set()); }} placeholder="Buscar por nome, categoria, telefone…" className="w-full sm:w-[320px]" />
           <FilterPopover
             value={filters}
-            onChange={setFilters}
+            onChange={(value) => { setFilters(value); setSelected(new Set()); }}
             groups={[
               { key: "classification", label: "Temperatura", options: CLASSES.map((c) => ({ value: c, label: `${c} · ${classificationMeta[c].description}` })) },
               { key: "segment", label: "Segmento", options: SEGMENTS.map((s) => ({ value: s, label: segmentMeta[s].label })) },
               { key: "situation", label: "Situação", options: [{ value: "novo", label: "Fora do CRM" }, { value: "no_crm", label: "No CRM" }, { value: "descartado", label: "Descartados" }] },
             ]}
           />
-          <Button size="sm" variant="secondary" disabled={!filtered.some((r) => !r.discarded && ["HOT", "WARM"].includes(r.classification))} onClick={() => prepareDemos(selected.size ? selectedItems : filtered)}><Monitor aria-hidden />{selected.size ? "Gerar demos selecionadas" : "Gerar demos dos qualificados"}</Button>
+          <Button size="sm" variant="primary" disabled={!(selectedItems.length || filtered.length)} onClick={() => prepareDemos(selectedItems.length ? selectedItems : filtered)}><Monitor aria-hidden />Gerar prospecção com demo ({selectedItems.length || filtered.length})</Button>
           {selected.size > 0 && (
             <div className="ml-auto flex flex-wrap items-center gap-1.5 rounded-full border border-seam-strong bg-selected py-1 pr-1 pl-3.5">
               <span className="tnum text-[12.5px] font-semibold text-ink">{selected.size} selecionados</span>
@@ -396,7 +406,7 @@ export function ProspectingTab({ onOpenLead }: { onOpenLead: (leadId: string) =>
                 }
                 items={[
                   { label: "Ver diagnóstico", icon: <Eye />, onSelect: () => setDetailId(r.id) },
-                  { label: "Preparar demo e mensagem", icon: <Monitor />, disabled: r.discarded || !["HOT", "WARM"].includes(r.classification), onSelect: () => prepareDemos([r]) },
+                  { label: "Gerar prospecção com demo", icon: <Monitor />, disabled: r.discarded || !["HOT", "WARM"].includes(r.classification), onSelect: () => prepareDemos([r]) },
                   s
                     ? { label: "Ver no CRM", icon: <Database />, onSelect: () => onOpenLead(s.kind === "imported" ? s.leadId : s.match.leadId) }
                     : { label: "Adicionar ao CRM", icon: <UserPlus />, disabled: r.classification === "SKIP" || r.discarded, onSelect: () => doImport([r]) },
@@ -436,6 +446,7 @@ export function ProspectingTab({ onOpenLead }: { onOpenLead: (leadId: string) =>
           }
         />
         {results.length > 0 && <p className="mt-3 text-[11.5px] text-ink-faint">Dados © colaboradores do OpenStreetMap (ODbL). Telefones, sites e perfis são dados comerciais públicos da fonte; confira antes do contato. Nenhuma mensagem é enviada automaticamente.</p>}
+        {demosRequested && <div className="mt-4"><DemoGeneratorStatus /><Link href="/leads?aba=demos" className="text-[13px] font-semibold text-ink underline underline-offset-4">Abrir fila de demos para revisão</Link></div>}
       </DashboardCard>
 
       <ProspectDetail
