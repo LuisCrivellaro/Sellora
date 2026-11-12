@@ -1,5 +1,6 @@
 import { crmSegmentFromTags, UF_NAMES, type ProspectSegment } from "./catalog";
 import { instagramHandle, normalizeName, type Candidate } from "./classify";
+import { findMunicipio } from "./municipios";
 import { USER_AGENT } from "./site-check";
 import type { ProspectParams } from "./types";
 
@@ -41,6 +42,9 @@ export interface GeoPoint {
 }
 
 export async function geocodeCity(city: string, uf: keyof typeof UF_NAMES, signal: AbortSignal): Promise<GeoPoint> {
+  // Município da lista oficial: coordenada embutida, sem consulta externa.
+  const known = findMunicipio(city, uf);
+  if (known) return { lat: known.lat, lon: known.lon, label: `${known.name}, ${UF_NAMES[uf]}` };
   const key = `${normalizeName(city)}|${uf}`;
   const cached = osm.geocodeCache.get(key);
   if (cached && Date.now() - cached.at < 24 * 3600_000) return cached.value;
@@ -80,32 +84,71 @@ export interface OsmElement {
   tags?: Record<string, string>;
 }
 
+/**
+ * Servidores Overpass públicos (mesmos dados do OpenStreetMap). Quando um
+ * está sobrecarregado, a busca passa para o próximo em vez de falhar.
+ */
+export const OVERPASS_ENDPOINTS = [
+  ...new Set([OVERPASS_URL, "https://overpass-api.de/api/interpreter", "https://overpass.private.coffee/api/interpreter", "https://maps.mail.ru/osm/tools/overpass/api/interpreter"]),
+];
+const OVERPASS_MAX_ATTEMPTS = 6;
+const OVERPASS_BUDGET_MS = 4 * 60_000; // cabe no limite de 5 min do job
+const BUSY = [429, 502, 503, 504];
+
 export async function fetchOverpass(query: string, signal: AbortSignal): Promise<OsmElement[]> {
-  const attempt = () =>
-    serialize("overpassChain", 1000, async () => {
-      const res = await fetch(OVERPASS_URL, {
-        method: "POST",
-        cache: "no-store",
-        signal: AbortSignal.any([signal, AbortSignal.timeout(70_000)]),
-        headers: { "User-Agent": USER_AGENT, "Content-Type": "application/x-www-form-urlencoded", Accept: "application/json" },
-        body: new URLSearchParams({ data: query }).toString(),
-      });
-      return res;
-    });
-  let res = await attempt();
-  if ([429, 502, 503, 504].includes(res.status)) {
-    await res.body?.cancel().catch(() => undefined);
-    await new Promise((r) => setTimeout(r, 4000));
+  const started = Date.now();
+  let lastProblem = "";
+  for (let i = 0; i < OVERPASS_MAX_ATTEMPTS; i++) {
     if (signal.aborted) throw new SourceError("Pesquisa cancelada.");
-    res = await attempt();
+    if (i > 0) {
+      if (Date.now() - started > OVERPASS_BUDGET_MS) break;
+      // Espera crescente entre rodadas; troca de servidor a cada tentativa.
+      await new Promise((r) => setTimeout(r, Math.min(15_000, 2000 * i)));
+      if (signal.aborted) throw new SourceError("Pesquisa cancelada.");
+    }
+    const endpoint = OVERPASS_ENDPOINTS[i % OVERPASS_ENDPOINTS.length];
+    const remaining = Math.max(20_000, OVERPASS_BUDGET_MS - (Date.now() - started));
+    let res: Response;
+    try {
+      res = await serialize("overpassChain", 1000, () =>
+        fetch(endpoint, {
+          method: "POST",
+          cache: "no-store",
+          signal: AbortSignal.any([signal, AbortSignal.timeout(Math.min(75_000, remaining))]),
+          headers: { "User-Agent": USER_AGENT, "Content-Type": "application/x-www-form-urlencoded", Accept: "application/json" },
+          body: new URLSearchParams({ data: query }).toString(),
+        }),
+      );
+    } catch (e) {
+      if (signal.aborted) throw new SourceError("Pesquisa cancelada.");
+      lastProblem = e instanceof Error && e.name === "TimeoutError" ? "demorou demais para responder" : "não respondeu";
+      continue;
+    }
+    if (BUSY.includes(res.status)) {
+      await res.body?.cancel().catch(() => undefined);
+      lastProblem = `ocupado (HTTP ${res.status})`;
+      continue;
+    }
+    if (!res.ok) {
+      await res.body?.cancel().catch(() => undefined);
+      throw new SourceError(`Falha na busca de estabelecimentos (HTTP ${res.status}).`);
+    }
+    let json: { elements?: OsmElement[]; remark?: string };
+    try {
+      json = (await res.json()) as typeof json;
+    } catch {
+      lastProblem = "devolveu resposta inválida";
+      continue;
+    }
+    if (json.remark && /out of memory/i.test(json.remark)) throw new SourceError("A busca ficou grande demais para o OpenStreetMap. Reduza o raio ou escolha um segmento.");
+    // "timed out" com servidor congestionado: tenta outro servidor antes de culpar o tamanho da busca.
+    if (json.remark && /timed out|too busy|rate_limited/i.test(json.remark)) {
+      lastProblem = "interrompeu a consulta por sobrecarga";
+      continue;
+    }
+    return json.elements ?? [];
   }
-  if (!res.ok) {
-    await res.body?.cancel().catch(() => undefined);
-    throw new SourceError([429, 502, 503, 504].includes(res.status) ? "O OpenStreetMap (Overpass) está ocupado. Tente de novo em alguns minutos." : `Falha na busca de estabelecimentos (HTTP ${res.status}).`);
-  }
-  const json = (await res.json()) as { elements?: OsmElement[]; remark?: string };
-  if (json.remark && /timed out|out of memory/i.test(json.remark)) throw new SourceError("A busca ficou grande demais para o OpenStreetMap. Reduza o raio ou escolha um segmento.");
-  return json.elements ?? [];
+  throw new SourceError(`Os servidores do OpenStreetMap estão sobrecarregados agora (último: ${lastProblem || "sem resposta"}). Tente de novo em alguns minutos.`);
 }
 
 export function haversineKm(a: { lat: number; lon: number }, b: { lat: number; lon: number }): number {
