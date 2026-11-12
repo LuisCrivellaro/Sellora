@@ -6,7 +6,7 @@ import { usePathname } from "next/navigation";
 import { useEffect, useRef, useSyncExternalStore } from "react";
 import BranchedMenu from "./branched-menu";
 import { Logo } from "./logo";
-import { isActive, NAV_ITEMS, NAV_SECTIONS } from "./nav-config";
+import { findActiveItem, NAV_SECTIONS } from "./nav-config";
 import "./sidebar.css";
 
 const MENU_ITEMS = NAV_SECTIONS.map((section) => ({
@@ -24,7 +24,7 @@ const getServerTablet = () => false;
 
 function SidebarMenu({ compact = false, onSelect }: { compact?: boolean; onSelect?: () => void }) {
   const pathname = usePathname();
-  const active = NAV_ITEMS.find((item) => isActive(pathname, item.href))?.href ?? "";
+  const active = findActiveItem(pathname)?.href ?? "";
   return <BranchedMenu items={MENU_ITEMS} activeValue={active} compact={compact} onSelect={onSelect} />;
 }
 

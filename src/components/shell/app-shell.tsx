@@ -12,7 +12,7 @@ import { reloadFromServer, useStore } from "@/lib/data/store";
 import { motionTokens, useMotionEnabled } from "@/lib/motion";
 import { GlobalSearch } from "./global-search";
 import { NotificationsButton, SearchButton, SettingsShortcut, UserMenu } from "./header-actions";
-import { isActive, NAV_ITEMS, NAV_SECTIONS } from "./nav-config";
+import { findActiveItem, NAV_SECTIONS } from "./nav-config";
 import { Sidebar, SidebarTrigger } from "./sidebar";
 import { SyncStatus } from "./sync-status";
 
@@ -58,7 +58,7 @@ function PanelShell({ children }: { children: ReactNode }) {
   if (drawer.pathname !== pathname) setDrawer({ open: false, pathname });
   const setDrawerOpen = useCallback((open: boolean) => setDrawer({ open, pathname }), [pathname]);
   const closeDrawer = useCallback(() => setDrawer((current) => ({ ...current, open: false })), []);
-  const currentPage = NAV_ITEMS.find((item) => isActive(pathname, item.href));
+  const currentPage = findActiveItem(pathname);
   const currentSection = NAV_SECTIONS.find((section) => section.items.some((item) => item.href === currentPage?.href));
   const mainRef = useRef<HTMLElement>(null);
   const first = useRef(true);
