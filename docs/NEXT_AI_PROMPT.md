@@ -16,6 +16,11 @@ Você vai continuar o desenvolvimento da **Sellora**, um app de CRM e geração 
 2. **Cloud 3D (Claw3D)**: integrar o projeto open source https://github.com/iamlukethedev/Claw3D como aba "Cloud 3D" (`/dashboard/cloud-3d`) para observar agentes reais (primeiro o gerador de demos, que já grava `events` com horário real por etapa em cada job: `src/lib/demos/generation-server.ts`). Criar o "Sellora Agent Bridge" (registro de agentes reais, estados queued/running/waiting_approval/completed/failed/cancelled/offline, runtime `custom` do Claw3D com /health, /state, /registry conforme o contrato real), SSE/WebSocket, Claude Code hooks e Codex opcionais, sem agentes fictícios, validar no Electron, documentar em `docs/CLAW3D_INTEGRATION.md`. Detalhes completos em `docs/AI_HANDOFF.md`.
 3. **Remover imagen-skill/Gemini e manter imagens só pelo Codex**: o usuário não quer API paga. Remover `src/lib/demos/gemini-server.ts` e seus usos (seletor "Imagem: Gemini", status `gemini`, `GEMINI_API_KEY` no `.env.example`, trechos do README/DECISIONS, teste `gemini-server.test.ts`), a pasta local `.claude/skills/imagen` e a linha dela no `.gitignore`. Manter Codex + fallback SVG gratuito. Preservar V6, visualizador, ZIP, Claude nos textos, aprovação/recusa e Cloud 3D.
 
+## Estado no fim da última sessão
+- Missão 1: implementada e testada (206 testes, lint, typecheck, build e build Windows ok; 1 demo V6 real completa e verificada no Edge; ZIP íntegro). Faltam: demos de teste de restaurante e clínica + comparação lado a lado, verificação visual do painel Prévia | Código dentro do app e uma geração V6 dentro do .exe.
+- Missão 2: análise do Claw3D feita (contrato real do runtime `custom` em `docs/CLAW3D_INTEGRATION.md`); Sellora Agent Bridge (`/api/agents/*`, SSE) e aba "Cloud 3D" (`/dashboard/cloud-3d`) com painel de agentes reais implementados e testados por unidade/build, ainda não vistos no navegador. Falta o provider `sellora` num fork do Claw3D, o serviço local gerenciado pelo Electron e a cena 3D na aba.
+- Missão 3: não iniciada.
+
 ## O que fazer primeiro
 1. `git fetch && git checkout feat/demo-generator-v6 && git pull` e `npm ci`.
 2. Ler `docs/AI_HANDOFF.md` (seções "Estado exato" e "Missões"), `docs/DECISIONS.md` (últimas entradas), `docs/SKILLS_SETUP.md`.
