@@ -8,6 +8,19 @@ import { approvedConcepts } from "@/lib/demos/concepts";
 import { GeneratedDemoSite } from "./generated-demo-site";
 
 export function DemoCover({ demo }: { demo: LeadDemo }) {
+  if (demo.version === 6 && demo.site) {
+    const site = demo.site;
+    const hero = site.images[0];
+    // Captura real da auditoria em 1440 px; sem ela, a imagem do hero com o título da página.
+    return <div aria-hidden className={styles.cover}>
+      <div className={styles.chrome}><i /><i /><i /><span>{demo.business.name}</span></div>
+      {site.preview ? <img className={styles.conceptCover} src={`/api/demos/sites/${site.id}/preview`} alt="" width={1440} height={900} loading="lazy" />
+        : <div className={styles.siteFallback} style={{ "--cover-paper": site.summary.palette[0], "--cover-ink": site.summary.palette[2], "--cover-accent": site.summary.palette[4] } as CSSProperties}>
+          {hero && <img src={`/sites/${site.id}/${hero.path}`} alt="" width={600} height={400} loading="lazy" />}
+          <strong>{site.summary.headline}</strong>
+        </div>}
+    </div>;
+  }
   if (demo.version === 5 && demo.creation) return <div aria-hidden inert className={styles.generatedCover}><div className={styles.generatedScale}><GeneratedDemoSite business={demo.business} creation={demo.creation} cover /></div></div>;
   if (demo.version === 4 && demo.conceptId) return <div aria-hidden className={styles.cover}>
     <div className={styles.chrome}><i /><i /><i /><span>{demo.business.name}</span></div>

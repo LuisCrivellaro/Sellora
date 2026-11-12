@@ -5,5 +5,6 @@ import nextTs from "eslint-config-next/typescript";
 export default defineConfig([
   ...nextVitals,
   ...nextTs,
-  globalIgnores([".next/**", ".desktop-web/**", "release/**", "out/**", "build/**", "coverage/**", "next-env.d.ts"]),
+  // Skills de terceiros (Taste, Impeccable etc.) trazem scripts próprios, minificados ou não; não são código do app.
+  globalIgnores([".next/**", ".desktop-web/**", "release/**", "out/**", "build/**", "coverage/**", "next-env.d.ts", ".claude/skills/**", ".agents/skills/**"]),
 ]);

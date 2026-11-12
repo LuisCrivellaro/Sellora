@@ -4,6 +4,7 @@ import { uid } from "../utils";
 import { createDemoPersonalization, demoPersonalizationSchema } from "./personalization";
 import { approvedConceptIdSchema, approvedConcepts, conceptMatchesBusiness, findApprovedConcept, type ApprovedConceptId } from "./concepts";
 import { demoImageProviderSchema, demoTextProviderSchema, generatedCreationSchema, type GeneratedCreation } from "./creation";
+import { siteRefSchema, type SiteRef } from "./v6/schema";
 
 // Lista explícita: observações, e-mail, score e dados do CRM nunca entram na prévia.
 export const demoBusinessSchema = z.object({
@@ -18,7 +19,7 @@ export const demoBusinessSchema = z.object({
 export type DemoBusiness = z.infer<typeof demoBusinessSchema>;
 export const demoMessageSchema = z.string().trim().min(10, "Escreva ao menos 10 caracteres.").max(2000, "Use até 2.000 caracteres.");
 export const CURRENT_DEMO_VERSION = 4;
-export const demoDesignVersionSchema = z.union([z.literal(1), z.literal(2), z.literal(3), z.literal(4), z.literal(5)]);
+export const demoDesignVersionSchema = z.union([z.literal(1), z.literal(2), z.literal(3), z.literal(4), z.literal(5), z.literal(6)]);
 export const leadDemoSchema = z.object({
   id: z.uuid(),
   version: demoDesignVersionSchema,
@@ -26,6 +27,8 @@ export const leadDemoSchema = z.object({
   design: demoPersonalizationSchema.optional(),
   conceptId: approvedConceptIdSchema.optional(),
   creation: generatedCreationSchema.optional(),
+  /** V6: referência ao site com código próprio (arquivos imutáveis em <dados>/sites/<id>). */
+  site: siteRefSchema.optional(),
   /** Uso interno do CRM (comparação Codex × Claude). Não entra no link público. */
   textProvider: demoTextProviderSchema.optional(),
   imageProvider: demoImageProviderSchema.optional(),
@@ -52,11 +55,12 @@ export function demoRevision(demo: LeadDemo | null | undefined): string | null {
   return demo ? JSON.stringify([demo.id, demo.updatedAt, demo.message, demo.status, demo.creation?.id, demo.lastManualSend?.at]) : null;
 }
 
-function validPresentation(doc: { version: number; business: DemoBusiness; design?: z.infer<typeof demoPersonalizationSchema>; conceptId?: ApprovedConceptId; creation?: GeneratedCreation }): boolean {
+function validPresentation(doc: { version: number; business: DemoBusiness; design?: z.infer<typeof demoPersonalizationSchema>; conceptId?: ApprovedConceptId; creation?: GeneratedCreation; site?: SiteRef }): boolean {
   // v3 com `design` = personalização; v3 sem `design` = direção por tipo de negócio (kinds.ts), ambas aceitas.
   if (doc.version === 3) return true;
   if (doc.version === 4) return !!doc.conceptId && conceptMatchesBusiness(doc.conceptId, doc.business);
   if (doc.version === 5) return !!doc.creation;
+  if (doc.version === 6) return !!doc.site;
   return true;
 }
 
@@ -80,6 +84,8 @@ export function demoPreviewUrl(demo: LeadDemo, origin: string): string {
   if (!["http:", "https:"].includes(base.protocol) || base.username || base.password) throw new Error("Endereço de prévia inválido.");
   const business = demoBusinessSchema.parse(demo.business);
   const valid = leadDemoSchema.parse(demo);
+  // V6: o próprio site gravado é a prévia (os mesmos arquivos do visualizador de código e do ZIP).
+  if (valid.version === 6 && valid.site) return `${base.origin}/sites/${valid.site.id}/index.html`;
   const bytes = new TextEncoder().encode(JSON.stringify({ version: valid.version, business, ...(valid.version === 3 ? { design: valid.design } : {}), ...(valid.version === 4 ? { conceptId: valid.conceptId } : {}), ...(valid.version === 5 ? { creation: valid.creation } : {}) }));
   const encoded = btoa(String.fromCharCode(...bytes)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
   return `${base.origin}/demo#${encoded}`;

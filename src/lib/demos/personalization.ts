@@ -64,7 +64,8 @@ export const demoLayoutNames: Record<DemoPersonalization["layout"], string> = {
   editorial: "Editorial", poster: "Capa fotográfica", portrait: "Retrato", banner: "Panorama", framed: "Emoldurado",
 };
 
-export function demoDesignName(demo: { version: number; business: DemoBusiness; design?: DemoPersonalization; conceptId?: ApprovedConceptId; creation?: { name: string } }): string {
+export function demoDesignName(demo: { version: number; business: DemoBusiness; design?: DemoPersonalization; conceptId?: ApprovedConceptId; creation?: { name: string }; site?: { id: string } }): string {
+  if (demo.version === 6 && demo.site) return "Site próprio V6";
   if (demo.version === 5 && demo.creation) return demo.creation.name;
   if (demo.version === 4 && demo.conceptId) return approvedConcepts[demo.conceptId].name;
   if (demo.version === 1) return "Visual original";

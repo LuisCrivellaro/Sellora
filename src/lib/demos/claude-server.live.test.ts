@@ -14,5 +14,5 @@ it.skipIf(process.env.SELLORA_LIVE_CLAUDE !== "1")("gera direção e textos reai
   const started = Date.now();
   const draft = await writer.draft(draftPrompt(business, []));
   await writeFile(path.join(workspace, "ultimo-resultado.json"), JSON.stringify({ seconds: Math.round((Date.now() - started) / 1000), estimatedUsd: writer.estimatedUsd, draft }, null, 2), "utf8");
-  expect(draftIssues(draft, { id: crypto.randomUUID(), business, history: [], textProvider: "claude", imageProvider: "gemini" })).toEqual([]);
+  expect(draftIssues(draft, { id: crypto.randomUUID(), business, history: [], textProvider: "claude", imageProvider: "gemini", generator: "v5", phone: "" })).toEqual([]);
 }, 400_000);

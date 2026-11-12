@@ -20,6 +20,8 @@ await cp(".next/standalone", target, { recursive: true });
 await cp(".next/static", path.join(target, ".next/static"), { recursive: true });
 await cp("public", path.join(target, "public"), { recursive: true });
 await cp(".agents/skills/unique-site-designer", path.join(target, ".agents/skills/unique-site-designer"), { recursive: true });
+// Guia de criação lido pelo gerador V6 a cada demo (src/lib/demos/v6/prompts.ts).
+await cp(".agents/skills/demo-generator-v6", path.join(target, ".agents/skills/demo-generator-v6"), { recursive: true });
 const unexpected = (await readdir(target)).filter((name) => [".sellora-data", "test-results", "release", "src"].includes(name));
 if (unexpected.length) throw new Error(`O rastreamento incluiu artefatos locais: ${unexpected.join(", ")}`);
 async function removeEnv(dir) {

@@ -40,6 +40,30 @@ describe("demos e aprovação humana", () => {
     applyGeneratedLeadDemo(lead.id, result, demoRevision(before));
     expect(getDb().leads[0].demo).toEqual(after);
   });
+  it("aplica um site V6: prévia pelo próprio site, aprovação, recusa e persistência preservadas", () => {
+    const lead = createLead({ ...input, phone: "(19) 99999-1234" });
+    const before = generateLeadDemo(lead.id);
+    const site = {
+      id: "8f7a3f0e-2c4b-4d1a-9a55-1c2b3d4e5f60", generator: "v6" as const, title: "Café de esquina com balcão de madeira", createdAt: new Date().toISOString(),
+      files: [{ path: "index.html" as const, size: 10, sha256: "a".repeat(64) }, { path: "styles.css" as const, size: 5, sha256: "b".repeat(64) }],
+      images: [], preview: false, qa: { status: "passed" as const, browser: "executed" as const, rounds: 0, issues: [] },
+      summary: { headline: "Café no centro de Campinas", texts: ["Um balcão para o café da manhã no centro."], fonts: ["Fraunces", "Inter Tight"], palette: ["#f4efe6", "#e9e1d3", "#1d1a16", "#5a5248", "#7a2e1f", "#ffffff"], sections: ["inicio", "cardapio", "contato"], hero: "foto ampla", signature: "fraunces|inicio>cardapio>contato" },
+    };
+    applyGeneratedLeadDemo(lead.id, { site, message: "Olá! Preparei uma demonstração não oficial de site para o café. Posso enviar o link?" }, demoRevision(before));
+    const demo = getDb().leads[0].demo!;
+    expect(demo.version).toBe(6);
+    expect(demo.creation).toBeUndefined();
+    expect(demoPreviewUrl(demo, "http://127.0.0.1:3187")).toBe(`http://127.0.0.1:3187/sites/${site.id}/index.html`);
+    expect(demoCreativeContent(demo).texts).toContain("Café no centro de Campinas");
+    expect(leadFromRow(leadToRow(getDb().leads[0])).demo).toEqual(demo);
+    approveLeadDemo(lead.id);
+    expect(demoMessageForCopy(getDb().leads[0].demo!, "http://127.0.0.1:3187")).toContain(`/sites/${site.id}/index.html`);
+    revokeDemoApproval(lead.id);
+    rejectLeadDemo(lead.id);
+    expect(getDb().leads[0].demo!.status).toBe("rejected");
+    restoreLeadDemo(lead.id);
+    expect(getDb().leads[0].demo!.site?.id).toBe(site.id);
+  });
   it("recusa sobrescrever uma mensagem editada enquanto o gerador estava trabalhando", () => {
     const lead = createLead(input);
     const before = generateLeadDemo(lead.id);

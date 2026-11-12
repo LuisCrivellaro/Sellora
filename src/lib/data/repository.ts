@@ -294,13 +294,15 @@ export function applyGeneratedLeadDemo(leadId: ID, result: GenerationResult, exp
     const lead = db.leads.find((item) => item.id === leadId);
     if (!lead) throw new Error("Lead removido durante a geração.");
     const previous = lead.demo;
-    if (previous?.creation?.id === generated.creation.id) { saved = previous; return db; }
+    if ((generated.creation && previous?.creation?.id === generated.creation.id) || (generated.site && previous?.site?.id === generated.site.id)) { saved = previous; return db; }
     if (demoRevision(previous) !== expectedRevision) throw new Error("A demo foi editada durante a geração. Gere novamente para aplicar ao conteúdo atual.");
     if (previous?.status === "rejected") throw new Error(REJECTED_DEMO);
     const base = previous ?? createLeadDemo(lead);
     const messageWasEdited = previous && previous.message !== previous.generatedMessage && previous.message !== defaultDemoMessage(previous.business)
       && !(previous.conceptId && previous.message === approvedConcepts[previous.conceptId].message);
-    saved = leadDemoSchema.parse({ ...base, version: 5, design: undefined, conceptId: undefined, creation: generated.creation, textProvider: generated.textProvider ?? "codex", imageProvider: generated.imageProvider ?? "codex",
+    // V6 grava só a referência do site (o código fica imutável no armazenamento de sites; o anterior continua lá).
+    const presentation = generated.site ? { version: 6, creation: undefined, site: generated.site } : { version: 5, creation: generated.creation, site: undefined };
+    saved = leadDemoSchema.parse({ ...base, design: undefined, conceptId: undefined, ...presentation, textProvider: generated.textProvider ?? "codex", imageProvider: generated.imageProvider ?? "codex",
       message: messageWasEdited ? previous.message : generated.message, generatedMessage: generated.message,
       status: "pending", approvedAt: null, approvedBy: null, updatedAt: nowIso() });
     const issues = demoCreativeIssues({ ...saved, message: generated.message }, db.leads.flatMap((item) => item.demo ? [item.demo] : []));

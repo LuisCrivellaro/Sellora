@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { siteRefSchema } from "./v6/schema";
 
 const copy = (max: number) => z.string().trim().min(3).max(max);
 const hexColor = z.string().regex(/^#[0-9a-f]{6}$/i);
@@ -33,6 +34,11 @@ export const creativeReferenceSchema = z.object({
   photoOrigin: z.string().max(100).nullable(), texts: z.array(z.string().max(2000)).max(20),
   imageDescription: z.string().max(400).optional(),
   message: z.string().max(2000),
+  /** V6: estilo da demo anterior, para o gerador não repetir fonte, paleta, hero e seções. */
+  style: z.object({
+    fonts: z.array(z.string().max(40)).max(2), palette: z.array(z.string().max(9)).max(6),
+    sections: z.array(z.string().max(40)).max(9), hero: z.string().max(200), headline: z.string().max(200),
+  }).strict().optional(),
 }).strict();
 export type CreativeReference = z.infer<typeof creativeReferenceSchema>;
 
@@ -65,7 +71,11 @@ export type DemoTextProvider = z.infer<typeof demoTextProviderSchema>;
 export const demoImageProviderSchema = z.enum(["gemini", "codex"]);
 export type DemoImageProvider = z.infer<typeof demoImageProviderSchema>;
 
-export const generationResultSchema = z.object({ creation: generatedCreationSchema, message: creationDraftSchema.shape.message, textProvider: demoTextProviderSchema.optional(), imageProvider: demoImageProviderSchema.optional() });
+/** v5: `creation` (dados no renderizador compartilhado). V6: `site` (código próprio gravado por id). */
+export const generationResultSchema = z.object({
+  creation: generatedCreationSchema.optional(), site: siteRefSchema.optional(),
+  message: creationDraftSchema.shape.message, textProvider: demoTextProviderSchema.optional(), imageProvider: demoImageProviderSchema.optional(),
+}).refine((result) => !!result.creation !== !!result.site, "O resultado precisa ter uma criação v5 ou um site V6.");
 export type GenerationResult = z.infer<typeof generationResultSchema>;
 
 export interface DemoTextProviderStatus {
@@ -90,6 +100,11 @@ export interface DemoGenerationJob {
   businessKey: string;
   textProvider?: DemoTextProvider;
   imageProvider?: DemoImageProvider;
+  generator?: "v5" | "v6";
+  /** Linha do tempo real das etapas (horário ISO + descrição), base para acompanhar o agente. */
+  events?: { at: string; phase: string }[];
+  startedAt?: string;
+  finishedAt?: string;
   /** Consumo estimado pelo Claude Code em dólares equivalentes de API. No plano de assinatura, sai da cota do plano. */
   textEstimatedUsd?: number | null;
   status: "running" | "completed" | "failed";

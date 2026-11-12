@@ -13,6 +13,11 @@ const photoOrigins: Record<string, string> = {
 };
 
 export function demoCreativeContent(demo: LeadDemo) {
+  if (demo.version === 6 && demo.site) {
+    const s = demo.site;
+    const hero = s.images[0];
+    return { photoOrigin: hero?.source === "fallback" ? null : hero?.sha256 ?? null, photo: hero ? `/sites/${s.id}/${hero.path}` : null, texts: [s.summary.headline, ...s.summary.texts], message: demo.message };
+  }
   if (demo.version === 5 && demo.creation) {
     const c = demo.creation;
     return { photoOrigin: c.image.sourceHash, photo: c.image.src, texts: [c.headline, c.intro, c.cta, ...c.sections.flatMap((section) => [section.title, section.body])], message: demo.message };
@@ -47,6 +52,7 @@ export function demoCreativeIssues(demo: LeadDemo, history: LeadDemo[]): string[
     if (previous.id === demo.id || businessKey(previous.business) === businessKey(demo.business)) continue;
     const other = demoCreativeContent(previous);
     if (demo.creation && previous.creation && demo.business.segment === previous.business.segment && creationSignature(demo.creation) === creationSignature(previous.creation)) issues.push(`Composição repetida em ${previous.business.name}.`);
+    if (demo.site && previous.site && demo.business.segment === previous.business.segment && demo.site.summary.signature === previous.site.summary.signature) issues.push(`Composição repetida em ${previous.business.name}.`);
     if (content.photoOrigin && content.photoOrigin === other.photoOrigin) issues.push(`Imagem criativa repetida em ${previous.business.name}.`);
     if (other.texts.some((text) => texts.has(withoutBusinessFields(text, previous.business)))) issues.push(`Texto da página repetido em ${previous.business.name}.`);
     if (message.length >= 20 && message === withoutBusinessFields(previous.message, previous.business)) issues.push(`Mensagem com o mesmo molde de ${previous.business.name}.`);

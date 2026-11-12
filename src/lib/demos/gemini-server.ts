@@ -75,6 +75,17 @@ export function geminiImageFromResponse(json: unknown): Buffer {
 }
 
 export async function generateGeminiImage(draft: CreationDraft, timeoutMs = 4 * 60_000): Promise<GeneratedCreation["image"]> {
+  const buffer = await geminiImageBuffer(geminiImageInput(draft), LAYOUT_ASPECT[draft.layout], timeoutMs);
+  const info = imageDimensions(buffer)!;
+  const sourceHash = createHash("sha256").update(buffer).digest("hex");
+  const destination = path.join(demoDataRoot(), "media");
+  await mkdir(destination, { recursive: true });
+  await writeFile(path.join(destination, `${sourceHash}.${info.format}`), buffer);
+  return { src: `/api/demos/media/${sourceHash}`, sourceHash, width: info.width, height: info.height, alt: draft.imageAlt };
+}
+
+/** Só a chamada ao Gemini: devolve o arquivo validado (PNG ou JPEG). */
+export async function geminiImageBuffer(input: string, aspect: string, timeoutMs = 4 * 60_000): Promise<Buffer> {
   const key = apiKey();
   if (!key) throw new Error("Configure a variável GEMINI_API_KEY para gerar imagens com o Gemini.");
   let response: Response;
@@ -83,8 +94,8 @@ export async function generateGeminiImage(draft: CreationDraft, timeoutMs = 4 * 
       method: "POST",
       headers: { "Content-Type": "application/json", "x-goog-api-key": key },
       body: JSON.stringify({
-        model: imageModel(), input: geminiImageInput(draft), store: false,
-        response_format: { type: "image", mime_type: "image/png", aspect_ratio: LAYOUT_ASPECT[draft.layout], image_size: "2K" },
+        model: imageModel(), input, store: false,
+        response_format: { type: "image", mime_type: "image/png", aspect_ratio: aspect, image_size: "2K" },
       }),
       signal: AbortSignal.timeout(timeoutMs),
     });
@@ -96,9 +107,5 @@ export async function generateGeminiImage(draft: CreationDraft, timeoutMs = 4 * 
   const info = imageDimensions(buffer);
   if (!info || buffer.length > 20_000_000) throw new Error("A imagem retornada pelo Gemini não é um PNG ou JPEG válido.");
   if (info.width < 256 || info.height < 256 || info.width > 4096 || info.height > 4096) throw new Error("A imagem tem dimensões incompatíveis com a demo.");
-  const sourceHash = createHash("sha256").update(buffer).digest("hex");
-  const destination = path.join(demoDataRoot(), "media");
-  await mkdir(destination, { recursive: true });
-  await writeFile(path.join(destination, `${sourceHash}.${info.format}`), buffer);
-  return { src: `/api/demos/media/${sourceHash}`, sourceHash, width: info.width, height: info.height, alt: draft.imageAlt };
+  return buffer;
 }

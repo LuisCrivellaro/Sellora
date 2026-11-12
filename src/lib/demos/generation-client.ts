@@ -54,9 +54,8 @@ export function setDemoImageProvider(imageProvider: DemoImageProvider) {
 export function canGenerateDemos(snapshot: Pick<GeneratorState, "connection" | "textProvider" | "imageProvider">): boolean {
   const connection = snapshot.connection;
   if (!connection) return false;
-  const text = snapshot.textProvider === "claude" ? !!connection.claude?.available : connection.available;
-  const image = snapshot.imageProvider === "gemini" ? !!connection.gemini?.available : connection.available;
-  return text && image;
+  // V6: a imagem nunca bloqueia a geração (sem gerador disponível entra a composição SVG gratuita); o texto sim.
+  return snapshot.textProvider === "claude" ? !!connection.claude?.available : connection.connected;
 }
 function update(id: string, changes: Partial<DemoQueueItem>) {
   set({ ...state, items: state.items.map((item) => item.id === id ? { ...item, ...changes } : item) });
@@ -75,8 +74,11 @@ function historyReferences(): CreativeReference[] {
     if (!lead.demo) return [];
     const content = demoCreativeContent(lead.demo);
     const imageDescription = lead.demo.creation?.image.alt ?? (lead.demo.conceptId ? approvedConcepts[lead.demo.conceptId].media.alt : demoDesigns[lead.demo.business.segment].alt);
-    return [{ segment: lead.demo.business.segment, signature: lead.demo.creation ? creationSignature(lead.demo.creation) : `v${lead.demo.version}:${lead.demo.design?.layout ?? lead.demo.conceptId ?? "original"}`, photoOrigin: content.photoOrigin, imageDescription,
-      texts: content.texts.map((text) => withoutBusinessFields(text, lead.demo!.business)), message: withoutBusinessFields(content.message, lead.demo.business) }];
+    const site = lead.demo.site;
+    const signature = site ? site.summary.signature : lead.demo.creation ? creationSignature(lead.demo.creation) : `v${lead.demo.version}:${lead.demo.design?.layout ?? lead.demo.conceptId ?? "original"}`;
+    return [{ segment: lead.demo.business.segment, signature, photoOrigin: content.photoOrigin, imageDescription: site?.images[0]?.alt ?? imageDescription,
+      texts: content.texts.slice(0, 20).map((text) => withoutBusinessFields(text, lead.demo!.business)), message: withoutBusinessFields(content.message, lead.demo.business),
+      ...(site ? { style: { fonts: site.summary.fonts, palette: site.summary.palette, sections: site.summary.sections, hero: site.summary.hero, headline: withoutBusinessFields(site.summary.headline, lead.demo.business).slice(0, 200) } } : {}) }];
   });
 }
 
@@ -98,7 +100,7 @@ async function run(item: DemoQueueItem) {
       item = { ...item, expectedRevision: demoRevision(lead.demo), expectedBusiness: JSON.stringify(business) };
       update(item.id, { expectedRevision: item.expectedRevision, expectedBusiness: item.expectedBusiness });
     }
-    const response = await fetch("/api/demos/jobs", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: item.id, business: publicContext, history, textProvider: item.textProvider ?? "claude", imageProvider: item.imageProvider ?? "gemini" }) });
+    const response = await fetch("/api/demos/jobs", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: item.id, business: publicContext, history, textProvider: item.textProvider ?? "claude", imageProvider: item.imageProvider ?? "gemini", generator: "v6", phone: business.phone ?? "" }) });
     if (response.status === 429) { await delay(3000); return false; }
     const data = await response.json();
     if (!response.ok) throw new Error(data.error || "Não foi possível iniciar a geração.");

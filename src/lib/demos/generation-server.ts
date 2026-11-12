@@ -8,6 +8,7 @@ import { creationContrastIssues, creationSignature, creativeReferenceSchema, dem
 import { demoDataRoot, LocalCodex } from "./codex-server";
 import { ClaudeWriter } from "./claude-server";
 import { generateGeminiImage, geminiImageStatus } from "./gemini-server";
+import { generateV6 } from "./v6/generator";
 import { withoutBusinessFields } from "./creative-review";
 import { correctionPrompt, draftPrompt, skillInstructions } from "./generation-prompts";
 
@@ -15,6 +16,9 @@ export const generationRequestSchema = z.object({
   id: z.uuid(), business: demoBusinessSchema.omit({ phone: true }), history: z.array(creativeReferenceSchema).max(500),
   textProvider: demoTextProviderSchema.default("claude"),
   imageProvider: demoImageProviderSchema.default("gemini"),
+  generator: z.enum(["v5", "v6"]).default("v6"),
+  /** Só para os marcadores de contato do site V6. Nunca entra em prompt de modelo. */
+  phone: z.string().max(80).default(""),
 }).strict();
 type GenerationRequest = z.infer<typeof generationRequestSchema>;
 
@@ -54,7 +58,14 @@ async function withSavedHistory(request: GenerationRequest): Promise<GenerationR
       if (saved.status !== "completed") continue;
       const result = generationResultSchema.parse(saved.result);
       const business = demoBusinessSchema.parse({ ...JSON.parse(saved.businessKey), phone: "" });
-      const c = result.creation;
+      if (result.site) {
+        const s = result.site.summary;
+        history.push({ segment: business.segment, signature: s.signature, photoOrigin: result.site.images[0]?.sha256 ?? null, imageDescription: result.site.images[0]?.alt,
+          texts: s.texts.slice(0, 20).map((text) => withoutBusinessFields(text, business)), message: withoutBusinessFields(result.message, business),
+          style: { fonts: s.fonts, palette: s.palette, sections: s.sections, hero: s.hero, headline: withoutBusinessFields(s.headline, business).slice(0, 200) } });
+        continue;
+      }
+      const c = result.creation!;
       history.push({ segment: business.segment, signature: creationSignature(c), photoOrigin: c.image.sourceHash,
         imageDescription: c.image.alt,
         texts: [c.headline, c.intro, c.cta, ...c.sections.flatMap((section) => [section.title, section.body])].map((text) => withoutBusinessFields(text, business)), message: withoutBusinessFields(result.message, business) });
@@ -65,7 +76,32 @@ async function withSavedHistory(request: GenerationRequest): Promise<GenerationR
   return { ...request, history: unique };
 }
 
+/** Registra a etapa atual com horário real (o painel e futuras integrações leem esta linha do tempo). */
+function phase(job: DemoGenerationJob, text: string) {
+  job.phase = text;
+  job.events = [...(job.events ?? []), { at: new Date().toISOString(), phase: text }].slice(-40);
+  void persist(job).catch(() => {});
+}
+
+async function executeV6(job: DemoGenerationJob, request: GenerationRequest) {
+  try {
+    request = await withSavedHistory(request);
+    const history = request.history.filter((item) => item.style).map((item) => ({ segment: item.segment, ...item.style!, texts: item.texts }));
+    const result = await generateV6(job.id, { business: request.business, phone: request.phone, history, textProvider: request.textProvider, imageProvider: request.imageProvider }, { phase: (text) => phase(job, text) });
+    job.textEstimatedUsd = result.estimatedUsd;
+    const finished: DemoGenerationJob = { ...job, status: "completed", phase: "Demo pronta para revisão", finishedAt: new Date().toISOString(), result: { site: result.site, message: result.message, textProvider: request.textProvider, imageProvider: request.imageProvider }, error: null };
+    finished.events = [...(job.events ?? []), { at: finished.finishedAt!, phase: finished.phase }];
+    await persist(finished);
+    Object.assign(job, finished);
+  } catch (error) {
+    const at = new Date().toISOString();
+    Object.assign(job, { status: "failed", phase: "Geração interrompida", finishedAt: at, events: [...(job.events ?? []), { at, phase: "Geração interrompida" }], result: null, error: error instanceof Error ? error.message : "Não foi possível gerar a demo." });
+    await persist(job).catch(() => {});
+  }
+}
+
 async function execute(job: DemoGenerationJob, request: GenerationRequest) {
+  if (request.generator === "v6") return executeV6(job, request);
   let codex: LocalCodex | undefined;
   try {
     request = await withSavedHistory(request);
@@ -142,7 +178,7 @@ export function startDemoGeneration(request: GenerationRequest): Promise<DemoGen
       return existing;
     }
     if ([...jobs.values()].some((job) => job.status === "running")) throw new DemoBusyError("Há uma geração em andamento. O próximo item começará ao terminar.");
-    const job: DemoGenerationJob = { id: request.id, businessKey, textProvider: request.textProvider, imageProvider: request.imageProvider, status: "running", phase: "Preparando a geração", error: null, result: null };
+    const job: DemoGenerationJob = { id: request.id, businessKey, textProvider: request.textProvider, imageProvider: request.imageProvider, generator: request.generator, startedAt: new Date().toISOString(), events: [{ at: new Date().toISOString(), phase: "Preparando a geração" }], status: "running", phase: "Preparando a geração", error: null, result: null };
     jobs.set(job.id, job);
     try { await persist(job); }
     catch { jobs.delete(job.id); throw new Error("Não foi possível salvar o trabalho de geração neste computador."); }

@@ -86,14 +86,19 @@ export interface ClaudeDraftResult { draft: CreationDraft; estimatedUsd: number 
 export const CLAUDE_DEMO_MODEL = "claude-sonnet-5-5";
 export type ClaudeEffort = "high" | "medium";
 
-export function claudeDraftArgs(systemFile: string, effort: ClaudeEffort): string[] {
-  return ["-p", "--output-format", "json", "--json-schema", JSON.stringify(z.toJSONSchema(creationDraftSchema, { target: "draft-7" })),
+export function claudeDraftArgs(systemFile: string, effort: ClaudeEffort, schema: z.ZodType = creationDraftSchema): string[] {
+  return ["-p", "--output-format", "json", "--json-schema", JSON.stringify(z.toJSONSchema(schema, { target: "draft-7" })),
     "--system-prompt-file", systemFile, "--tools", "", "--strict-mcp-config", "--safe-mode", "--no-session-persistence",
     "--permission-mode", "dontAsk", "--model", process.env.SELLORA_CLAUDE_MODEL || CLAUDE_DEMO_MODEL, "--effort", effort];
 }
 
 /** Interpreta a saída `--output-format json` do Claude Code e valida a proposta com o mesmo schema do Codex. */
 export function parseClaudeDraft(stdout: string): ClaudeDraftResult {
+  const { value, estimatedUsd } = parseClaudeStructured(stdout, creationDraftSchema);
+  return { draft: value, estimatedUsd };
+}
+
+export function parseClaudeStructured<T>(stdout: string, schema: z.ZodType<T>): { value: T; estimatedUsd: number | null } {
   let parsed: z.infer<typeof resultSchema>;
   try { parsed = resultSchema.parse(JSON.parse(stdout)); }
   catch { throw new Error("O Claude não retornou o conteúdo da demo."); }
@@ -106,9 +111,9 @@ export function parseClaudeDraft(stdout: string): ClaudeDraftResult {
   if (candidate === undefined) {
     try { candidate = JSON.parse(parsed.result ?? ""); } catch { throw new Error("O Claude não retornou o conteúdo da demo."); }
   }
-  const draft = creationDraftSchema.safeParse(candidate);
-  if (!draft.success) throw new Error("O conteúdo gerado não passou na validação. Tente uma nova geração.");
-  return { draft: draft.data, estimatedUsd: parsed.total_cost_usd ?? null };
+  const value = schema.safeParse(candidate);
+  if (!value.success) throw new Error("O conteúdo gerado não passou na validação. Tente uma nova geração.");
+  return { value: value.data, estimatedUsd: parsed.total_cost_usd ?? null };
 }
 
 /**
@@ -122,10 +127,23 @@ export class ClaudeWriter {
   private constructor(private file: string, private cwd: string, private systemFile: string, private timeoutMs: number) {}
 
   static async create(cwd: string, instructions: string, timeoutMs = 6 * 60_000) {
+    return ClaudeWriter.withSystemPrompt(cwd, claudeSystemPrompt(instructions), "claude-system-prompt.md", timeoutMs);
+  }
+
+  /** V6: prompt de sistema próprio, gravado num arquivo do espaço de trabalho do job. */
+  static async withSystemPrompt(cwd: string, systemPrompt: string, filename: string, timeoutMs = 12 * 60_000) {
     const file = await claudeExecutable();
-    const systemFile = path.join(cwd, "claude-system-prompt.md");
-    await writeFile(systemFile, claudeSystemPrompt(instructions), "utf8");
+    const systemFile = path.join(cwd, filename);
+    await writeFile(systemFile, systemPrompt, "utf8");
     return new ClaudeWriter(file, cwd, systemFile, timeoutMs);
+  }
+
+  /** Chamada estruturada genérica (V6). Sem sessão salva: cada chamada leva todo o contexto necessário. */
+  async structured<T>(input: string, schema: z.ZodType<T>, effort: ClaudeEffort): Promise<T> {
+    const { stdout } = await run(this.file, claudeDraftArgs(this.systemFile, effort, schema), this.cwd, input, this.timeoutMs);
+    const result = parseClaudeStructured(stdout, schema);
+    this.estimatedUsd += result.estimatedUsd ?? 0;
+    return result.value;
   }
 
   /** Primeira chamada recebe o pedido completo; correções reenviam o pedido, a proposta anterior e os ajustes, já que nada fica salvo entre chamadas. */

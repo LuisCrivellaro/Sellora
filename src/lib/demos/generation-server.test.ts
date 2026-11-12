@@ -17,7 +17,7 @@ vi.mock("./claude-server", () => ({ ClaudeWriter: { create: vi.fn(async () => wr
 const gemini = vi.hoisted(() => ({ status: vi.fn(), image: vi.fn() }));
 vi.mock("./gemini-server", () => ({ geminiImageStatus: gemini.status, generateGeminiImage: gemini.image }));
 const draft = creationDraftSchema.parse({ ...Object.fromEntries(Object.entries(generatedFixture).filter(([key]) => !["id", "image"].includes(key))), imagePrompt: "Composição conceitual com luz lateral, objetos sem marca e enquadramento inédito.", imageAlt: generatedFixture.image.alt, message: "Um estudo visual concebido a partir de luz e movimento para abrir uma conversa sobre o negócio." });
-const request = () => ({ id: randomUUID(), business: { name: "Studio Teste", city: "Campinas", uf: "SP", segment: "beleza" as const }, history: [], textProvider: "codex" as "codex" | "claude", imageProvider: "codex" as "codex" | "gemini" });
+const request = () => ({ id: randomUUID(), business: { name: "Studio Teste", city: "Campinas", uf: "SP", segment: "beleza" as const }, history: [], textProvider: "codex" as "codex" | "claude", imageProvider: "codex" as "codex" | "gemini", generator: "v5" as "v5" | "v6", phone: "" });
 beforeEach(() => {
   testScope.id = randomUUID();
   vi.clearAllMocks();
@@ -38,7 +38,7 @@ it("Claude nos textos e Gemini na imagem: o Codex nem é aberto", async () => {
   const job = await getDemoGenerationJob(input.id);
   expect(LocalCodex.connect).not.toHaveBeenCalled();
   expect(gemini.image).toHaveBeenCalledExactlyOnceWith(draft);
-  expect(job?.result?.creation.image.sourceHash).toBe("c".repeat(64));
+  expect(job?.result?.creation?.image.sourceHash).toBe("c".repeat(64));
   expect(job?.result?.imageProvider).toBe("gemini");
 });
 
@@ -104,7 +104,7 @@ it("reutiliza um trabalho concluído sem gerar outra imagem nem aceitar outro ne
   await startDemoGeneration(input);
   await expect.poll(async () => (await getDemoGenerationJob(input.id))?.status).toBe("completed");
   const again = await startDemoGeneration(input);
-  expect(again.result?.creation.image).toEqual(generatedFixture.image);
+  expect(again.result?.creation?.image).toEqual(generatedFixture.image);
   expect(again.result?.creation).not.toHaveProperty("imagePrompt");
   expect(client.image).toHaveBeenCalledTimes(1);
   await expect(startDemoGeneration({ ...input, business: { ...input.business, name: "Outro negócio" } })).rejects.toThrow(/outro cadastro/);
