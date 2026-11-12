@@ -31,7 +31,9 @@ export function isCurrentDemoSent(demo: LeadDemo, phone: string): boolean {
   return !!sent && sent.body === demo.message && sent.designVersion === demo.version && sent.phone === normalizeWhatsappPhone(phone);
 }
 
-export function demoReviewStage(demo: LeadDemo, phone: string): "pending" | "approved" | "sent" {
+export function demoReviewStage(demo: LeadDemo, phone: string): "pending" | "approved" | "sent" | "rejected" {
+  // Recusa vale mais que um envio antigo: a demo sai das demais filas até ser restaurada.
+  if (demo.status === "rejected") return "rejected";
   if (isCurrentDemoSent(demo, phone)) return "sent";
   return demo.status;
 }

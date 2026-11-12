@@ -1,8 +1,9 @@
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { createEmptyDatabase } from "./seed";
 import { getDb, replaceDatabase } from "./store";
-import { approveLeadDemo, createLead, generateLeadDemo, importProspects, saveDemoMessage, markDemoManuallySent, upgradeLeadDemoDesign } from "./repository";
+import { approveLeadDemo, createLead, generateLeadDemo, importProspects, rejectLeadDemo, restoreLeadDemo, revokeDemoApproval, saveDemoMessage, markDemoManuallySent, upgradeLeadDemoDesign } from "./repository";
 import { demoMessageForCopy, demoPreviewUrl, parseDemoFragment } from "../demos/model";
+import { demoReviewStage, whatsappDraftUrl } from "../demos/whatsapp";
 import { leadFromRow, leadToRow } from "./mappers";
 import { leadRowSchema } from "./row-schemas";
 import type { ProspectResult } from "../prospecting/types";
@@ -42,7 +43,7 @@ describe("demos e aprovação humana", () => {
     replaceDatabase({ ...current, leads: current.leads.map((l) => ({ ...l, demo: { ...l.demo!, version: 1 } })) });
     approveLeadDemo(lead.id);
     upgradeLeadDemoDesign(lead.id);
-    expect(getDb().leads[0].demo?.version).toBe(2);
+    expect(getDb().leads[0].demo?.version).toBe(3);
     expect(getDb().leads[0].demo?.status).toBe("pending");
     expect(getDb().leads[0].demo?.id).toBe(current.leads[0].demo?.id);
   });
@@ -89,6 +90,65 @@ describe("demos e aprovação humana", () => {
     expect(parseDemoFragment("#" + "x".repeat(10001))).toBeNull();
     expect(() => demoPreviewUrl(demo, "javascript:alert(1)")).toThrow();
   });
+  it("recusar afeta só a demo escolhida, bloqueia aprovação/envio e preserva lead e histórico", () => {
+    const lead = createLead({ ...input, phone: "(19) 99999-1234" });
+    const other = createLead({ ...input, name: "Outro Café", phone: "(19) 98888-1234" });
+    generateLeadDemo(lead.id);
+    generateLeadDemo(other.id);
+    approveLeadDemo(lead.id);
+    approveLeadDemo(other.id);
+    const otherBefore = getDb().leads.find((l) => l.id === other.id)!.demo;
+    const activitiesBefore = getDb().activities.length;
+
+    rejectLeadDemo(lead.id);
+    rejectLeadDemo(lead.id); // repetir não duplica registro
+    const rejected = getDb().leads.find((l) => l.id === lead.id)!;
+    expect(rejected.demo?.status).toBe("rejected");
+    expect(rejected.demo?.approvedAt).toBeNull();
+    expect(rejected.demo?.rejectedAt).toBeTruthy();
+    expect(rejected.demo?.rejectedBy).toBeTruthy();
+    expect(rejected.demo?.message).toBe(getDb().leads.find((l) => l.id === lead.id)!.demo?.message);
+    expect(rejected.stage).toBe("novo");
+    expect(rejected.notes).toBe(input.notes);
+    expect(getDb().leads).toHaveLength(2);
+    expect(getDb().activities).toHaveLength(activitiesBefore + 1);
+    expect(getDb().activities[0].description).toMatch(/Demo recusada/);
+    expect(getDb().leads.find((l) => l.id === other.id)!.demo).toEqual(otherBefore);
+    expect(demoReviewStage(rejected.demo!, rejected.phone)).toBe("rejected");
+
+    expect(() => approveLeadDemo(lead.id)).toThrow(/recusada/i);
+    expect(() => saveDemoMessage(lead.id, "Outra mensagem qualquer para teste.")).toThrow(/recusada/i);
+    expect(() => upgradeLeadDemoDesign(lead.id)).toThrow(/recusada/i);
+    expect(() => revokeDemoApproval(lead.id)).toThrow(/recusada/i);
+    expect(() => demoMessageForCopy(rejected.demo!, "https://sellora.example")).toThrow(/recusada/i);
+    expect(() => whatsappDraftUrl(rejected.demo!, rejected.phone, "https://sellora.example")).toThrow(/recusada/i);
+    expect(() => markDemoManuallySent(lead.id, "https://sellora.example")).toThrow(/recusada/i);
+    expect(getDb().activities.filter((a) => a.type === "whatsapp")).toHaveLength(0);
+
+    // Persistência: mapeamento do Supabase e validação do servidor mantêm a recusa.
+    expect(leadFromRow(leadToRow(rejected)).demo).toEqual(rejected.demo);
+    expect(leadRowSchema.parse(rejected).demo?.status).toBe("rejected");
+    expect(leadRowSchema.safeParse({ ...rejected, demo: { ...rejected.demo, rejectedAt: null } }).success).toBe(false);
+
+    restoreLeadDemo(lead.id);
+    const restored = getDb().leads.find((l) => l.id === lead.id)!.demo!;
+    expect(restored.status).toBe("pending");
+    expect(restored.rejectedAt).toBeNull();
+    expect(restored.approvedAt).toBeNull();
+    expect(getDb().activities[0].description).toMatch(/restaurada/);
+    approveLeadDemo(lead.id);
+    expect(getDb().leads.find((l) => l.id === lead.id)!.demo?.status).toBe("approved");
+  });
+
+  it("reimportar um lead com demo recusada não desfaz a recusa", () => {
+    const lead = createLead(input);
+    generateLeadDemo(lead.id);
+    rejectLeadDemo(lead.id);
+    const report = importProspects([prospect("1")], { generateDemos: true });
+    expect(report.demos[0].reused).toBe(true);
+    expect(getDb().leads.find((l) => l.id === lead.id)?.demo?.status).toBe("rejected");
+  });
+
   it("preserva demo e aprovação no mapeamento e na validação do servidor", () => {
     const lead = createLead(input);
     generateLeadDemo(lead.id);

@@ -25,3 +25,22 @@
 .comercio .hero img { height: 130px; }
 .legacy { display: flex; flex-direction: column; padding: 36px 24px; gap: 18px; font: 28px/1.1 Georgia,serif; }
 .legacy small { font: 11px/1.4 Arial,sans-serif; }
+/* v3: mesma estrutura da demo (layout + tipografia), em escala de miniatura. */
+.v3 .copy small { font-weight: 700; }
+.v3 .copy strong { font-size: 21px; }
+.v3 .copy em { color: var(--cover-paper); }
+.l_split .hero { grid-template-columns: 1.05fr 1fr; }
+.l_split .hero img { height: 140px; border-radius: 3px; }
+.l_stage .hero { grid-template-columns: 1fr; position: relative; margin-top: 10px; }
+.l_stage .hero img { height: 160px; border-radius: 3px; }
+.l_stage .copy { position: absolute; left: 10px; bottom: 10px; width: 62%; padding: 10px 12px; background: var(--cover-paper); border-radius: 3px; }
+.l_stage .copy strong { font-size: 15px; }
+.l_type .hero { grid-template-columns: .8fr 1.2fr; }
+.mono { height: 140px; display: flex; flex-direction: column; justify-content: space-between; padding: 10px; background: var(--cover-accent); color: var(--cover-paper); border-radius: 3px; }
+.mono b { font-size: 58px; line-height: .85; letter-spacing: -.06em; }
+.mono small { font-size: 6px; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; }
+.t_serif .copy strong, .t_serif .mono b { font-family: Georgia, serif; font-weight: 400; }
+.t_sans .copy strong, .t_sans .mono b { font-family: var(--font-manrope), Arial, sans-serif; font-weight: 650; letter-spacing: -.05em; }
+.t_bold .copy strong, .t_bold .mono b { font-family: var(--font-manrope), Arial, sans-serif; font-weight: 800; text-transform: uppercase; letter-spacing: -.03em; line-height: .98; }
+.t_bold .copy strong { font-size: 18px; }
+.t_bold .miniHeader { text-transform: uppercase; font-weight: 800; }

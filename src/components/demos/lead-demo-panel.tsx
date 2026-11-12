@@ -1,14 +1,14 @@
 "use client";
 
-import { CheckCheck, Copy, ExternalLink, Monitor, RotateCcw, MessageCircle, Send } from "lucide-react";
+import { Ban, CheckCheck, Copy, ExternalLink, Monitor, RotateCcw, MessageCircle, Send } from "lucide-react";
 import { useState } from "react";
 import { ZodError } from "zod";
 import { Button } from "@/components/ui/button";
 import { Field, TextArea } from "@/components/ui/field";
 import { useToast } from "@/components/ui/toast";
-import { approveLeadDemo, generateLeadDemo, revokeDemoApproval, saveDemoMessage, markDemoManuallySent, upgradeLeadDemoDesign } from "@/lib/data/repository";
+import { approveLeadDemo, generateLeadDemo, restoreLeadDemo, revokeDemoApproval, saveDemoMessage, markDemoManuallySent, upgradeLeadDemoDesign } from "@/lib/data/repository";
 import { useStore } from "@/lib/data/store";
-import { demoMessageForCopy, demoPreviewUrl } from "@/lib/demos/model";
+import { CURRENT_DEMO_VERSION, demoMessageForCopy, demoPreviewUrl } from "@/lib/demos/model";
 import { formatDate } from "@/lib/dates";
 import type { Lead } from "@/lib/types";
 import { isCurrentDemoSent, normalizeWhatsappPhone, whatsappDraftUrl } from "@/lib/demos/whatsapp";
@@ -38,6 +38,30 @@ export function LeadDemoPanel({ lead, embedded = false }: { lead: Lead; embedded
     </section>
   );
 
+  if (demo.status === "rejected") {
+    const history = [
+      { at: demo.createdAt, text: "Demo e mensagem criadas" },
+      demo.lastManualSend && { at: demo.lastManualSend.at, text: `Envio manual declarado por ${demo.lastManualSend.by} (entrega não verificada)` },
+      { at: demo.rejectedAt!, text: `Recusada por ${demo.rejectedBy}` },
+    ].filter((h): h is { at: string; text: string } => !!h).sort((a, b) => a.at.localeCompare(b.at));
+    return (
+      <section className="flex flex-col gap-3 rounded-2xl border border-[#5c2a2e] p-4" aria-label="Demo recusada">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h3 className="text-[14px] font-semibold text-ink">Demo e mensagem</h3>
+          <span className="inline-flex items-center gap-1.5 text-[12px] font-semibold text-[#e3a1a1]" role="status"><Ban size={14} aria-hidden /> Recusada</span>
+        </div>
+        <p className="text-[12px] text-ink-soft">Esta demo foi recusada e não pode ser aprovada, copiada nem enviada. O lead e o histórico continuam no CRM.</p>
+        {!embedded && <Button size="sm" variant="secondary" className="self-start" onClick={() => window.open(demoPreviewUrl(demo, window.location.origin), "_blank", "noopener,noreferrer")}><ExternalLink aria-hidden /> Abrir demo</Button>}
+        <div><p className="mb-1.5 text-[12px] font-semibold text-ink-soft">Mensagem guardada</p><p className="rounded-xl border border-seam p-3 text-[12.5px] leading-relaxed whitespace-pre-wrap text-ink-faint">{demo.message}</p></div>
+        <div><p className="mb-1.5 text-[12px] font-semibold text-ink-soft">Histórico</p>
+          <ol className="flex flex-col gap-1.5 text-[12px] text-ink-soft">{history.map((h) => <li key={`${h.at}${h.text}`} className="flex gap-2"><span className="tnum shrink-0 text-ink-faint">{formatDate(h.at)}</span><span>{h.text}</span></li>)}</ol>
+        </div>
+        <Button size="sm" className="self-start" disabled={blocked} onClick={() => act(() => restoreLeadDemo(lead.id), "Demo restaurada para aguardando aprovação")}><RotateCcw aria-hidden /> Restaurar para aguardando aprovação</Button>
+        {blocked && <p role="status" className="text-[12px] text-warn">Aguarde a gravação ou resolva o erro de armazenamento para restaurar.</p>}
+      </section>
+    );
+  }
+
   return (
     <section className="flex flex-col gap-3 rounded-2xl border border-seam-strong p-4" aria-label="Demo e mensagem">
       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -46,7 +70,7 @@ export function LeadDemoPanel({ lead, embedded = false }: { lead: Lead; embedded
       </div>
       <p className="text-[12px] text-ink-faint">Modelo por segmento com nome, cidade e telefone disponíveis. Demonstração não oficial; revise os dados antes de aprovar.</p>
       {!embedded && <Button size="sm" variant="secondary" className="self-start" onClick={() => window.open(demoPreviewUrl(demo, window.location.origin), "_blank", "noopener,noreferrer")}><ExternalLink aria-hidden /> Abrir demo</Button>}
-      {demo.version === 1 && <div className="rounded-xl border border-seam p-3 text-[12px] text-ink-soft"><p className="mb-2">Esta demo usa o visual original. Atualizar preserva o cadastro e devolve a mensagem para revisão.</p><Button size="sm" variant="secondary" onClick={() => act(() => upgradeLeadDemoDesign(lead.id), "Novo visual pronto para revisão")}>Atualizar visual da demo</Button></div>}
+      {demo.version !== CURRENT_DEMO_VERSION && <div className="rounded-xl border border-seam p-3 text-[12px] text-ink-soft"><p className="mb-2">Esta demo usa um visual anterior, igual para todo o segmento. O novo visual muda conforme o tipo do negócio e o estabelecimento. Atualizar preserva o cadastro e devolve a mensagem para revisão.</p><Button size="sm" variant="secondary" onClick={() => act(() => upgradeLeadDemoDesign(lead.id), "Novo visual pronto para revisão")}>Atualizar visual da demo</Button></div>}
       <Field label="Mensagem de apresentação" hint="O link da demo e a indicação de demonstração não oficial são anexados à mensagem na cópia. Alterar o texto exige nova aprovação.">
         {(p) => <TextArea {...p} rows={7} maxLength={2000} value={text} onChange={(e) => { setText(e.target.value); setReviewed(false); }} />}
       </Field>

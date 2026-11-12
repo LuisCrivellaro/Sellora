@@ -43,7 +43,7 @@ import { findCrmDuplicate, prospectToLeadInput, type CrmMatch } from "../prospec
 import type { ProspectResult } from "../prospecting/types";
 import { createEmptyDatabase, createSeed } from "./seed";
 import { commit, getDb, getMode, getStoreState } from "./store";
-import { createLeadDemo, demoMessageForCopy, demoMessageSchema, leadDemoSchema, type LeadDemo } from "../demos/model";
+import { CURRENT_DEMO_VERSION, createLeadDemo, demoMessageForCopy, demoMessageSchema, leadDemoSchema, type LeadDemo } from "../demos/model";
 import { isCurrentDemoSent, normalizeWhatsappPhone, MANUAL_DEMO_ACTIVITY } from "../demos/whatsapp";
 
 /**
@@ -242,7 +242,7 @@ export function importProspects(results: (ProspectResult & { discarded?: boolean
           const existing = [...leads, ...db.leads].find((l) => l.id === match.leadId)!;
           if (existing.stage === "ganho" || existing.stage === "perdido") continue;
           const previous = demoUpdates.get(existing.id) ?? existing.demo;
-          demoUpdates.set(existing.id, previous ?? createLeadDemo(existing));
+          demoUpdates.set(existing.id, previous ?? createLeadDemo(existing, { category: r.category }));
           report.demos.push({ resultId: r.id, leadId: existing.id, reused: !!previous });
         }
         continue;
@@ -256,7 +256,7 @@ export function importProspects(results: (ProspectResult & { discarded?: boolean
       const t = nowIso();
       const lead: Lead = { ...parsed.data, website: parsed.data.website || null, lastContactAt: null, clientId: null, lostReason: "", id: uid("lead"), createdAt: t, updatedAt: t };
       if (options?.generateDemos) {
-        lead.demo = createLeadDemo(lead);
+        lead.demo = createLeadDemo(lead, { category: r.category });
         report.demos.push({ resultId: r.id, leadId: lead.id, reused: false });
       }
       const note = activityInputSchema.parse({ type: "nota", description: activity, dueAt: null, completed: true });
@@ -291,21 +291,69 @@ function updateLeadDemo(leadId: ID, update: (demo: LeadDemo, db: Database) => Le
   });
 }
 
+const REJECTED_DEMO = "Esta demo foi recusada. Restaure-a para aguardando aprovação antes de alterar.";
+
+function demoReviewer(db: Database): string {
+  return getMode() === "supabase" ? getStoreState().account?.email || db.settings.profile.name || "Revisor" : db.settings.profile.name || "Revisor local";
+}
+
 export function saveDemoMessage(leadId: ID, message: string) {
   const text = demoMessageSchema.parse(message);
-  updateLeadDemo(leadId, (demo) => demo.message === text ? demo : { ...demo, message: text, status: "pending", approvedAt: null, approvedBy: null, updatedAt: nowIso() });
+  updateLeadDemo(leadId, (demo) => {
+    if (demo.status === "rejected") throw new Error(REJECTED_DEMO);
+    return demo.message === text ? demo : { ...demo, message: text, status: "pending", approvedAt: null, approvedBy: null, updatedAt: nowIso() };
+  });
 }
 
 export function approveLeadDemo(leadId: ID) {
-  updateLeadDemo(leadId, (demo, db) => ({ ...demo, status: "approved", approvedAt: nowIso(), updatedAt: nowIso(), approvedBy: getMode() === "supabase" ? getStoreState().account?.email || db.settings.profile.name : db.settings.profile.name || "Revisor local" }));
+  updateLeadDemo(leadId, (demo, db) => {
+    if (demo.status === "rejected") throw new Error(REJECTED_DEMO);
+    return { ...demo, status: "approved", approvedAt: nowIso(), updatedAt: nowIso(), approvedBy: demoReviewer(db) };
+  });
+}
+
+/**
+ * Recusa só a demo deste lead: o lead, a mensagem, o envio declarado e o histórico ficam.
+ * Remove a aprovação (nada recusado pode ser enviado) e registra uma nota no CRM.
+ */
+export function rejectLeadDemo(leadId: ID) {
+  setDemoRejection(leadId, true);
+}
+
+/** Desfaz a recusa: a demo volta para "Aguardando aprovação" (exige nova aprovação). */
+export function restoreLeadDemo(leadId: ID) {
+  setDemoRejection(leadId, false);
+}
+
+function setDemoRejection(leadId: ID, rejected: boolean) {
+  commit((db) => {
+    const lead = db.leads.find((l) => l.id === leadId);
+    if (!lead?.demo) throw new Error("Este lead não tem demo.");
+    if ((lead.demo.status === "rejected") === rejected) return db;
+    const t = nowIso();
+    const by = demoReviewer(db);
+    const demo = leadDemoSchema.parse(rejected
+      ? { ...lead.demo, status: "rejected", approvedAt: null, approvedBy: null, rejectedAt: t, rejectedBy: by, updatedAt: t }
+      : { ...lead.demo, status: "pending", rejectedAt: null, rejectedBy: null, updatedAt: t });
+    const note = activityInputSchema.parse({ type: "nota", description: rejected ? `Demo recusada por ${by}. Lead e histórico preservados; envio bloqueado até restaurar.` : `Demo restaurada por ${by} para aguardando aprovação.`, dueAt: null, completed: true });
+    const activity: Activity = { id: uid("act"), leadId, clientId: null, projectId: null, type: note.type, description: note.description, dueAt: null, completedAt: t, createdAt: t };
+    return { ...db, leads: db.leads.map((l) => l.id === leadId ? { ...l, demo, updatedAt: t } : l), activities: [activity, ...db.activities] };
+  });
 }
 
 export function revokeDemoApproval(leadId: ID) {
-  updateLeadDemo(leadId, (demo) => ({ ...demo, status: "pending", approvedAt: null, approvedBy: null, updatedAt: nowIso() }));
+  updateLeadDemo(leadId, (demo) => {
+    if (demo.status === "rejected") throw new Error(REJECTED_DEMO);
+    return { ...demo, status: "pending", approvedAt: null, approvedBy: null, updatedAt: nowIso() };
+  });
 }
 
 export function upgradeLeadDemoDesign(leadId: ID) {
-  updateLeadDemo(leadId, (demo) => demo.version === 2 ? demo : { ...demo, version: 2, status: "pending", approvedAt: null, approvedBy: null, updatedAt: nowIso() });
+  // Visual novo = demo diferente: volta para revisão. O cadastro, a mensagem e o histórico de envio ficam.
+  updateLeadDemo(leadId, (demo) => {
+    if (demo.status === "rejected") throw new Error(REJECTED_DEMO);
+    return demo.version === CURRENT_DEMO_VERSION ? demo : { ...demo, version: CURRENT_DEMO_VERSION, status: "pending", approvedAt: null, approvedBy: null, updatedAt: nowIso() };
+  });
 }
 
 /** Declaração manual do operador, nunca confirmação de entrega do WhatsApp. */

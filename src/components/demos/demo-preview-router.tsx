@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { parseDemoDocument } from "@/lib/demos/model";
 import { DemoSite } from "./demo-site";
+import { DemoSiteV3 } from "./demo-site-v3";
 import { LegacyDemoPreview } from "./legacy-demo-preview";
 
 export function DemoPreview() {
@@ -15,5 +16,7 @@ export function DemoPreview() {
   }, []);
   if (!state.loaded) return <p role="status" className="p-8 text-center text-ink-soft">Preparando a demonstração…</p>;
   if (!state.doc) return <div className="mx-auto max-w-lg py-20 text-center"><h1 className="text-xl font-semibold text-ink">Prévia indisponível</h1><p className="mt-3 text-ink-soft">O link está incompleto ou é inválido. Abra novamente pela ficha do lead no Sellora.</p></div>;
-  return state.doc.version === 1 ? <LegacyDemoPreview /> : <DemoSite business={state.doc.business} />;
+  // Cada versão renderiza com o visual em que foi aprovada; v3 é o modelo atual.
+  if (state.doc.version === 1) return <LegacyDemoPreview />;
+  return state.doc.version === 2 ? <DemoSite business={state.doc.business} /> : <DemoSiteV3 business={state.doc.business} />;
 }
