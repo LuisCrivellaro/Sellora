@@ -8,7 +8,7 @@ Você vai continuar o desenvolvimento da **Sellora**, um app de CRM e geração 
 
 ## Repositório
 - GitHub: https://github.com/LuisCrivellaro/Sellora
-- Branch de trabalho: `feat/demo-generator-v6` (não fazer merge na `main` sem pedido explícito; nunca `push --force`).
+- Branches de trabalho: `feat/demo-generator-v6` (missão 1) e `feat/cloud-3d` (missão 2, criada a partir da anterior; contém tudo da missão 1 + o Sellora Agent Bridge inicial). Continue na `feat/cloud-3d`; se fizer correções da missão 1, faça-as lá também. Não faça merge na `main` sem pedido explícito; nunca `push --force`.
 - Último commit: veja `git log -1` na branch. O handoff mais recente está em `docs/AI_HANDOFF.md`, seção "Estado exato".
 
 ## Missões, na ordem obrigatória
