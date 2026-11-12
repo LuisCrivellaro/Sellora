@@ -8,6 +8,7 @@ import {
   activityInputSchema,
   clientInputSchema,
   leadInputSchema,
+  openingBalanceSchema,
   packageSchema,
   paymentInputSchema,
   profileSchema,
@@ -245,7 +246,7 @@ export function importProspects(results: (ProspectResult & { discarded?: boolean
           const existing = [...leads, ...db.leads].find((l) => l.id === match.leadId)!;
           if (existing.stage === "ganho" || existing.stage === "perdido") continue;
           const previous = demoUpdates.get(existing.id) ?? existing.demo;
-          demoUpdates.set(existing.id, previous ?? createLeadDemo(existing));
+          demoUpdates.set(existing.id, previous ?? createLeadDemo(existing, { category: r.category }));
           report.demos.push({ resultId: r.id, leadId: existing.id, reused: !!previous });
         }
         continue;
@@ -259,7 +260,7 @@ export function importProspects(results: (ProspectResult & { discarded?: boolean
       const t = nowIso();
       const lead: Lead = { ...parsed.data, website: parsed.data.website || null, lastContactAt: null, clientId: null, lostReason: "", id: uid("lead"), createdAt: t, updatedAt: t };
       if (options?.generateDemos) {
-        lead.demo = createLeadDemo(lead);
+        lead.demo = createLeadDemo(lead, { category: r.category });
         report.demos.push({ resultId: r.id, leadId: lead.id, reused: false });
       }
       const note = activityInputSchema.parse({ type: "nota", description: activity, dueAt: null, completed: true });
@@ -295,6 +296,7 @@ export function applyGeneratedLeadDemo(leadId: ID, result: GenerationResult, exp
     const previous = lead.demo;
     if (previous?.creation?.id === generated.creation.id) { saved = previous; return db; }
     if (demoRevision(previous) !== expectedRevision) throw new Error("A demo foi editada durante a geração. Gere novamente para aplicar ao conteúdo atual.");
+    if (previous?.status === "rejected") throw new Error(REJECTED_DEMO);
     const base = previous ?? createLeadDemo(lead);
     const messageWasEdited = previous && previous.message !== previous.generatedMessage && previous.message !== defaultDemoMessage(previous.business)
       && !(previous.conceptId && previous.message === approvedConcepts[previous.conceptId].message);
@@ -317,24 +319,67 @@ function updateLeadDemo(leadId: ID, update: (demo: LeadDemo, db: Database) => Le
   });
 }
 
+const REJECTED_DEMO = "Esta demo foi recusada. Restaure-a para aguardando aprovação antes de alterar.";
+
+function demoReviewer(db: Database): string {
+  return getMode() === "supabase" ? getStoreState().account?.email || db.settings.profile.name || "Revisor" : db.settings.profile.name || "Revisor local";
+}
+
 export function saveDemoMessage(leadId: ID, message: string) {
   const text = demoMessageSchema.parse(message);
-  updateLeadDemo(leadId, (demo) => demo.message === text ? demo : { ...demo, message: text, status: "pending", approvedAt: null, approvedBy: null, updatedAt: nowIso() });
+  updateLeadDemo(leadId, (demo) => {
+    if (demo.status === "rejected") throw new Error(REJECTED_DEMO);
+    return demo.message === text ? demo : { ...demo, message: text, status: "pending", approvedAt: null, approvedBy: null, updatedAt: nowIso() };
+  });
 }
 
 export function approveLeadDemo(leadId: ID) {
   updateLeadDemo(leadId, (demo, db) => {
+    if (demo.status === "rejected") throw new Error(REJECTED_DEMO);
     const issues = demoCreativeIssues(demo, db.leads.flatMap((lead) => lead.demo ? [lead.demo] : []));
     if (issues.length) throw new Error(`Revisão criativa pendente. ${issues.join(" ")}`);
-    return { ...demo, status: "approved", approvedAt: nowIso(), updatedAt: nowIso(), approvedBy: getMode() === "supabase" ? getStoreState().account?.email || db.settings.profile.name : db.settings.profile.name || "Revisor local" };
+    return { ...demo, status: "approved", approvedAt: nowIso(), updatedAt: nowIso(), approvedBy: demoReviewer(db) };
+  });
+}
+
+/**
+ * Recusa só a demo deste lead: o lead, a mensagem, o envio declarado e o histórico ficam.
+ * Remove a aprovação (nada recusado pode ser enviado) e registra uma nota no CRM.
+ */
+export function rejectLeadDemo(leadId: ID) {
+  setDemoRejection(leadId, true);
+}
+
+/** Desfaz a recusa: a demo volta para "Aguardando aprovação" (exige nova aprovação). */
+export function restoreLeadDemo(leadId: ID) {
+  setDemoRejection(leadId, false);
+}
+
+function setDemoRejection(leadId: ID, rejected: boolean) {
+  commit((db) => {
+    const lead = db.leads.find((l) => l.id === leadId);
+    if (!lead?.demo) throw new Error("Este lead não tem demo.");
+    if ((lead.demo.status === "rejected") === rejected) return db;
+    const t = nowIso();
+    const by = demoReviewer(db);
+    const demo = leadDemoSchema.parse(rejected
+      ? { ...lead.demo, status: "rejected", approvedAt: null, approvedBy: null, rejectedAt: t, rejectedBy: by, updatedAt: t }
+      : { ...lead.demo, status: "pending", rejectedAt: null, rejectedBy: null, updatedAt: t });
+    const note = activityInputSchema.parse({ type: "nota", description: rejected ? `Demo recusada por ${by}. Lead e histórico preservados; envio bloqueado até restaurar.` : `Demo restaurada por ${by} para aguardando aprovação.`, dueAt: null, completed: true });
+    const activity: Activity = { id: uid("act"), leadId, clientId: null, projectId: null, type: note.type, description: note.description, dueAt: null, completedAt: t, createdAt: t };
+    return { ...db, leads: db.leads.map((l) => l.id === leadId ? { ...l, demo, updatedAt: t } : l), activities: [activity, ...db.activities] };
   });
 }
 
 export function revokeDemoApproval(leadId: ID) {
-  updateLeadDemo(leadId, (demo) => ({ ...demo, status: "pending", approvedAt: null, approvedBy: null, updatedAt: nowIso() }));
+  updateLeadDemo(leadId, (demo) => {
+    if (demo.status === "rejected") throw new Error(REJECTED_DEMO);
+    return { ...demo, status: "pending", approvedAt: null, approvedBy: null, updatedAt: nowIso() };
+  });
 }
 
 export function upgradeLeadDemoDesign(leadId: ID) {
+  if (getDb().leads.find((l) => l.id === leadId)?.demo?.status === "rejected") throw new Error(REJECTED_DEMO);
   upgradeLeadDemoDesigns([leadId]);
 }
 
@@ -343,7 +388,7 @@ export function upgradeLeadDemoDesigns(leadIds: ID[]): number {
   let updated = 0;
   commit((db) => {
     const leads = db.leads.map((lead) => {
-      if (!selected.has(lead.id) || !lead.demo || lead.demo.version >= 4) return lead;
+      if (!selected.has(lead.id) || !lead.demo || lead.demo.version >= 4 || lead.demo.status === "rejected") return lead;
       const conceptId = findApprovedConcept(lead.demo.business);
       if (!conceptId && lead.demo.version === 3) return lead;
       const message = conceptId && lead.demo.message === defaultDemoMessage(lead.demo.business) ? approvedConcepts[conceptId].message : lead.demo.message;
@@ -522,6 +567,7 @@ export function closeSale(proposalId: ID): SaleResult {
       publishedUrl: "",
       publishedAt: null,
       deliveredAt: null,
+      contractCancelledAt: null,
       notes: proposal.scope ?? "",
       createdAt: t,
       updatedAt: t,
@@ -534,6 +580,8 @@ export function closeSale(proposalId: ID): SaleResult {
       description: i.description,
       amount: i.amount,
       dueDate: i.dueDate,
+      category: "",
+      notes: "",
       payments: [],
       cancelled: false,
       createdAt: t,
@@ -592,6 +640,7 @@ export function createProject(input: ProjectInput): Project {
     tasks: DEFAULT_PROJECT_TASKS.map((task) => ({ id: uid("task"), title: task.title, stage: task.stage, done: false, doneAt: null })),
     publishedAt: data.publishedUrl ? t : null,
     deliveredAt: null,
+    contractCancelledAt: null,
     id: uid("proj"),
     createdAt: t,
     updatedAt: t,
@@ -791,42 +840,181 @@ export function deleteProposal(id: ID) {
 
 /* ───────────────────────────── Financeiro ───────────────────────────── */
 
-export function createTransaction(input: TransactionInput): Transaction {
+/*
+ * Regras de integridade (valem nos dois modos; no Supabase o banco repete a
+ * principal com um gatilho — ver migration de produção do financeiro):
+ * - a soma dos pagamentos nunca passa do valor do lançamento;
+ * - lançamento com pagamento registrado não é cancelado nem apagado: primeiro
+ *   estorna-se o pagamento, com motivo;
+ * - toda correção relevante (valor, vencimento, estorno, cancelamento) gera um
+ *   registro de atividade com o antes/depois — nada some em silêncio.
+ */
+
+const cents = (v: number) => Math.round(v * 100);
+const paidOf = (tx: Transaction) => tx.payments.reduce((s, p) => s + cents(p.amount), 0) / 100;
+const brl = (v: number) => v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+const dayOf = (iso: string) => new Date(iso).toLocaleDateString("pt-BR");
+
+/** Registro de auditoria do financeiro (aparece no histórico do cliente/projeto). */
+function financeLog(tx: Pick<Transaction, "clientId" | "projectId">, description: string): Activity {
+  const t = nowIso();
+  return { id: uid("act"), leadId: null, clientId: tx.clientId, projectId: tx.projectId, type: "nota", description: `Financeiro: ${description}`.slice(0, 500), dueAt: null, completedAt: t, createdAt: t };
+}
+
+/** Janela em que um pagamento idêntico é tratado como clique duplicado. */
+const DUPLICATE_WINDOW_MS = 15_000;
+const recentPayments = new Map<string, number>();
+
+function guardDuplicate(key: string) {
+  const now = Date.now();
+  for (const [k, at] of recentPayments) if (now - at > DUPLICATE_WINDOW_MS) recentPayments.delete(k);
+  if (recentPayments.has(key)) throw new Error("Este pagamento acabou de ser registrado. Confira as movimentações antes de lançar de novo.");
+  recentPayments.set(key, now);
+}
+
+export interface SettleNow {
+  date: string;
+  method?: PaymentInput["method"];
+  note?: string;
+}
+
+/**
+ * Cria um lançamento (recebível ou despesa). Com `settleNow`, registra na
+ * mesma gravação o pagamento integral (recebimento avulso já recebido ou
+ * despesa já paga) — uma operação só, sem risco de ficar pela metade.
+ */
+export function createTransaction(input: TransactionInput, settleNow?: SettleNow): Transaction {
   const data = transactionInputSchema.parse(input);
   const t = nowIso();
-  const tx: Transaction = { ...data, payments: [], cancelled: false, id: uid("tx"), createdAt: t, updatedAt: t };
+  const payments = settleNow ? [{ id: uid("pay"), ...paymentInputSchema.parse({ amount: data.amount, date: settleNow.date, method: settleNow.method ?? "", note: settleNow.note ?? "" }) }] : [];
+  if (settleNow) guardDuplicate(`new|${data.kind}|${data.description.toLowerCase()}|${cents(data.amount)}|${dayOf(settleNow.date)}`);
+  const tx: Transaction = { ...data, payments, cancelled: false, id: uid("tx"), createdAt: t, updatedAt: t };
   commit((db) => ({ ...db, transactions: [tx, ...db.transactions] }));
   return tx;
 }
 
-/** Registra recebimento (total ou parcial). Não processa pagamento real. */
+/** Registra recebimento/pagamento (total ou parcial). Não processa pagamento real. */
 export function addPayment(transactionId: ID, input: PaymentInput) {
   const data = paymentInputSchema.parse(input);
-  const db = getDb();
-  const tx = db.transactions.find((x) => x.id === transactionId);
+  const tx = getDb().transactions.find((x) => x.id === transactionId);
   if (!tx) throw new Error("Lançamento não encontrado.");
-  const paid = tx.payments.reduce((s, p) => s + p.amount, 0);
-  const remaining = Math.round((tx.amount - paid) * 100) / 100;
-  if (data.amount > remaining + 0.001) throw new Error(`Valor maior que o saldo em aberto (${remaining.toFixed(2).replace(".", ",")}).`);
+  if (tx.cancelled) throw new Error("Lançamento cancelado: reative-o antes de registrar pagamento.");
+  const remaining = (cents(tx.amount) - cents(paidOf(tx))) / 100;
+  if (remaining <= 0) throw new Error("Este lançamento já está quitado.");
+  if (cents(data.amount) > cents(remaining)) throw new Error(`Valor maior que o saldo em aberto (${brl(remaining)}).`);
+  guardDuplicate(`pay|${transactionId}|${cents(data.amount)}|${dayOf(data.date)}`);
   commit((d) => ({
     ...d,
-    transactions: d.transactions.map((x) =>
-      x.id === transactionId ? { ...x, updatedAt: nowIso(), payments: [...x.payments, { id: uid("pay"), ...data }] } : x,
-    ),
+    transactions: d.transactions.map((x) => (x.id === transactionId ? { ...x, updatedAt: nowIso(), payments: [...x.payments, { id: uid("pay"), ...data }] } : x)),
   }));
 }
 
-export function setTransactionCancelled(id: ID, cancelled: boolean) {
-  commit((db) => ({ ...db, transactions: db.transactions.map((x) => (x.id === id ? { ...x, cancelled, updatedAt: nowIso() } : x)) }));
+export interface TransactionPatch {
+  description: string;
+  amount: number | string;
+  dueDate: string;
+  category: Transaction["category"];
+  notes: string;
+  clientId: ID | null;
+  projectId: ID | null;
 }
 
-export function removePayment(transactionId: ID, paymentId: ID) {
+/** Corrige um lançamento. Valor não pode ficar abaixo do já pago; mudanças de valor/vencimento ficam registradas. */
+export function updateTransaction(id: ID, patch: TransactionPatch): Transaction {
+  const current = getDb().transactions.find((x) => x.id === id);
+  if (!current) throw new Error("Lançamento não encontrado.");
+  const data = transactionInputSchema.parse({ ...patch, kind: current.kind });
+  const paid = paidOf(current);
+  if (cents(data.amount) < cents(paid)) throw new Error(`O valor não pode ficar abaixo do já pago (${brl(paid)}). Estorne o pagamento antes.`);
+  const changes: string[] = [];
+  if (cents(data.amount) !== cents(current.amount)) changes.push(`valor ${brl(current.amount)} → ${brl(data.amount)}`);
+  if (dayOf(data.dueDate) !== dayOf(current.dueDate)) changes.push(`vencimento ${dayOf(current.dueDate)} → ${dayOf(data.dueDate)}`);
+  if (data.description !== current.description) changes.push(`descrição “${current.description}” → “${data.description}”`);
+  const saved: Transaction = { ...current, ...data, updatedAt: nowIso() };
   commit((db) => ({
     ...db,
-    transactions: db.transactions.map((x) =>
-      x.id === transactionId ? { ...x, updatedAt: nowIso(), payments: x.payments.filter((p) => p.id !== paymentId) } : x,
-    ),
+    activities: changes.length ? [financeLog(saved, `lançamento corrigido — ${changes.join("; ")}`), ...db.activities] : db.activities,
+    transactions: db.transactions.map((x) => (x.id === id ? saved : x)),
   }));
+  return saved;
+}
+
+/** Estorna (desfaz) um pagamento registrado por engano. Exige motivo e fica no histórico. */
+export function reversePayment(transactionId: ID, paymentId: ID, reason: string) {
+  const why = reason.trim();
+  if (why.length < 3) throw new Error("Informe o motivo do estorno (ao menos 3 caracteres).");
+  const tx = getDb().transactions.find((x) => x.id === transactionId);
+  const payment = tx?.payments.find((p) => p.id === paymentId);
+  if (!tx || !payment) throw new Error("Pagamento não encontrado.");
+  commit((db) => ({
+    ...db,
+    activities: [financeLog(tx, `estorno de ${brl(payment.amount)} pago em ${dayOf(payment.date)} em “${tx.description}”. Motivo: ${why.slice(0, 200)}`), ...db.activities],
+    transactions: db.transactions.map((x) => (x.id === transactionId ? { ...x, updatedAt: nowIso(), payments: x.payments.filter((p) => p.id !== paymentId) } : x)),
+  }));
+}
+
+/** Cancela/reativa um lançamento. Com pagamento registrado, é preciso estornar antes (o dinheiro já movimentado não some). */
+export function setTransactionCancelled(id: ID, cancelled: boolean) {
+  const tx = getDb().transactions.find((x) => x.id === id);
+  if (!tx) throw new Error("Lançamento não encontrado.");
+  if (tx.cancelled === cancelled) return;
+  if (cancelled && tx.payments.length) throw new Error("Este lançamento tem pagamento registrado. Estorne o pagamento antes de cancelar.");
+  commit((db) => ({
+    ...db,
+    activities: [financeLog(tx, `${cancelled ? "lançamento cancelado" : "lançamento reativado"} — “${tx.description}” (${brl(tx.amount)})`), ...db.activities],
+    transactions: db.transactions.map((x) => (x.id === id ? { ...x, cancelled, updatedAt: nowIso() } : x)),
+  }));
+}
+
+/**
+ * Cancela o contrato de um projeto: deixa de contar como receita contratada,
+ * parcelas sem pagamento são canceladas e parcelas parcialmente pagas são
+ * encerradas no valor já recebido (o recebido continua no caixa).
+ */
+export function cancelProjectContract(projectId: ID, reason: string) {
+  const why = reason.trim();
+  if (why.length < 3) throw new Error("Informe o motivo do cancelamento (ao menos 3 caracteres).");
+  const project = getDb().projects.find((p) => p.id === projectId);
+  if (!project) throw new Error("Projeto não encontrado.");
+  if (project.contractCancelledAt) return;
+  commit((db) => {
+    const t = nowIso();
+    const notes: string[] = [];
+    const transactions = db.transactions.map((x) => {
+      if (x.projectId !== projectId || x.kind !== "receita" || x.cancelled) return x;
+      const paid = paidOf(x);
+      if (cents(paid) >= cents(x.amount)) return x;
+      if (paid === 0) {
+        notes.push(`“${x.description}” (${brl(x.amount)}) cancelada`);
+        return { ...x, cancelled: true, updatedAt: t };
+      }
+      notes.push(`“${x.description}” encerrada em ${brl(paid)} (era ${brl(x.amount)})`);
+      return { ...x, amount: paid, updatedAt: t };
+    });
+    return {
+      ...db,
+      activities: [financeLog({ clientId: project.clientId, projectId }, `contrato de ${brl(project.contractValue)} cancelado. Motivo: ${why.slice(0, 160)}.${notes.length ? ` Parcelas: ${notes.join("; ")}.` : ""}`), ...db.activities],
+      projects: db.projects.map((p) => (p.id === projectId ? { ...p, contractCancelledAt: t, updatedAt: t } : p)),
+      transactions,
+    };
+  });
+}
+
+/** Reativa o contrato. Parcelas canceladas não voltam sozinhas: relance o que faltar receber. */
+export function reactivateProjectContract(projectId: ID) {
+  const project = getDb().projects.find((p) => p.id === projectId);
+  if (!project?.contractCancelledAt) return;
+  commit((db) => ({
+    ...db,
+    activities: [financeLog({ clientId: project.clientId, projectId }, `contrato de ${brl(project.contractValue)} reativado. Parcelas canceladas não foram restauradas automaticamente.`), ...db.activities],
+    projects: db.projects.map((p) => (p.id === projectId ? { ...p, contractCancelledAt: null, updatedAt: nowIso() } : p)),
+  }));
+}
+
+/** Saldo de caixa informado numa data (ex.: extrato). null remove a informação. */
+export function setOpeningBalance(value: { amount: number | string; date: string } | null) {
+  const parsed = value ? openingBalanceSchema.parse(value) : null;
+  commit((db) => ({ ...db, settings: { ...db.settings, openingBalance: parsed ? { amount: Math.round(parsed.amount * 100) / 100, date: parsed.date } : null } }));
 }
 
 /* ───────────────────────────── Configurações ───────────────────────────── */

@@ -55,6 +55,7 @@ export const defaultSettings: Settings = {
   entryPercent: 50,
   defaultRevisions: 2,
   monthlyLeadTarget: 30,
+  openingBalance: null,
 };
 
 function rng(seed: number) {
@@ -144,8 +145,21 @@ export function normalizeDatabase(db: Database): Database {
   const needsScope = db.proposals.some((p) => typeof p.scope !== "string");
   const needsDemo = db.leads.some((l) => l.demo === undefined);
   const sameSettings = Object.keys(settings).every((k) => k in db.settings);
-  if (sameSettings && !needsScope && !needsDemo) return db;
-  return { ...db, settings, leads: needsDemo ? db.leads.map((l) => ({ ...l, demo: l.demo ?? null })) : db.leads, proposals: needsScope ? db.proposals.map((p) => ({ ...p, scope: p.scope ?? "" })) : db.proposals };
+  // Campos financeiros adicionados depois: dados salvos antes recebem o padrão neutro.
+  const needsFinance =
+    db.projects.some((p) => p.contractCancelledAt === undefined) ||
+    db.transactions.some((t) => t.category === undefined || t.notes === undefined || t.payments.some((p) => p.method === undefined));
+  if (sameSettings && !needsScope && !needsDemo && !needsFinance) return db;
+  return {
+    ...db,
+    settings,
+    leads: needsDemo ? db.leads.map((l) => ({ ...l, demo: l.demo ?? null })) : db.leads,
+    proposals: needsScope ? db.proposals.map((p) => ({ ...p, scope: p.scope ?? "" })) : db.proposals,
+    projects: needsFinance ? db.projects.map((p) => ({ ...p, contractCancelledAt: p.contractCancelledAt ?? null })) : db.projects,
+    transactions: needsFinance
+      ? db.transactions.map((t) => ({ ...t, category: t.category ?? "", notes: t.notes ?? "", payments: t.payments.map((p) => ({ ...p, method: p.method ?? "" })) }))
+      : db.transactions,
+  };
 }
 
 export function createSeed(now: Date = new Date()): Database {
@@ -430,6 +444,7 @@ export function createSeed(now: Date = new Date()): Database {
       publishedUrl: plan.delivered ? `https://www.${slug(lead.name)}.com.br` : "",
       publishedAt: deliveredAt,
       deliveredAt,
+      contractCancelledAt: null,
       notes: "",
       createdAt: start.toISOString(),
       updatedAt: start.toISOString(),
@@ -452,7 +467,9 @@ export function createSeed(now: Date = new Date()): Database {
       description: "Entrada 50% — criação do site",
       amount: half,
       dueDate: start.toISOString(),
-      payments: [{ id: id("pay"), amount: half, date: addDays(start, between(0, 2)).toISOString(), note: "Pix" }],
+      category: "",
+      notes: "",
+      payments: [{ id: id("pay"), amount: half, date: addDays(start, between(0, 2)).toISOString(), method: "pix", note: "" }],
       cancelled: false,
       createdAt: start.toISOString(),
       updatedAt: start.toISOString(),
@@ -468,10 +485,12 @@ export function createSeed(now: Date = new Date()): Database {
       description: "Saldo 50% — entrega do site",
       amount: value - half,
       dueDate: balanceDue,
+      category: "",
+      notes: "",
       payments: balancePaid
-        ? [{ id: id("pay"), amount: value - half, date: addDays(balanceDue, between(0, 3)).toISOString(), note: "Pix" }]
+        ? [{ id: id("pay"), amount: value - half, date: addDays(balanceDue, between(0, 3)).toISOString(), method: "pix", note: "" }]
         : partial
-          ? [{ id: id("pay"), amount: Math.round((value - half) / 2), date: addDays(balanceDue, 1).toISOString(), note: "Transferência" }]
+          ? [{ id: id("pay"), amount: Math.round((value - half) / 2), date: addDays(balanceDue, 1).toISOString(), method: "transferencia", note: "" }]
           : [],
       cancelled: false,
       createdAt: start.toISOString(),
@@ -486,7 +505,9 @@ export function createSeed(now: Date = new Date()): Database {
         description: "Registro de domínio (repasse ao cliente)",
         amount: 40,
         dueDate: deliveredAt as string,
-        payments: [{ id: id("pay"), amount: 40, date: deliveredAt as string, note: "" }],
+        category: "dominio",
+        notes: "",
+        payments: [{ id: id("pay"), amount: 40, date: deliveredAt as string, method: "pix", note: "" }],
         cancelled: false,
         createdAt: deliveredAt as string,
         updatedAt: deliveredAt as string,

@@ -123,6 +123,8 @@ export interface Project {
   publishedUrl: string;
   publishedAt: string | null;
   deliveredAt: string | null;
+  /** Contrato cancelado: deixa de contar como receita contratada (o já recebido continua no caixa). */
+  contractCancelledAt: string | null;
   notes: string;
   createdAt: string;
   updatedAt: string;
@@ -169,10 +171,15 @@ export interface Proposal {
 
 export type TransactionKind = "receita" | "custo";
 
+export type PaymentMethod = "" | "pix" | "transferencia" | "boleto" | "cartao" | "dinheiro" | "outro";
+export type ExpenseCategory = "" | "ferramentas" | "hospedagem" | "dominio" | "marketing" | "terceiros" | "impostos" | "taxas" | "equipamentos" | "outros";
+
 export interface Payment {
   id: ID;
   amount: number;
   date: string;
+  /** Forma de pagamento informada no registro ("" = não informada). */
+  method: PaymentMethod;
   note: string;
 }
 
@@ -184,6 +191,9 @@ export interface Transaction {
   description: string;
   amount: number;
   dueDate: string;
+  /** Categoria (despesas); "" quando não se aplica. */
+  category: ExpenseCategory;
+  notes: string;
   payments: Payment[];
   cancelled: boolean;
   createdAt: string;
@@ -218,6 +228,12 @@ export interface Settings {
   defaultRevisions: number;
   /** Meta mensal de leads captados; base do eixo "Prospecção" do radar. */
   monthlyLeadTarget: number;
+  /**
+   * Saldo de caixa informado pelo administrador numa data de referência
+   * (ex.: extrato bancário). null = não informado: o Financeiro mostra só a
+   * movimentação líquida registrada, nunca presume saldo zero.
+   */
+  openingBalance: { amount: number; date: string } | null;
 }
 
 export interface Database {

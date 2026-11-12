@@ -12,6 +12,12 @@ Estado verificado em 2026-11-12. README descreve o uso e DECISIONS preserva as d
 - Leitores v1–v4 e dois conceitos v4 aprovados permanecem disponíveis. Mensagens editadas, snapshots e envios anteriores são preservados.
 - WhatsApp abre com rascunho após aprovação; envio e confirmação são manuais. Nenhum contato com leads foi realizado na validação.
 
+## Merge com origin/main (2026-11-12)
+
+- Ramo local (demos v1–v5 com Codex) mesclado com origin/main (IBGE/Overpass, financeiro de produção, demos v3 por tipo de negócio e recusa de demo). Decisão detalhada em DECISIONS.
+- v3 com `design` = personalização; v3 sem `design` = visual por tipo (`DemoSiteV3`/`CoverV3`). Demos recusadas ficam fora das ações em lote e da aplicação de resultados gerados.
+- Migration `20261111220000_finance_production.sql` veio do remoto e não foi aplicada em nenhum Supabase real.
+
 ## Dados e segurança
 
 - CRM local no armazenamento do perfil; exportação/restauração JSON nas Configurações. Não aumentar DB_VERSION: normalizar campos novos para preservar registros.
@@ -22,7 +28,7 @@ Estado verificado em 2026-11-12. README descreve o uso e DECISIONS preserva as d
 
 ## Evidências e limites
 
-- 148 testes em 22 arquivos, lint, TypeScript e build aprovados. Dependências de produção sem vulnerabilidades no npm audit desta revisão.
+- Após o merge com origin/main (2026-11-12): 176 testes em 25 arquivos, lint, TypeScript e build aprovados. Dependências de produção sem vulnerabilidades no npm audit desta revisão.
 - Auditoria completa: 12 alertas moderados nas dependências de desenvolvimento (cadeias de typescript-eslint e electron-builder/minimatch), sem alertas altos ou críticos. package-lock.json não mudou nesta versão. A correção deve ser tratada separadamente, validando compatibilidade; não executar audit fix --force indiscriminadamente.
 - QA anterior observado no executável e navegador: geração nativa com negócio fictício, persistência, layouts responsivos, prévia, shortlist regional, ausência de geração antes do botão e pausa da fila antiga ao reabrir. Evidências temporárias em `test-results/`, fora do commit.
 - A conta Codex precisa disponibilizar geração de imagens e ter cota/créditos. Não há garantia de uso ilimitado ou gratuito.

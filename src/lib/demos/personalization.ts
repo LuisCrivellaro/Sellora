@@ -3,6 +3,7 @@ import type { DemoBusiness } from "./model";
 import { demoDesigns } from "./designs";
 import type { Segment } from "../types";
 import { approvedConcepts, type ApprovedConceptId } from "./concepts";
+import { demoVariant } from "./kinds";
 
 const color = z.string().regex(/^#[0-9a-f]{6}$/i);
 export const demoPersonalizationSchema = z.object({
@@ -68,5 +69,6 @@ export function demoDesignName(demo: { version: number; business: DemoBusiness; 
   if (demo.version === 4 && demo.conceptId) return approvedConcepts[demo.conceptId].name;
   if (demo.version === 1) return "Visual original";
   if (demo.version === 3 && demo.design) return demoLayoutNames[demo.design.layout];
+  if (demo.version === 3) return demoVariant(demo.business).styleName;
   return demoDesigns[demo.business.segment].name;
 }

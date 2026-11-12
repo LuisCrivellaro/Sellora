@@ -10,7 +10,7 @@ import { Modal } from "@/components/ui/overlay";
 import { clientStatusMeta, projectStageMeta, proposalStatusMeta, segmentMeta, transactionStatusMeta } from "@/lib/constants";
 import { useStore } from "@/lib/data/store";
 import { formatDate } from "@/lib/dates";
-import { openAmount, paidAmount, transactionStatus } from "@/lib/metrics/finance";
+import { contractValueOf, openAmount, paidAmount, transactionStatus } from "@/lib/metrics/finance";
 import { proposalTotal } from "@/lib/metrics/proposals";
 import { projectProgress } from "@/lib/metrics/projects";
 import type { Client } from "@/lib/types";
@@ -23,7 +23,7 @@ export function ClientDetail({ client, open, onOpenChange, onEdit }: { client: C
   if (!client || !db) return null;
   const projects = db.projects.filter((p) => p.clientId === client.id);
   const txs = db.transactions.filter((t) => t.clientId === client.id && t.kind === "receita" && !t.cancelled);
-  const contracted = sum(projects.map((p) => p.contractValue));
+  const contracted = sum(projects.map(contractValueOf));
   const received = sum(txs.map(paidAmount));
   const open_ = sum(txs.map(openAmount));
   const activities = db.activities.filter((a) => a.clientId === client.id || (client.leadId && a.leadId === client.leadId));

@@ -1,8 +1,9 @@
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { createEmptyDatabase } from "./seed";
 import { getDb, replaceDatabase } from "./store";
-import { applyGeneratedLeadDemo, approveLeadDemo, createLead, generateLeadDemo, importProspects, saveDemoMessage, markDemoManuallySent, upgradeLeadDemoDesign, upgradeLeadDemoDesigns } from "./repository";
+import { applyGeneratedLeadDemo, approveLeadDemo, createLead, generateLeadDemo, importProspects, rejectLeadDemo, restoreLeadDemo, revokeDemoApproval, saveDemoMessage, markDemoManuallySent, upgradeLeadDemoDesign, upgradeLeadDemoDesigns } from "./repository";
 import { demoMessageForCopy, demoPreviewUrl, demoRevision, parseDemoDocument, parseDemoFragment } from "../demos/model";
+import { demoReviewStage, whatsappDraftUrl } from "../demos/whatsapp";
 import { leadFromRow, leadToRow } from "./mappers";
 import { leadRowSchema } from "./row-schemas";
 import type { ProspectResult } from "../prospecting/types";
@@ -189,7 +190,10 @@ describe("demos e aprovação humana", () => {
       expect(document?.design).toBeUndefined();
     }
     const fragment = (design: unknown) => "#" + btoa(JSON.stringify({ version: 3, business: { ...demo.business, name: "Cafe Teste" }, design }));
-    expect(parseDemoDocument(fragment(undefined))).toBeNull();
+    // v3 sem `design` = direção por tipo de negócio (kinds.ts), criada pelo ramo paralelo; continua abrindo.
+    const byKind = parseDemoDocument(new URL(demoPreviewUrl({ ...demo, version: 3, design: undefined, conceptId: undefined, creation: undefined }, "https://sellora.example")).hash);
+    expect(byKind?.version).toBe(3);
+    expect(byKind?.design).toBeUndefined();
     expect(parseDemoDocument(fragment({ ...demo.design, paper: "red;background:url(https://external.example)" }))).toBeNull();
   });
   it("só registra envio após aprovação e confirmação explícita; repetir não duplica contato", () => {
@@ -265,6 +269,66 @@ describe("demos e aprovação humana", () => {
     expect(parseDemoFragment("#" + "x".repeat(10001))).toBeNull();
     expect(() => demoPreviewUrl(demo, "javascript:alert(1)")).toThrow();
   });
+  it("recusar afeta só a demo escolhida, bloqueia aprovação/envio e preserva lead e histórico", () => {
+    const lead = createLead({ ...input, phone: "(19) 99999-1234" });
+    // Mesmo negócio em outro cadastro: a revisão criativa não acusa repetição entre eles.
+    const other = createLead({ ...input, phone: "(19) 98888-1234" });
+    generateLeadDemo(lead.id);
+    generateLeadDemo(other.id);
+    approveLeadDemo(lead.id);
+    approveLeadDemo(other.id);
+    const otherBefore = getDb().leads.find((l) => l.id === other.id)!.demo;
+    const activitiesBefore = getDb().activities.length;
+
+    rejectLeadDemo(lead.id);
+    rejectLeadDemo(lead.id); // repetir não duplica registro
+    const rejected = getDb().leads.find((l) => l.id === lead.id)!;
+    expect(rejected.demo?.status).toBe("rejected");
+    expect(rejected.demo?.approvedAt).toBeNull();
+    expect(rejected.demo?.rejectedAt).toBeTruthy();
+    expect(rejected.demo?.rejectedBy).toBeTruthy();
+    expect(rejected.demo?.message).toBe(getDb().leads.find((l) => l.id === lead.id)!.demo?.message);
+    expect(rejected.stage).toBe("novo");
+    expect(rejected.notes).toBe(input.notes);
+    expect(getDb().leads).toHaveLength(2);
+    expect(getDb().activities).toHaveLength(activitiesBefore + 1);
+    expect(getDb().activities[0].description).toMatch(/Demo recusada/);
+    expect(getDb().leads.find((l) => l.id === other.id)!.demo).toEqual(otherBefore);
+    expect(demoReviewStage(rejected.demo!, rejected.phone)).toBe("rejected");
+
+    expect(() => approveLeadDemo(lead.id)).toThrow(/recusada/i);
+    expect(() => saveDemoMessage(lead.id, "Outra mensagem qualquer para teste.")).toThrow(/recusada/i);
+    expect(() => upgradeLeadDemoDesign(lead.id)).toThrow(/recusada/i);
+    expect(() => revokeDemoApproval(lead.id)).toThrow(/recusada/i);
+    expect(() => demoMessageForCopy(rejected.demo!, "https://sellora.example")).toThrow(/recusada/i);
+    expect(() => whatsappDraftUrl(rejected.demo!, rejected.phone, "https://sellora.example")).toThrow(/recusada/i);
+    expect(() => markDemoManuallySent(lead.id, "https://sellora.example")).toThrow(/recusada/i);
+    expect(getDb().activities.filter((a) => a.type === "whatsapp")).toHaveLength(0);
+
+    // Persistência: mapeamento do Supabase e validação do servidor mantêm a recusa.
+    expect(leadFromRow(leadToRow(rejected)).demo).toEqual(rejected.demo);
+    expect(leadRowSchema.parse(rejected).demo?.status).toBe("rejected");
+    expect(leadRowSchema.safeParse({ ...rejected, demo: { ...rejected.demo, rejectedAt: null } }).success).toBe(false);
+
+    restoreLeadDemo(lead.id);
+    const restored = getDb().leads.find((l) => l.id === lead.id)!.demo!;
+    expect(restored.status).toBe("pending");
+    expect(restored.rejectedAt).toBeNull();
+    expect(restored.approvedAt).toBeNull();
+    expect(getDb().activities[0].description).toMatch(/restaurada/);
+    approveLeadDemo(lead.id);
+    expect(getDb().leads.find((l) => l.id === lead.id)!.demo?.status).toBe("approved");
+  });
+
+  it("reimportar um lead com demo recusada não desfaz a recusa", () => {
+    const lead = createLead(input);
+    generateLeadDemo(lead.id);
+    rejectLeadDemo(lead.id);
+    const report = importProspects([prospect("1")], { generateDemos: true });
+    expect(report.demos[0].reused).toBe(true);
+    expect(getDb().leads.find((l) => l.id === lead.id)?.demo?.status).toBe("rejected");
+  });
+
   it("preserva demo e aprovação no mapeamento e na validação do servidor", () => {
     const lead = createLead(input);
     generateLeadDemo(lead.id);

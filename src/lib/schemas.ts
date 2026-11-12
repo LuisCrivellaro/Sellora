@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { LEAD_SOURCES, LEAD_STAGES, PROJECT_STAGES, PROPOSAL_STATUSES, SEGMENTS } from "./constants";
+import { EXPENSE_CATEGORIES, LEAD_SOURCES, LEAD_STAGES, PAYMENT_METHODS, PROJECT_STAGES, PROPOSAL_STATUSES, SEGMENTS } from "./constants";
 
 /**
  * Esquemas de validação de entrada. Usados nos formulários (feedback inline) e
@@ -137,22 +137,38 @@ export const proposalInputSchema = z.object({
 });
 export type ProposalInput = z.infer<typeof proposalInputSchema>;
 
+/** Valor monetário positivo com no máximo 2 casas (centavos). */
+const positiveMoney = (label: string) =>
+  money(label)
+    .refine((v) => v > 0, "Valor deve ser maior que zero.")
+    .refine((v) => Math.abs(Math.round(v * 100) - v * 100) < 1e-6, `${label}: use no máximo 2 casas decimais.`);
+
 export const transactionInputSchema = z.object({
   kind: z.enum(["receita", "custo"]),
   clientId: z.string().nullable(),
   projectId: z.string().nullable(),
   description: requiredText("Descrição", 3, 140),
-  amount: money("Valor").refine((v) => v > 0, "Valor deve ser maior que zero."),
+  amount: positiveMoney("Valor"),
   dueDate: z.string().min(1, "Informe o vencimento."),
+  // Campos com padrão: lançamentos gravados antes deles continuam válidos.
+  category: z.enum(["", ...EXPENSE_CATEGORIES]).default(""),
+  notes: optionalText(500).default(""),
 });
-export type TransactionInput = z.infer<typeof transactionInputSchema>;
+export type TransactionInput = z.input<typeof transactionInputSchema>;
 
 export const paymentInputSchema = z.object({
-  amount: money("Valor").refine((v) => v > 0, "Valor deve ser maior que zero."),
+  amount: positiveMoney("Valor"),
   date: z.string().min(1, "Informe a data do pagamento."),
+  method: z.enum(["", ...PAYMENT_METHODS]).default(""),
   note: optionalText(140),
 });
-export type PaymentInput = z.infer<typeof paymentInputSchema>;
+export type PaymentInput = z.input<typeof paymentInputSchema>;
+
+/** Saldo informado (pode ser negativo: conta no vermelho). */
+export const openingBalanceSchema = z.object({
+  amount: z.coerce.number({ message: "Saldo: informe um valor numérico." }).min(-10_000_000).max(10_000_000),
+  date: z.string().min(1, "Informe a data do saldo."),
+});
 
 export const packageSchema = z.object({
   id: z.enum(["essencial", "profissional", "personalizado"]),
