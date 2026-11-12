@@ -34,7 +34,7 @@ export const siteBriefSchema = z.object({
   images: z.array(z.object({
     id: assetIdSchema, role: text(120), aspect: aspectSchema,
     prompt: text(1800), alt: text(200),
-  }).strict()).max(4),
+  }).strict()).max(3),
   differentiation: text(500),
   message: z.string().trim().min(10).max(2000),
 }).strict();

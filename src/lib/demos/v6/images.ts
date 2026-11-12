@@ -27,22 +27,21 @@ export function fallbackArtwork(image: SiteBrief["images"][number], palette: Sit
   const height = Math.round(width / ratio(image.aspect));
   let seed = parseInt(sha256(seedText + image.id).slice(0, 8), 16);
   const random = () => { seed = (seed * 1664525 + 1013904223) >>> 0; return seed / 2 ** 32; };
-  const colors = [palette.accent, palette.surface, palette.muted, palette.ink];
-  const shapes: string[] = [];
-  for (let i = 0; i < 7; i += 1) {
-    const color = colors[i % colors.length];
-    const x = Math.round(random() * width), y = Math.round(random() * height);
-    const r = Math.round((0.18 + random() * 0.45) * Math.min(width, height));
-    const opacity = (0.12 + random() * 0.38).toFixed(2);
-    shapes.push(i % 3 === 0
-      ? `<rect x="${x - r}" y="${y - r / 3}" width="${r * 2}" height="${Math.round(r / 1.6)}" rx="${Math.round(r / 10)}" fill="${color}" opacity="${opacity}" transform="rotate(${Math.round(random() * 40 - 20)} ${x} ${y})"/>`
-      : `<circle cx="${x}" cy="${y}" r="${r}" fill="${color}" opacity="${opacity}"/>`);
+  // Composição nítida em faixas e arcos (estilo cartaz), sem desfoque: lê como peça gráfica, não como foto que falhou.
+  const columns = 5 + Math.floor(random() * 3);
+  const step = width / columns;
+  const shapes: string[] = [`<rect width="100%" height="100%" fill="${palette.surface}"/>`];
+  for (let i = 0; i < columns; i += 1) {
+    const x = Math.round(i * step);
+    const kind = Math.floor(random() * 3);
+    const fill = [palette.accent, palette.ink, palette.background, palette.muted][Math.floor(random() * 4)];
+    if (kind === 0) shapes.push(`<rect x="${x}" y="${Math.round(height * (0.25 + random() * 0.5))}" width="${Math.ceil(step)}" height="${height}" fill="${fill}"/>`);
+    else if (kind === 1) shapes.push(`<path d="M${x} ${height} V${Math.round(height * (0.35 + random() * 0.3))} a${step / 2} ${step / 2} 0 0 1 ${step} 0 V${height} Z" fill="${fill}"/>`);
+    else shapes.push(`<circle cx="${Math.round(x + step / 2)}" cy="${Math.round(height * (0.2 + random() * 0.6))}" r="${Math.round(step * 0.38)}" fill="${fill}"/>`);
   }
+  shapes.push(`<rect x="0" y="${Math.round(height * 0.86)}" width="${width}" height="${Math.ceil(height * 0.14)}" fill="${palette.ink}"/>`);
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${height}" width="${width}" height="${height}" role="img" aria-label="${escapeXml(image.alt)}">
-<defs><filter id="blur"><feGaussianBlur stdDeviation="${Math.round(width / 40)}"/></filter></defs>
-<rect width="100%" height="100%" fill="${palette.background}"/>
-<g filter="url(#blur)">${shapes.join("")}</g>
-<rect width="100%" height="100%" fill="${palette.ink}" opacity="0.04"/>
+${shapes.join("\n")}
 </svg>\n`;
   return Buffer.from(svg, "utf8");
 }
