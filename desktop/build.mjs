@@ -16,7 +16,8 @@ const target = path.join(projectRoot, ".desktop-web");
 // O estágio anterior pode conter cache de rotas que ainda referencia o código antigo.
 await rm(target, { recursive: true, force: true });
 await mkdir(target, { recursive: true });
-await cp(".next/standalone", target, { recursive: true });
+// dereference: o standalone do Next cria links simbólicos (ex.: sharp); no Windows criar link exige privilégio, então copiamos o conteúdo real.
+await cp(".next/standalone", target, { recursive: true, dereference: true });
 await cp(".next/static", path.join(target, ".next/static"), { recursive: true });
 await cp("public", path.join(target, "public"), { recursive: true });
 await cp(".agents/skills/unique-site-designer", path.join(target, ".agents/skills/unique-site-designer"), { recursive: true });
