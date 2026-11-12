@@ -18,3 +18,9 @@ next-env.d.ts
 .sellora-data/
 release/
 supabase/.temp/
+
+# Skill de terceiros sem licença (tysszl/imagen-skill): uso local, não versionar nem empacotar
+.claude/skills/imagen/
+
+# Skill Taste: kit de assets (34 MB) reinstalável; versiona SKILL.md, references e scripts
+.claude/skills/design-taste-frontend/assets/
