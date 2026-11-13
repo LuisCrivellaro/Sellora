@@ -27,7 +27,7 @@ Por que um adaptador de gateway e não o runtime `custom`: no `custom` os estado
 
 - Tudo o que é da Sellora está em `integrations/claw3d/` (versionado):
   - `claw3d.lock.json`: upstream `https://github.com/iamlukethedev/Claw3D.git`, commit `51337f7` (2026-11-05), licença MIT. O upstream não tinha commits novos em 2026-11-12.
-  - `setup.mjs`: clona o upstream no commit fixado em `.claw3d/app` (ignorado pelo Git), confere a licença MIT, roda `npm ci`, copia o adaptador para `server/` e faz `npm run build`.
+  - `setup.mjs`: clona o upstream no commit fixado em `~/.sellora/claw3d/app` (fora do repositório), confere a licença MIT, roda `npm ci`, copia o adaptador para `server/` e faz `npm run build`.
   - `sellora-gateway-core.cjs` (tradução, testável) e `sellora-gateway-adapter.cjs` (servidor WebSocket).
   - `launcher.mjs`: sobe adaptador + Claw3D + proxy de enquadramento; usado em desenvolvimento e pensado para o Electron.
   - `sellora-gateway-core.test.ts`: 7 testes (incluídos no `npm test`).
@@ -72,6 +72,8 @@ Detalhes que o código do Claw3D exige (descobertos nos testes): numeração `se
 - Desconexão: reiniciar o dev server derrubou o SSE; o adaptador reconectou sozinho e marcou a execução interrompida (job órfão vira `cancelled` no bridge).
 
 ## Limitações conhecidas
+
+- Checkout e estado do Claw3D ficam **fora** do repositório (`~/.sellora/claw3d/`; no app empacotado, `%APPDATA%/sellora/claw3d/`). Dentro do projeto, o `settings.json` que o Claw3D grava ao conectar fazia o dev server do Next recarregar a aba Cloud 3D em loop (o iframe gravava de novo a cada recarga).
 
 - O contador "working" do cabeçalho do Claw3D pode continuar marcando o agente por alguns segundos depois do fim (travas de animação do próprio Claw3D: `workingUntilByAgentId`, permanência na mesa). O estado do agente (`status=idle`) muda na hora.
 - O estado `error` pode voltar a ocioso quando o Claw3D sincroniza a frota (`loadAgents` disparado por `presence`/`heartbeat`, com intervalo mínimo de 3 s). A falha continua registrada no histórico do agente no Claw3D e, de forma persistente, no painel lateral da Sellora.

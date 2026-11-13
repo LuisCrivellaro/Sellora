@@ -58,7 +58,7 @@ else {
    */
   async function startOffice(root, log) {
     try {
-      const appDir = process.env.SELLORA_CLAW3D_DIR || (app.isPackaged ? path.join(app.getPath("userData"), "claw3d", "app") : path.resolve(".claw3d", "app"));
+      const appDir = process.env.SELLORA_CLAW3D_DIR || (app.isPackaged ? path.join(app.getPath("userData"), "claw3d", "app") : path.join(app.getPath("home"), ".sellora", "claw3d", "app"));
       if (!existsSync(path.join(appDir, ".next", "BUILD_ID"))) { log(`[cloud-3d] Claw3D não preparado em ${appDir}; aba Cloud 3D sem escritório.
 `); return; }
       const { startClaw3d } = await import(pathToFileURL(path.join(root, "integrations", "claw3d", "launcher.mjs")).href);

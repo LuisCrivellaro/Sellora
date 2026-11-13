@@ -6,9 +6,11 @@
 // Não altera nenhum arquivo do Claw3D: o adaptador entra como arquivo novo.
 //
 // Uso: node integrations/claw3d/setup.mjs [--dir <destino>] [--source <git url ou caminho>] [--skip-build]
-// Padrão: destino `.claw3d/app` na raiz da Sellora (ignorado pelo Git).
+// Padrão: `~/.sellora/claw3d/app`, fora do repositório: o Claw3D grava estado e cache em tempo de execução,
+// e arquivos mudando dentro do projeto fazem o dev server do Next recarregar a página (e o iframe) em loop.
 import { spawnSync } from "node:child_process";
 import { copyFileSync, existsSync, mkdirSync, readFileSync } from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -20,7 +22,7 @@ const option = (name, fallback) => {
   const index = args.indexOf(name);
   return index >= 0 && args[index + 1] ? args[index + 1] : fallback;
 };
-const target = path.resolve(option("--dir", path.join(root, ".claw3d", "app")));
+const target = path.resolve(option("--dir", process.env.SELLORA_CLAW3D_DIR || path.join(os.homedir(), ".sellora", "claw3d", "app")));
 const source = option("--source", pin.repository);
 const skipBuild = args.includes("--skip-build");
 const npm = process.platform === "win32" ? "npm.cmd" : "npm";
