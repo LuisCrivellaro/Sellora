@@ -69,6 +69,12 @@ Ordem de prioridade dos fatos: Git/código > testes > este documento. Confira `g
 - `npm test`: 208 testes (207 ok, 1 live pulado) antes do último lote; depois do lote de arquétipos, `src/lib/demos`: 53 ok. Lint e typecheck sem erros. `npm run build` ok.
 - Commits: `631ab32`, `66fa771`, `a5bf0d7` (+ os posteriores a este documento; veja `git log`).
 
+### Missão 4 — Publicação no Coolify + Coolify Deploy Agent (2026-11-13): implementada, testada com mocks
+- Código em `src/lib/publishing/` (config, clientes Coolify/GitHub, serviço, store, estados), rotas `/api/publications` e `/api/publications/[leadId]`, painel `src/components/demos/demo-publication-panel.tsx` (dentro de `LeadDemoPanel`, só demos V6), resumo em `leads.demo.publication`, agente `coolify-deploy` no bridge e no adaptador do Claw3D. Guia: `docs/COOLIFY_INTEGRATION.md`.
+- Testado: 13 testes do módulo (incluindo duplicidade, falha de deploy, conteúdo divergente, retomada), bridge e adaptador; API no build de produção (sem variáveis → 409 com a lista do que falta; agente ocioso); painel na ficha de um lead de teste (estado "Aguardando publicação", botão desativado, sem overflow em 375 px).
+- **Não testado contra Coolify real**: não há VPS, domínio nem tokens. Próximo passo externo: seguir o procedimento do guia e publicar uma demo "… Teste Sellora".
+- A aba Cloud 3D não pôde ser vista no painel do navegador embutido oculto (streaming não completa com o painel oculto); a API `/api/agents/agents` mostra os três agentes.
+
 ### Próxima ação exata
 As três missões estão concluídas e testadas. Melhorias opcionais, nesta ordem:
 1. Cloud 3D no app empacotado: botão "Preparar escritório 3D" na aba, que roda `setup.mjs --dir %APPDATA%/sellora/claw3d/app` só com aprovação explícita do administrador (baixa ~600 MB de dependências do Claw3D).

@@ -114,6 +114,10 @@ No modo local, demos/aprovações acompanham o lead no localStorage e no JSON ex
 
 Validação em 2026-11-11: testes unitários de geração/idempotência, qualificação, aprovação/edição, mapeamento/validação, conclusão de pesquisas e isolamento da rota pública; navegador isolado com geração manual, aprovação/cópia/edição, recarga e fluxo de pesquisa com resposta controlada; prévia independente em outro contexto, layouts 320/375/768/1024/1440 px. Consulta real Campinas/SP, beleza, 5 km, até 10 resultados: concluída com 10 oportunidades após uma falha inicial HTTP 502 do Overpass. Nenhuma mensagem enviada.
 
+### Publicação das demos (Coolify)
+
+Demos V6 podem ser publicadas na ficha do lead (**Publicação da demo**): os arquivos vão para um repositório GitHub só de demos e o Coolify hospeda cada lead em seu próprio subdomínio. O estado vem do Coolify, e a demo só é marcada como **Publicado** depois que a página servida confere com o arquivo gerado. Há publicação, republicação, nova tentativa, verificação, cópia do link e histórico. Nada é enviado ao lead. Desligada até configurar as variáveis de `docs/COOLIFY_INTEGRATION.md`; ainda não testada contra um Coolify real.
+
 ## Qualidade e segurança
 Aplicação autenticada; dados reais somente no backend; RLS; validação de formulários; sem chaves no Git; sem scraping agressivo; sem envios em massa; sem publicações ou cobranças automáticas. E2E nos fluxos essenciais, lint, typecheck e build antes da entrega.
 

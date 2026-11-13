@@ -161,4 +161,29 @@ describe("Kanban (skill task-manager) com execuções reais", () => {
     core.applyBridgeEvent(state, "agent", { ...demo, phase: "error", text: "Interrompido (o aplicativo foi fechado durante a geração)" });
     expect(core.taskBoardStore(state, null).tasks.find((t: { id: string }) => t.id === "sellora-run-d-nova")?.status).toBe("blocked");
   });
+
+  it("Coolify Deploy Agent: Preparando → Publicando → confirmado (Done) e falha (Blocked), só com eventos reais", () => {
+    const state = core.createState();
+    const coolify = { id: "coolify-deploy", name: "Coolify Deploy Agent", role: "", type: "worker", runtime: "coolify", status: "idle", currentRun: null, lastRun: null, recent: [] };
+    core.applyBridgeEvent(state, "presence", { agents: [agent(), coolify] });
+    const list = core.handleMethod(state, "agents.list", {}, "1") as Frame;
+    expect((list.payload as { agents: { id: string; identity: { emoji: string } }[] }).agents.find((a) => a.id === "coolify-deploy")?.identity.emoji).toBe("🚀");
+    const base = { agentId: "coolify-deploy", runId: "op-1", business: "Café (Campinas/SP)", generator: "coolify" };
+    const start = core.applyBridgeEvent(state, "agent", { ...base, phase: "start", stage: "working", text: "Enviando 2 arquivo(s)" });
+    expect(lifecycle(start)).toEqual(["op-1:start"]);
+    expect(texts(start)).toEqual(["Café (Campinas/SP) · Preparando: Enviando 2 arquivo(s)"]);
+    const deploying = core.applyBridgeEvent(state, "agent", { ...base, phase: "progress", stage: "deploying", text: "Coolify construindo e publicando" });
+    expect(texts(deploying)).toEqual(["Café (Campinas/SP) · Publicando: Coolify construindo e publicando"]);
+    const during = core.handleMethod(state, "chat.history", { sessionKey: "agent:coolify-deploy:main" }, "h") as Frame;
+    expect((during.payload as { messages: { content: string }[] }).messages.map((m) => m.content)).toEqual(["Publicar demo: Café (Campinas/SP)"]);
+    const end = core.applyBridgeEvent(state, "agent", { ...base, phase: "end", text: "Publicação confirmada em https://cafe.demos.exemplo.com.br/" });
+    expect(lifecycle(end)).toEqual(["op-1:end"]);
+    const card = core.taskBoardStore(state, null).tasks.find((t: { id: string }) => t.id === "sellora-run-op-1");
+    expect(card).toMatchObject({ status: "done", title: "Publicação · Café (Campinas/SP)", assignedAgentId: "coolify-deploy" });
+    expect(card.description).toMatch(/Publicada e confirmada/);
+    core.applyBridgeEvent(state, "agent", { ...base, runId: "op-2", phase: "start", stage: "working", text: "Enviando" });
+    const error = core.applyBridgeEvent(state, "agent", { ...base, runId: "op-2", phase: "error", text: "Deploy falhou no Coolify" });
+    expect(lifecycle(error)).toEqual(["op-2:error"]);
+    expect(core.taskBoardStore(state, null).tasks.find((t: { id: string }) => t.id === "sellora-run-op-2")?.status).toBe("blocked");
+  });
 });

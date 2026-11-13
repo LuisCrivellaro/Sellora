@@ -43,7 +43,7 @@ import { findCrmDuplicate, prospectToLeadInput, type CrmMatch } from "../prospec
 import type { ProspectResult } from "../prospecting/types";
 import { createEmptyDatabase, createSeed } from "./seed";
 import { commit, getDb, getMode, getStoreState } from "./store";
-import { createLeadDemo, defaultDemoMessage, demoMessageForCopy, demoMessageSchema, demoRevision, leadDemoSchema, type LeadDemo } from "../demos/model";
+import { createLeadDemo, defaultDemoMessage, demoMessageForCopy, demoMessageSchema, demoPublicationSchema, demoRevision, leadDemoSchema, type DemoPublication, type LeadDemo } from "../demos/model";
 import { createDemoPersonalization } from "../demos/personalization";
 import { approvedConcepts, findApprovedConcept } from "../demos/concepts";
 import { demoCreativeIssues } from "../demos/creative-review";
@@ -310,6 +310,25 @@ export function applyGeneratedLeadDemo(leadId: ID, result: GenerationResult, exp
     return { ...db, leads: db.leads.map((item) => item.id === leadId ? { ...item, demo: saved, updatedAt: nowIso() } : item) };
   });
   return saved!;
+}
+
+/**
+ * Copia para o lead o resumo da publicação confirmado pelo servidor (Coolify). Não mexe em `demo.updatedAt`,
+ * aprovação ou mensagem: publicar é uma etapa independente e não pode invalidar uma geração em andamento.
+ */
+export function applyDemoPublication(leadId: ID, publication: DemoPublication): boolean {
+  const next = demoPublicationSchema.parse(publication);
+  let changed = false;
+  commit((db) => {
+    const lead = db.leads.find((item) => item.id === leadId);
+    if (!lead?.demo) return db;
+    const comparable = (value?: DemoPublication) => value ? JSON.stringify({ ...value, syncedAt: null }) : null;
+    if (comparable(lead.demo.publication) === comparable(next)) return db;
+    changed = true;
+    const demo = leadDemoSchema.parse({ ...lead.demo, publication: next });
+    return { ...db, leads: db.leads.map((item) => item.id === leadId ? { ...item, demo, updatedAt: nowIso() } : item) };
+  });
+  return changed;
 }
 
 function updateLeadDemo(leadId: ID, update: (demo: LeadDemo, db: Database) => LeadDemo) {

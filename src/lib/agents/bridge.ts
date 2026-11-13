@@ -6,6 +6,8 @@ import { CLAUDE_DEMO_MODEL } from "../demos/claude-server";
 import { ALL_SEGMENTS_ID, PROSPECT_SEGMENTS } from "../prospecting/catalog";
 import { liveProspectJobIds } from "../prospecting/jobs";
 import { readProspectRuns } from "../prospecting/run-log";
+import { liveOperationIds } from "../publishing/service";
+import { listPublications } from "../publishing/store";
 
 /**
  * Sellora Agent Bridge (lado Sellora). Lê só execuções reais e descreve o que está acontecendo, sem agentes fictícios:
@@ -24,15 +26,21 @@ const jobSchema = z.object({
 }).loose();
 export type BridgeJob = z.infer<typeof jobSchema>;
 
-export type AgentId = "gerador-de-demos" | "prospeccao";
+export type AgentId = "gerador-de-demos" | "prospeccao" | "coolify-deploy";
 
 export interface AgentRun {
   agentId: AgentId; runId: string; status: AgentStatus; task: string; business: string; runtime: string; generator: string;
   startedAt: string | null; updatedAt: string | null; finishedAt: string | null; error: string | null;
   events: { at: string; phase: string }[]; siteId: string | null; leadId: string | null;
+  /** Etapa visual de uma execução ativa: "deploying" = deploy em andamento no Coolify; nos demais, "working". */
+  stage?: "working" | "deploying";
+  /** Endereço público confirmado (só publicações verificadas). */
+  url?: string | null;
 }
+/** Estado visual derivado só de execuções reais: success dura alguns minutos após a conclusão; error fica até a próxima execução. */
+export type AgentVisualState = "idle" | "working" | "deploying" | "success" | "error";
 export interface AgentRecord {
-  id: AgentId; name: string; type: "worker"; role: string; runtime: string; status: AgentStatus;
+  id: AgentId; name: string; type: "worker"; role: string; runtime: string; status: AgentStatus; visual: AgentVisualState;
   currentRun: AgentRun | null; lastRun: AgentRun | null; recent: AgentRun[];
 }
 
@@ -85,16 +93,57 @@ export async function readProspectAgentRuns(limit = 40, liveIds: Set<string> = n
   });
 }
 
-/** Todas as execuções reais (gerador + prospecção), da mais recente à mais antiga. */
+/**
+ * Publicações no Coolify como execuções do agente "coolify-deploy" (uma por operação do histórico).
+ * O agente é a representação do serviço Coolify: só aparece trabalhando quando há operação real neste processo.
+ */
+export async function readPublicationAgentRuns(limit = 40, liveIds: Set<string> = new Set()): Promise<AgentRun[]> {
+  const runs: AgentRun[] = [];
+  for (const record of await listPublications()) {
+    for (const op of record.operations) {
+      const active = op.status === "preparing" || op.status === "deploying";
+      const live = active && liveIds.has(op.id);
+      const lastEvent = op.events.at(-1);
+      runs.push({
+        agentId: "coolify-deploy", runId: op.id,
+        status: active ? (live ? "running" : "cancelled") : op.status === "published" ? "completed" : "failed",
+        task: active && !live ? "Interrompida (o aplicativo foi fechado durante a publicação; use Verificar na ficha)" : op.status === "failed" ? op.error ?? "Falha na publicação" : lastEvent?.message ?? "Publicação",
+        business: `${record.business.name} (${record.business.city}/${record.business.uf})`, runtime: "coolify", generator: "coolify",
+        startedAt: op.startedAt, updatedAt: lastEvent?.at ?? op.finishedAt ?? op.startedAt, finishedAt: op.finishedAt, error: op.error,
+        events: op.events.slice(-20).map((event) => ({ at: event.at, phase: event.message })), siteId: op.siteId, leadId: record.leadId,
+        stage: op.status === "deploying" ? "deploying" : "working",
+        url: op.status === "published" && record.publishedSiteId === op.siteId ? record.url : null,
+      });
+    }
+  }
+  return runs.sort((a, b) => (b.updatedAt ?? "").localeCompare(a.updatedAt ?? "")).slice(0, limit);
+}
+
+/** Todas as execuções reais (gerador + prospecção + publicações), da mais recente à mais antiga. */
 export async function readAllRuns(limit = 40): Promise<AgentRun[]> {
-  const [demos, prospects] = await Promise.all([readJobs(limit, liveJobIds()), readProspectAgentRuns(limit, liveProspectJobIds())]);
-  return [...demos, ...prospects].sort((a, b) => (b.updatedAt ?? "").localeCompare(a.updatedAt ?? "")).slice(0, limit * 2);
+  const [demos, prospects, publications] = await Promise.all([
+    readJobs(limit, liveJobIds()), readProspectAgentRuns(limit, liveProspectJobIds()), readPublicationAgentRuns(limit, liveOperationIds()),
+  ]);
+  return [...demos, ...prospects, ...publications].sort((a, b) => (b.updatedAt ?? "").localeCompare(a.updatedAt ?? "")).slice(0, limit * 3);
 }
 
 const AGENTS: { id: AgentId; name: string; role: string; runtime: string }[] = [
   { id: "gerador-de-demos", name: "Gerador de Demos", role: "Cria sites demonstrativos V6: briefing, código, imagens, verificação e gravação para revisão humana", runtime: "claude-code" },
   { id: "prospeccao", name: "Prospecção", role: "Encontra estabelecimentos no OpenStreetMap, verifica sites por HTTP e classifica por regras (Local Client Prospector), sem IA generativa", runtime: "openstreetmap" },
+  { id: "coolify-deploy", name: "Coolify Deploy Agent", role: "Deployment & Hosting: publica e gerencia as demos no Coolify (GitHub como complemento). Representa o serviço real; só age quando o administrador publica", runtime: "coolify" },
 ];
+
+/** Por quanto tempo uma conclusão aparece como "success" antes de o agente voltar a ficar disponível. */
+export const SUCCESS_VISIBLE_MS = 3 * 60_000;
+
+export function visualState(current: AgentRun | null, last: AgentRun | null, now = Date.now()): AgentVisualState {
+  if (current) return current.stage === "deploying" ? "deploying" : "working";
+  if (!last) return "idle";
+  if (last.status === "failed") return "error";
+  const finished = Date.parse(last.finishedAt ?? last.updatedAt ?? "");
+  if ((last.status === "completed" || last.status === "waiting_approval") && Number.isFinite(finished) && now - finished < SUCCESS_VISIBLE_MS) return "success";
+  return "idle";
+}
 
 export async function agentRegistry(): Promise<AgentRecord[]> {
   const runs = await readAllRuns(40);
@@ -104,7 +153,7 @@ export async function agentRegistry(): Promise<AgentRecord[]> {
     const last = own.find((run) => run.status !== "running") ?? null;
     return {
       id: agent.id, name: agent.name, type: "worker" as const, role: agent.role,
-      runtime: current?.runtime ?? last?.runtime ?? agent.runtime,
+      runtime: current?.runtime ?? last?.runtime ?? agent.runtime, visual: visualState(current, last),
       status: current ? "running" as const : "idle" as const, currentRun: current, lastRun: last, recent: own.slice(0, 10),
     };
   });
@@ -116,22 +165,22 @@ export async function claw3dState() {
   return {
     runtime: { name: "Sellora Agent Bridge", version: "0.1.0", vendor: "Sellora", status: "ok", active_model: CLAUDE_DEMO_MODEL },
     profile: "sellora",
-    active: Object.fromEntries(agents.map((agent) => [agent.id, agent.runtime === "codex-app-server" ? "codex" : agent.runtime === "openstreetmap" ? "openstreetmap" : CLAUDE_DEMO_MODEL])),
+    active: Object.fromEntries(agents.map((agent) => [agent.id, agent.runtime === "codex-app-server" ? "codex" : agent.runtime === "openstreetmap" || agent.runtime === "coolify" ? agent.runtime : CLAUDE_DEMO_MODEL])),
     identity: null,
     sellora: { agents },
   };
 }
 
 export function claw3dRegistry() {
-  return { models: { [CLAUDE_DEMO_MODEL]: { provider: "claude-code", use: "textos e código das demos" }, codex: { provider: "codex-app-server", use: "imagens das demos" } } };
+  return { models: { [CLAUDE_DEMO_MODEL]: { provider: "claude-code", use: "textos e código das demos" }, codex: { provider: "codex-app-server", use: "imagens das demos" }, coolify: { provider: "coolify", use: "publicação das demos (infraestrutura, não é modelo de IA)" } } };
 }
 
 /** Diferença entre dois retratos: vira eventos de ciclo de vida no formato `agent` do Claw3D (start, etapa, fim, erro). */
 export function lifecycleEvents(previous: Map<string, AgentRun>, runs: AgentRun[]) {
-  const events: { agentId: AgentId; runId: string; phase: "start" | "progress" | "end" | "error"; text: string; at: string; business: string; siteId: string | null; leadId: string | null; generator: string }[] = [];
+  const events: { agentId: AgentId; runId: string; phase: "start" | "progress" | "end" | "error"; text: string; at: string; business: string; siteId: string | null; leadId: string | null; generator: string; stage?: "working" | "deploying" }[] = [];
   for (const run of runs) {
     const before = previous.get(run.runId);
-    const base = { agentId: run.agentId, runId: run.runId, at: run.updatedAt ?? new Date().toISOString(), business: run.business, siteId: run.siteId, leadId: run.leadId, generator: run.generator };
+    const base = { agentId: run.agentId, runId: run.runId, at: run.updatedAt ?? new Date().toISOString(), business: run.business, siteId: run.siteId, leadId: run.leadId, generator: run.generator, ...(run.stage ? { stage: run.stage } : {}) };
     if (run.status === "running" && !before) events.push({ ...base, phase: "start", text: run.task });
     else if (run.status === "running" && before && before.task !== run.task) events.push({ ...base, phase: "progress", text: run.task });
     else if (before?.status === "running" && run.status !== "running") events.push({ ...base, phase: run.status === "failed" || run.status === "cancelled" ? "error" : "end", text: run.error ?? run.task });

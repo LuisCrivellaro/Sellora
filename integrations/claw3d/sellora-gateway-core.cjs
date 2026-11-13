@@ -28,6 +28,20 @@ const SUPPORTED_METHODS = [
 ];
 
 const sessionKeyFor = (agentId) => `agent:${agentId}:${MAIN_KEY}`;
+
+/**
+ * Identidade de cada agente real no escritório. O "Coolify Deploy Agent" representa o serviço Coolify:
+ * aparece trabalhando só quando o bridge informa uma publicação real (preparando → publicando → confirmado).
+ */
+const COOLIFY_AGENT = "coolify-deploy";
+const AGENT_PROFILE = {
+  "gerador-de-demos": { emoji: "🛠️", request: "Gerar demo V6", done: "Concluído, aguardando revisão humana", completes: false },
+  prospeccao: { emoji: "🔎", request: "Pesquisar estabelecimentos", done: "Concluído, aguardando revisão humana", completes: true },
+  [COOLIFY_AGENT]: { emoji: "🚀", request: "Publicar demo", done: "Publicação confirmada (conteúdo conferido no endereço)", completes: true },
+};
+const profileOf = (agentId) => AGENT_PROFILE[agentId] ?? AGENT_PROFILE["gerador-de-demos"];
+/** Texto do balão: no agente do Coolify, a etapa visual (Preparando/Publicando) vem antes da mensagem real. */
+const stagedText = (agentId, stage, text) => agentId !== COOLIFY_AGENT ? text : `${stage === "deploying" ? "Publicando" : "Preparando"}: ${text}`;
 const str = (value, fallback = "") => (typeof value === "string" ? value : fallback);
 const timeOf = (iso) => {
   const value = Date.parse(str(iso));
@@ -121,7 +135,7 @@ function finish(state, agentId, run, phase) {
     return frames;
   }
   state.active.delete(agentId);
-  const summary = phase === "error" ? `Falhou: ${run.text}` : `Concluído, aguardando revisão humana: ${run.text}`;
+  const summary = phase === "error" ? `Falhou: ${run.text}` : `${profileOf(agentId).done}: ${run.text}`;
   const text = statusText(run.business, summary);
   if (phase === "error") {
     // Só o lifecycle: um `chat` de erro (ou texto novo do assistente) faria o Claw3D tratar a execução
@@ -167,7 +181,7 @@ function applyBridgeEvent(state, eventName, data) {
       const active = state.active.get(agent.id);
       if (live) {
         frames.push(...startOrProgress(state, agent.id, {
-          runId: str(live.runId), business: str(live.business), text: str(live.task), at: str(live.updatedAt) || str(live.startedAt), generator: str(live.generator),
+          runId: str(live.runId), business: str(live.business), text: stagedText(agent.id, str(live.stage), str(live.task)), at: str(live.updatedAt) || str(live.startedAt), generator: str(live.generator),
         }, "progress"));
       } else if (active) {
         // A execução que estava ativa já terminou: usa o registro para saber como.
@@ -189,7 +203,7 @@ function applyBridgeEvent(state, eventName, data) {
   const phase = str(data?.phase);
   if (!agentId || !runId || !["start", "progress", "end", "error"].includes(phase)) return [];
   if (!state.agents.has(agentId)) return [];
-  const run = { runId, business: str(data.business), text: str(data.text), at: str(data.at) || new Date().toISOString(), generator: str(data.generator) };
+  const run = { runId, business: str(data.business), text: phase === "start" || phase === "progress" ? stagedText(agentId, str(data.stage), str(data.text)) : str(data.text), at: str(data.at) || new Date().toISOString(), generator: str(data.generator) };
   if (!remember(state, `${runId}|${phase}|${run.text}`)) return [];
   const agent = state.agents.get(agentId);
   if (phase === "start" || phase === "progress") {
@@ -202,7 +216,7 @@ function applyBridgeEvent(state, eventName, data) {
   state.finished.set(runId, {
     agentId, run: {
       runId, generator: str(data.generator), business: run.business, task: run.text, error: phase === "error" ? run.text : null,
-      status: phase === "error" ? (/interromp/i.test(run.text) ? "cancelled" : "failed") : agentId === "prospeccao" ? "completed" : "waiting_approval",
+      status: phase === "error" ? (/interromp/i.test(run.text) ? "cancelled" : "failed") : profileOf(agentId).completes ? "completed" : "waiting_approval",
       startedAt, updatedAt: run.at, siteId: data.siteId ?? null, leadId: data.leadId ?? null,
       events: (state.history.get(runId) ?? []).map((line) => ({ at: line.at, phase: line.text })),
     },
@@ -216,7 +230,7 @@ function applyBridgeEvent(state, eventName, data) {
 function agentList(state) {
   return [...state.agents.values()].map((agent) => ({
     id: agent.id, name: agent.name, workspace: `sellora://agents/${agent.id}`, role: "",
-    identity: { name: agent.name, emoji: agent.id === "prospeccao" ? "🔎" : "🛠️" },
+    identity: { name: agent.name, emoji: profileOf(agent.id).emoji },
   }));
 }
 
@@ -230,7 +244,7 @@ function messagesFor(state, agentId) {
   // O pedido real do administrador (gerar a demo) abre a conversa. Enquanto a execução está ativa ele é a
   // última mensagem: o Claw3D trata "última mensagem do assistente" como execução encerrada.
   const request = {
-    role: "user", content: `Gerar demo V6${run.business ? `: ${run.business}` : ""}`,
+    role: "user", content: `${profileOf(agentId).request}${run.business ? `: ${run.business}` : ""}`,
     timestamp: timeOf(active?.startedAt ?? lines[0]?.at),
   };
   if (active) return [request];
@@ -365,20 +379,23 @@ const RUN_LABEL = { running: "Em execução", waiting_approval: "Pronta, aguarda
 function runToTask(run, agentId) {
   const status = RUN_TO_COLUMN[run.status] ?? "todo";
   const prospect = str(run.generator) === "osm";
+  const publish = str(run.generator) === "coolify" || agentId === COOLIFY_AGENT;
   const events = Array.isArray(run.events) ? run.events : [];
   const created = str(run.startedAt) || str(events[0]?.at) || str(run.updatedAt) || new Date(0).toISOString();
   const updated = str(run.updatedAt) || str(run.finishedAt) || created;
   const lines = [
-    `${RUN_LABEL[run.status] ?? run.status}.`,
+    publish && run.status === "completed" ? "Publicada e confirmada." : `${RUN_LABEL[run.status] ?? run.status}.`,
     run.status === "running" ? `Etapa atual: ${str(run.task)}` : str(run.task) ? `Última etapa: ${str(run.task)}` : "",
     run.error ? `Erro: ${str(run.error)}` : "",
-    run.siteId ? `Demo: /sites/${run.siteId}/index.html` : "",
+    publish && run.url ? `Endereço: ${str(run.url)}` : run.siteId ? `Demo: /sites/${run.siteId}/index.html` : "",
     prospect
       ? "Somente leitura: revise e importe os resultados pela Sellora (Leads → Prospecção IA)."
-      : "Somente leitura: aprove, recuse ou gere de novo pela Sellora (Leads → Demos).",
+      : publish
+        ? "Somente leitura: publique, republique ou verifique pela Sellora (ficha do lead → Publicação da demo)."
+        : "Somente leitura: aprove, recuse ou gere de novo pela Sellora (Leads → Demos).",
   ].filter(Boolean);
   return {
-    id: `${TASK_PREFIX}${str(run.runId)}`, title: prospect ? `Prospecção · ${str(run.business) || "pesquisa"}` : `${str(run.business) || "Estabelecimento"} · demo ${str(run.generator) === "v5" ? "v5" : "V6"}`,
+    id: `${TASK_PREFIX}${str(run.runId)}`, title: prospect ? `Prospecção · ${str(run.business) || "pesquisa"}` : publish ? `Publicação · ${str(run.business) || "demo"}` : `${str(run.business) || "Estabelecimento"} · demo ${str(run.generator) === "v5" ? "v5" : "V6"}`,
     description: lines.join(String.fromCharCode(10)), status, source: "openclaw_event", sourceEventId: str(run.runId) || null,
     assignedAgentId: agentId, createdAt: created, updatedAt: updated, playbookJobId: null, runId: str(run.runId) || null,
     channel: "sellora", externalThreadId: run.leadId ? str(run.leadId) : null, lastActivityAt: updated,
@@ -403,7 +420,7 @@ function taskBoardStore(state, existing) {
   for (const [runId, entry] of state.finished) runs.set(runId, { agentId: entry.agentId, run: { ...(runs.get(runId)?.run ?? {}), ...entry.run, generator: entry.run.generator || runs.get(runId)?.run?.generator } });
   for (const [agentId, active] of state.active) {
     const known = runs.get(active.runId)?.run ?? {};
-    runs.set(active.runId, { agentId, run: { ...known, runId: active.runId, status: "running", generator: active.generator || known.generator || (agentId === "prospeccao" ? "osm" : ""), business: active.business, task: active.task, startedAt: known.startedAt ?? active.startedAt, updatedAt: new Date().toISOString(), events: (state.history.get(active.runId) ?? []).map((line) => ({ at: line.at, phase: line.text })) } });
+    runs.set(active.runId, { agentId, run: { ...known, runId: active.runId, status: "running", generator: active.generator || known.generator || (agentId === "prospeccao" ? "osm" : agentId === COOLIFY_AGENT ? "coolify" : ""), business: active.business, task: active.task, startedAt: known.startedAt ?? active.startedAt, updatedAt: new Date().toISOString(), events: (state.history.get(active.runId) ?? []).map((line) => ({ at: line.at, phase: line.text })) } });
   }
   const tasks = [...runs.values()].map(({ run, agentId }) => runToTask(run, agentId));
   const all = [...tasks, ...manual];

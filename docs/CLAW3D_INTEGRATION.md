@@ -87,6 +87,10 @@ Detalhes que o código do Claw3D exige (descobertos nos testes): numeração `se
 | --- | --- | --- |
 | Gerador de Demos | Claude Code (briefing e código) + Codex (imagens) + Edge (auditoria); jobs em `<dados>/jobs/` | "Gerador de Demos" (rótulo "Sites demo V6"); Kanban: In progress / Review / Blocked |
 | Prospecção (desde 2026-11-13) | OpenStreetMap + verificação HTTP + regras da skill Local Client Prospector, **sem IA generativa** (`src/lib/prospecting/`) | "Prospecção" (rótulo "OpenStreetMap + regras"); Kanban: In progress / Done / Blocked |
+| Coolify Deploy Agent (desde 2026-11-13) | Representação do serviço Coolify (Deployment & Hosting; GitHub como complemento). Cada operação de publicação real (`<dados>/publications`) é uma execução; não age sozinho (`src/lib/publishing/`, ver `docs/COOLIFY_INTEGRATION.md`) | 🚀 "Coolify Deploy Agent"; balão "Preparando: …" / "Publicando: …" com a etapa real; fim só após a conferência do conteúdo publicado; Kanban: In progress / Done / Blocked |
+
+- Estado visual (`AgentRecord.visual`, calculado em `bridge.visualState` só a partir das execuções): `working`, `deploying`, `success` (3 min após concluir), `error` (falha na última execução, até a próxima) e `idle`. No escritório, o Claw3D mostra trabalhando/ocioso/erro pelo ciclo de vida; a etapa (Preparando/Publicando) aparece no balão. A faixa da aba Cloud 3D mostra o estado completo e o atalho "Abrir demo publicada".
+- Pedido mostrado no histórico do agente: "Publicar demo: …" (Prospecção passou a mostrar "Pesquisar estabelecimentos: …" em vez de "Gerar demo V6").
 
 - Prospecção: cada pesquisa grava um resumo sem dados de estabelecimentos em `<dados>/prospect-runs/<id>.json` (cidade, UF, segmento, raio, etapas, contagens, erro). O bridge junta esses resumos com a fila em memória (`readProspectAgentRuns`, `readAllRuns`); eventos `agent` levam `agentId` e `generator` (`osm`).
 - O adaptador guarda as execuções que começam e terminam durante a sessão (`state.finished`), senão o Kanban as perdia até a próxima reconexão (valia também para as demos).

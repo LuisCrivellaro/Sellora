@@ -8,7 +8,8 @@ import { Field, TextArea } from "@/components/ui/field";
 import { useToast } from "@/components/ui/toast";
 import { approveLeadDemo, restoreLeadDemo, revokeDemoApproval, saveDemoMessage, markDemoManuallySent, upgradeLeadDemoDesign } from "@/lib/data/repository";
 import { useStore } from "@/lib/data/store";
-import { demoMessageForCopy, demoPreviewUrl } from "@/lib/demos/model";
+import { demoMessageForCopy, demoPreviewUrl, publishedDemoUrl } from "@/lib/demos/model";
+import { DemoPublicationPanel } from "./demo-publication-panel";
 import { formatDate } from "@/lib/dates";
 import type { Lead } from "@/lib/types";
 import { isCurrentDemoSent, normalizeWhatsappPhone, whatsappDraftUrl } from "@/lib/demos/whatsapp";
@@ -84,11 +85,12 @@ export function LeadDemoPanel({ lead, embedded = false }: { lead: Lead; embedded
       {!embedded && <Button size="sm" variant="secondary" className="self-start" onClick={() => window.open(demoPreviewUrl(demo, window.location.origin), "_blank", "noopener,noreferrer")}><ExternalLink aria-hidden /> Abrir demo</Button>}
       {(availableConcept || demo.version < 3) && <div className="rounded-xl border border-seam p-3 text-[12px] text-ink-soft"><p className="mb-2">{availableConcept ? "Este negócio tem um conceito aprovado, com imagem e textos próprios. A aplicação devolve a mensagem à revisão e conserva textos editados por você." : "Atualize a composição e confira possíveis repetições de imagem e texto antes da aprovação."}</p><Button size="sm" variant="secondary" disabled={blocked || dirty} onClick={() => act(() => { upgradeLeadDemoDesign(lead.id); setReviewed(false); }, "Visual pronto para revisão")}>{availableConcept ? "Aplicar conceito aprovado" : "Personalizar visual da demo"}</Button></div>}
       {creativeIssues.length > 0 && demo.status !== "approved" && <div role="status" className="rounded-xl border border-warn/30 bg-warn/5 p-3 text-[12px] text-ink-soft"><p className="font-semibold text-warn">Revisão criativa pendente</p><ul className="mt-2 list-disc space-y-1 pl-4">{creativeIssues.map((issue) => <li key={issue}>{issue}</li>)}</ul><p className="mt-2">Use “Gerar demo exclusiva com IA” para o Sellora criar uma imagem, textos e composição próprios com a skill.</p></div>}
+      {demo.version === 6 && demo.site && <DemoPublicationPanel lead={lead} demo={demo} />}
       <Field label="Mensagem de apresentação" hint="O link da demo e a indicação de demonstração não oficial são anexados à mensagem na cópia. Alterar o texto exige nova aprovação.">
         {(p) => <TextArea {...p} rows={7} maxLength={2000} value={text} onChange={(e) => { setText(e.target.value); setReviewed(false); }} />}
       </Field>
       {dirty && <Button size="sm" variant="secondary" className="self-start" onClick={() => act(() => { saveDemoMessage(lead.id, text); setReviewed(false); }, "Rascunho salvo para nova revisão")}>Salvar rascunho</Button>}
-      <details className="rounded-xl bg-selected p-3 text-[12px] leading-relaxed text-ink-soft"><summary className="cursor-pointer font-semibold">Confira o endereço antes de compartilhar</summary><p className="mt-2">Em localhost/IP privado, a demo é apenas para testes na sua máquina/rede. Para enviar ao lead, abra o Sellora em uma hospedagem pública. O link usa o endereço atual.</p></details>
+      <details className="rounded-xl bg-selected p-3 text-[12px] leading-relaxed text-ink-soft"><summary className="cursor-pointer font-semibold">Confira o endereço antes de compartilhar</summary><p className="mt-2">{publishedDemoUrl(demo) ? `A mensagem copiada usa o endereço publicado e confirmado: ${publishedDemoUrl(demo)}` : "Sem publicação confirmada desta versão, o link usa o endereço atual do Sellora; em localhost/IP privado ele só funciona na sua máquina/rede. Publique a demo antes de enviar ao lead."}</p></details>
       {demo.status === "approved" && !dirty ? (
         <>
           <p className="text-[11.5px] text-ink-faint">Aprovada por {demo.approvedBy} em {formatDate(demo.approvedAt!)}. Aprovação não significa envio.</p>

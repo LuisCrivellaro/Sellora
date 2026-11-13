@@ -83,21 +83,32 @@ function StatusPill({ ok, label, title }: { ok: boolean; label: string; title?: 
   </span>;
 }
 
+/** Estados visuais do Coolify Deploy Agent (derivados só de publicações reais, ver bridge.visualState). */
+const visualLabel: Record<AgentRecord["visual"], { text: string; tone: string; dot: string }> = {
+  idle: { text: "Disponível · aguardando novas publicações", tone: "text-ink-soft", dot: "bg-ink-faint" },
+  working: { text: "Preparando aplicação", tone: "text-warn", dot: "bg-warn animate-pulse motion-reduce:animate-none" },
+  deploying: { text: "Publicando demo", tone: "text-mint", dot: "bg-mint animate-pulse motion-reduce:animate-none" },
+  success: { text: "Publicação confirmada", tone: "text-mint", dot: "bg-mint" },
+  error: { text: "Atenção · falha na última publicação", tone: "text-[#e3a1a1]", dot: "bg-[#e3a1a1]" },
+};
+
 /** Faixa compacta do agente: status, tarefa atual/última e atalhos. */
 function AgentStrip({ agent }: { agent: AgentRecord }) {
   const run = agent.currentRun ?? agent.lastRun;
-  const status = statusLabel[run?.status ?? agent.status] ?? statusLabel.idle;
+  const coolify = agent.id === "coolify-deploy";
+  const status = coolify ? visualLabel[agent.visual] : statusLabel[run?.status ?? agent.status] ?? statusLabel.idle;
   return <section aria-label={`${agent.name}: ${status.text}`} className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-xl border border-seam px-3.5 py-2.5 text-[12.5px]">
     <span className="inline-flex items-center gap-2 font-semibold text-ink">
-      <span aria-hidden className={`size-2 rounded-full ${agent.currentRun ? "bg-mint animate-pulse motion-reduce:animate-none" : status.dot}`} />{agent.name}
+      <span aria-hidden className={`size-2 rounded-full ${coolify ? status.dot : agent.currentRun ? "bg-mint animate-pulse motion-reduce:animate-none" : status.dot}`} />{agent.name}
     </span>
-    <span role="status" className={`font-semibold ${status.tone}`}>{agent.currentRun ? "Executando" : status.text}</span>
+    <span role="status" className={`font-semibold ${status.tone}`}>{coolify ? status.text : agent.currentRun ? "Executando" : status.text}</span>
     {run && <span className="min-w-0 flex-1 truncate text-ink-soft" title={`${run.business} · ${run.task}`}>
       <span className="text-ink">{run.business}</span> · {run.task}{run.updatedAt ? ` · ${time(run.updatedAt)}` : ""}
     </span>}
-    {!run && <span className="flex-1 text-ink-soft">Nenhuma execução registrada neste computador.</span>}
+    {!run && <span className="flex-1 text-ink-soft">{coolify ? "Nenhuma publicação registrada neste computador." : "Nenhuma execução registrada neste computador."}</span>}
     <span className="flex shrink-0 gap-1.5">
-      {run?.siteId && <Button size="sm" variant="secondary" asChild><a href={`/sites/${run.siteId}/index.html`} target="_blank" rel="noopener noreferrer"><ExternalLink aria-hidden /> Abrir demo</a></Button>}
+      {coolify && run?.url && <Button size="sm" variant="secondary" asChild><a href={run.url} target="_blank" rel="noopener noreferrer"><ExternalLink aria-hidden /> Abrir demo publicada</a></Button>}
+      {!coolify && run?.siteId && <Button size="sm" variant="secondary" asChild><a href={`/sites/${run.siteId}/index.html`} target="_blank" rel="noopener noreferrer"><ExternalLink aria-hidden /> Abrir demo</a></Button>}
       {run?.leadId && <Button size="sm" variant="ghost" asChild><Link href={`/leads?id=${run.leadId}`}><UserRound aria-hidden /> Abrir lead</Link></Button>}
       {agent.id === "prospeccao" && <Button size="sm" variant="secondary" asChild><Link href="/leads?aba=prospeccao"><Search aria-hidden /> Abrir Prospecção</Link></Button>}
     </span>

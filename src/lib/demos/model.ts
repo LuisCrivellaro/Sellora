@@ -5,6 +5,23 @@ import { createDemoPersonalization, demoPersonalizationSchema } from "./personal
 import { approvedConceptIdSchema, approvedConcepts, conceptMatchesBusiness, findApprovedConcept, type ApprovedConceptId } from "./concepts";
 import { storedImageProviderSchema, demoTextProviderSchema, generatedCreationSchema, type GeneratedCreation } from "./creation";
 import { siteRefSchema, type SiteRef } from "./v6/schema";
+import { publicationStatusSchema } from "../publishing/types";
+
+/**
+ * Resumo da publicação (Coolify) guardado junto ao lead. A fonte da verdade é o registro do servidor
+ * (<dados>/publications); este resumo só existe para a ficha, o link copiado e a exportação do CRM.
+ */
+export const demoPublicationSchema = z.object({
+  status: publicationStatusSchema,
+  siteId: z.uuid(),
+  publishedSiteId: z.uuid().nullable(),
+  url: z.url().refine((url) => /^https?:\/\//.test(url), "Endereço publicado inválido.").nullable(),
+  domain: z.string().max(253).nullable(),
+  coolifyAppUuid: z.string().max(64).nullable(),
+  lastDeployAt: z.iso.datetime({ offset: true }).nullable(),
+  syncedAt: z.iso.datetime({ offset: true }),
+});
+export type DemoPublication = z.infer<typeof demoPublicationSchema>;
 
 // Lista explícita: observações, e-mail, score e dados do CRM nunca entram na prévia.
 export const demoBusinessSchema = z.object({
@@ -29,6 +46,8 @@ export const leadDemoSchema = z.object({
   creation: generatedCreationSchema.optional(),
   /** V6: referência ao site com código próprio (arquivos imutáveis em <dados>/sites/<id>). */
   site: siteRefSchema.optional(),
+  /** Publicação no Coolify (etapa independente da geração; não altera aprovação nem revisão). */
+  publication: demoPublicationSchema.optional(),
   /** Uso interno do CRM (comparação Codex × Claude). Não entra no link público. */
   textProvider: demoTextProviderSchema.optional(),
   imageProvider: storedImageProviderSchema.optional(),
@@ -105,9 +124,19 @@ export function parseDemoDocument(fragment: string): z.infer<typeof demoDocument
 
 export function parseDemoFragment(fragment: string): DemoBusiness | null { return parseDemoDocument(fragment)?.business ?? null; }
 
+/**
+ * Endereço público confirmado da demo atual: só quando a publicação foi verificada e corresponde ao site
+ * que está no lead (uma versão nova ainda não publicada não usa o link da anterior).
+ */
+export function publishedDemoUrl(demo: LeadDemo): string | null {
+  const publication = demo.publication;
+  if (demo.version !== 6 || !demo.site || !publication?.url) return null;
+  return publication.status === "published" && publication.publishedSiteId === demo.site.id ? publication.url : null;
+}
+
 export function demoMessageForCopy(demo: LeadDemo, origin: string): string {
   const valid = leadDemoSchema.parse(demo);
   if (valid.status === "rejected") throw new Error("Esta demo foi recusada. Restaure e aprove antes de enviar.");
   if (valid.status !== "approved") throw new Error("A mensagem precisa de aprovação antes de ser copiada para envio.");
-  return `${valid.message}\n\nDemonstração não oficial: ${demoPreviewUrl(valid, origin)}`;
+  return `${valid.message}\n\nDemonstração não oficial: ${publishedDemoUrl(valid) ?? demoPreviewUrl(valid, origin)}`;
 }
