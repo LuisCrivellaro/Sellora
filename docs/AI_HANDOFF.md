@@ -66,7 +66,7 @@ Ordem de prioridade dos fatos: Git/código > testes > este documento. Confira `g
 - Commits: `631ab32`, `66fa771`, `a5bf0d7` (+ os posteriores a este documento; veja `git log`).
 
 ### Próxima ação exata
-1. Se `release/` tiver o portable novo (`npm run desktop:build`), fechar o launcher de desenvolvimento (portas 3190/3191/18790), abrir o `.exe` com `SELLORA_CLAW3D_DIR=C:/Projetos/Sellora/.claw3d/app`, conferir `%APPDATA%/sellora/startup.log` (linhas `[cloud-3d]`), abrir Cloud 3D e registrar CPU/memória do processo `node`/Electron do Claw3D.
+1. Se `release/` tiver o portable novo (`npm run desktop:build`), fechar o launcher de desenvolvimento (portas 3190/3191/18790), abrir o `.exe` com `SELLORA_CLAW3D_DIR=%USERPROFILE%/.sellora/claw3d/app`, conferir `%APPDATA%/sellora/startup.log` (linhas `[cloud-3d]`), abrir Cloud 3D e registrar CPU/memória do processo `node`/Electron do Claw3D.
 2. Gerar uma demo V6 nova (ex.: "Restaurante Teste Sellora" v2) para validar a rotação de hero; comparar com as anteriores.
 3. Verificar Prévia | Código na UI com um lead fictício rotulado "Demonstração".
 

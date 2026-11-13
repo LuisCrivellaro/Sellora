@@ -1,6 +1,6 @@
 # Integração Claw3D (aba Cloud 3D)
 
-Status em 2026-11-12 (noite): **escritório 3D conectado a execuções reais em desenvolvimento**. Testado com geração real de demo e com bridge instrumentado em Edge headless. O executável Windows ainda não inicia o escritório sozinho (ver "Falta fazer").
+Status em 2026-11-12 (noite): **escritório 3D conectado a execuções reais**, em desenvolvimento e no executável Windows. Testado com geração real de demo, bridge instrumentado em Edge headless e o `.exe` portátil.
 
 ## Arquitetura
 
@@ -46,7 +46,7 @@ node integrations/claw3d/launcher.mjs       # escritório em http://127.0.0.1:31
 ## Segurança
 
 - Adaptador, Claw3D e proxy escutam só em loopback; o adaptador recusa conexões de fora do loopback e `SELLORA_BRIDGE_URL` precisa ser local.
-- Token aleatório por sessão (24 bytes) exigido no `connect` do adaptador. Fica só no `settings.json` privado do Claw3D (`.claw3d/state/claw3d/`); o proxy do Claw3D o injeta do lado do servidor e o `/api/studio` não o devolve ao navegador.
+- Token aleatório por sessão (24 bytes) exigido no `connect` do adaptador. Fica só no `settings.json` privado do Claw3D (`~/.sellora/claw3d/state/claw3d/`); o proxy do Claw3D o injeta do lado do servidor e o `/api/studio` não o devolve ao navegador.
 - O Claw3D roda com `UPSTREAM_ALLOWLIST=127.0.0.1,localhost` e sem chaves de API no ambiente (o launcher remove `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `GEMINI_API_KEY`).
 - Somente observação: o adaptador recusa `chat.send`, `agents.create/update/delete`, `config.set/patch`, `cron.*`, `sessions.patch/reset`, `exec.approvals.set` e `agents.message/handoff` (`read_only`). Nada inicia, altera ou cancela execuções da Sellora.
 - O proxy de enquadramento só troca `frame-ancestors` (origens `localhost`/`127.0.0.1` nas portas 3100, 3102 e 3187), remove `X-Frame-Options` e `upgrade-insecure-requests` (página http local). Conteúdo e demais cabeçalhos passam intactos.
@@ -71,6 +71,9 @@ Detalhes que o código do Claw3D exige (descobertos nos testes): numeração `se
 - Execução instrumentada (bridge falso em scratchpad, Edge headless via CDP): start → `running`; progress → continua `running`; end → `status=idle`; error → `status=error` e contador "1 error".
 - Desconexão: reiniciar o dev server derrubou o SSE; o adaptador reconectou sozinho e marcou a execução interrompida (job órfão vira `cancelled` no bridge).
 
+- Executável Windows (`npm run desktop:build`, portátil de 124 MB) aberto com `SELLORA_CLAW3D_DIR=%USERPROFILE%/.sellora/claw3d/app`: o Electron subiu Sellora (127.0.0.1:3187), proxy do escritório (127.0.0.1:3190), Claw3D (127.0.0.1:3191) e adaptador (127.0.0.1/::1:18790), conectado ao bridge do próprio app; `/api/agents/scene` = disponível e conectado; o escritório mostrou o agente "Gerador de Demos" com o histórico real do app (nos primeiros ~25 s de um perfil novo aparece o marcador "Main" do Claw3D até a lista de agentes carregar). Memória em repouso: servidor Sellora 115 MB, processo principal 105 MB, servidor Claw3D 133 MB, adaptador 77 MB (CPU < 1 s cada). Fechar a janela encerrou todos os processos e liberou as quatro portas. Não medido: GPU/CPU do renderizador com a cena aberta dentro da janela do app.
+- `setup.mjs` validado do zero (clone novo em `~/.sellora/claw3d/app`, npm ci, build) depois de corrigir o checkout de clone `--no-checkout`.
+
 ## Limitações conhecidas
 
 - Checkout e estado do Claw3D ficam **fora** do repositório (`~/.sellora/claw3d/`; no app empacotado, `%APPDATA%/sellora/claw3d/`). Dentro do projeto, o `settings.json` que o Claw3D grava ao conectar fazia o dev server do Next recarregar a aba Cloud 3D em loop (o iframe gravava de novo a cada recarga).
@@ -82,6 +85,6 @@ Detalhes que o código do Claw3D exige (descobertos nos testes): numeração `se
 
 ## Falta fazer
 
-1. **Electron**: chamar `startClaw3d` do `launcher.mjs` em `desktop/main.mjs` quando houver um Claw3D preparado (`SELLORA_CLAW3D_DIR` ou pasta padrão), encerrar junto com o app e medir CPU/memória. Empacotar o Claw3D dentro do instalador não foi feito (o build com `node_modules` tem centenas de MB); a opção recomendada é preparar o Claw3D na primeira abertura da aba, com aprovação do administrador.
+1. **Electron**: integrado (`startOffice` em `desktop/main.mjs`) e testado no `.exe` com Claw3D já preparado. Falta: preparar o Claw3D para o app empacotado sem terminal (hoje: `node integrations/claw3d/setup.mjs --dir %APPDATA%/sellora/claw3d/app` ou `SELLORA_CLAW3D_DIR`); o Claw3D não vai dentro do instalador (centenas de MB). Recomendado: botão "Preparar escritório 3D" na aba, com aprovação do administrador.
 2. Persistir o estado `error` no escritório (exigiria mudança no Claw3D ou um agente de status separado).
 3. Coletores opcionais (hooks do Claude Code, eventos do `codex app-server`): não implementados; a Prospecção (OpenStreetMap, sem IA generativa) não é apresentada como agente.

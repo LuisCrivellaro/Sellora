@@ -36,16 +36,21 @@ function git(commandArgs, cwd) {
   return spawnSync("git", commandArgs, { cwd, encoding: "utf8" });
 }
 
+let fresh = false;
 if (!existsSync(path.join(target, ".git"))) {
   mkdirSync(path.dirname(target), { recursive: true });
   run("git", ["clone", "--no-checkout", source, target], root);
+  fresh = true;
 }
 const current = git(["rev-parse", "HEAD"], target).stdout?.trim();
-if (!current?.startsWith(pin.commit)) {
+// Clone novo (--no-checkout) não tem arquivos mesmo quando o HEAD do upstream já é o commit fixado.
+if (fresh || !current?.startsWith(pin.commit) || !existsSync(path.join(target, "LICENSE"))) {
+  // Sem arquivos na pasta (clone --no-checkout), o Git vê tudo como "apagado": nada local a preservar.
+  const emptyWorktree = !existsSync(path.join(target, "LICENSE"));
   const dirty = git(["status", "--porcelain", "--untracked-files=no"], target).stdout?.trim();
-  if (dirty) throw new Error(`O Claw3D em ${target} tem alterações locais; resolva antes de trocar de commit.`);
+  if (dirty && !emptyWorktree) throw new Error(`O Claw3D em ${target} tem alterações locais; resolva antes de trocar de commit.`);
   if (git(["cat-file", "-e", `${pin.commit}^{commit}`], target).status !== 0) run("git", ["fetch", "origin"], target);
-  run("git", ["checkout", "--detach", pin.commit], target);
+  run("git", ["checkout", ...(emptyWorktree ? ["--force"] : []), "--detach", pin.commit], target);
 }
 const license = readFileSync(path.join(target, "LICENSE"), "utf8");
 if (!/MIT License/i.test(license)) throw new Error("Licença do Claw3D diferente da MIT registrada: revise antes de continuar.");
