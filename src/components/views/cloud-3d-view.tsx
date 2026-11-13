@@ -124,7 +124,8 @@ function OfficeScene({ scene, frameKey }: { scene: Claw3dSceneStatus | null; fra
     <iframe key={frameKey} src={scene.url} title="Escritório 3D da Sellora (Claw3D) com os agentes reais" allow="fullscreen" allowFullScreen referrerPolicy="no-referrer"
       className="block h-[calc(100dvh-15rem)] min-h-[26rem] w-full [:fullscreen_&]:h-dvh" />
     <Button size="sm" variant="secondary" onClick={toggle} aria-pressed={fullscreen}
-      className="absolute bottom-3 right-3 shadow-lg opacity-90 hover:opacity-100 focus-visible:opacity-100">
+      // Centro inferior: os cantos já têm controles do Claw3D (Chat, console de eventos).
+      className="absolute bottom-3 left-1/2 -translate-x-1/2 shadow-lg opacity-90 hover:opacity-100 focus-visible:opacity-100">
       {fullscreen ? <><Minimize2 aria-hidden /> Sair da tela cheia</> : <><Maximize2 aria-hidden /> Tela cheia</>}
     </Button>
   </div>;
