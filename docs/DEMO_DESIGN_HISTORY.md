@@ -38,6 +38,8 @@ Sites locais em `.sellora-data/sites/<id>` (fora do Git). Textos e código: Clau
 | Barbearia, Campinas/SP | `f2d9b0ce-…` | foto-painel (painel creme no canto inferior esquerdo) | Big Shoulders Display + Figtree | Telefone válido: WhatsApp e ligação |
 | Restaurante, Ribeirão Preto/SP | `871275a1-…` | foto-painel (faixa escura) | Young Serif + Hanken Grotesk | Telefone inválido no teste: "Ligar para" sem número (bug corrigido depois) |
 | Clínica odontológica, Sorocaba/SP | `9469cd61-…` | foto-painel (painel creme) | Young Serif + Figtree | Mesmo bug do telefone |
+| Oficina Motor Certo (lead fictício do CRM de demonstração), Sumaré/SP | `562f0fac-…` | colunas (texto à esquerda, foto recortada à direita) | Big Shoulders Display + corpo sem serifa | Gerada pela UI; telefone fictício válido do seed: WhatsApp e ligação |
+| Pet Shop, Indaiatuba/SP (no `.exe`, perfil isolado) | `dd4ed016-…` | tipografico | serifada de destaque + Figtree | Histórico vazio no perfil isolado |
 | Restaurante v2 | `fd67a0e7-…` | tipografico (fundo verde, título gigante, foto em faixa) | Bricolage Grotesque + Source Serif 4 | Depois da rotação de arquétipos e da correção do telefone: só "Ver como chegar" |
 
 Achado da comparação: as três primeiras variavam paleta e tipografia, mas repetiam a estrutura do hero. O guia V6 passou a exigir um arquétipo nomeado e o gerador recusa o arquétipo das duas demos mais recentes de qualquer segmento. Fontes já usadas no acervo de teste: Young Serif aparece duas vezes (restaurante e clínica), um ponto a vigiar se a repetição de fontes entre segmentos virar padrão.

@@ -45,12 +45,14 @@ Commits e push exigem autorização explícita conforme CLAUDE.md; nunca presumi
 
 Ordem de prioridade dos fatos: Git/código > testes > este documento. Confira `git log -5` antes de agir.
 
-### Missão 1 — Gerador V6: concluída, com 2 pendências de UI/desktop
+### Missão 1 — Gerador V6: concluída e testada na UI e no `.exe`
 - Feito e verificado: demos reais **Restaurante Teste Sellora** (site `871275a1-d80c-41bd-8de7-4296d8bf1179`, ~4,5 min, ~6% da janela de 5 h) e **Clínica Odontológica Teste Sellora** (site `9469cd61-533c-4d88-9704-0487a56931b6`); a barbearia `f2d9b0ce-…` continua em `.sellora-data/sites` (o job dela não existe mais em `.sellora-data/jobs`). Todos os artefatos são locais (fora do Git).
 - Capturas 1440/1024/768/390 das três (Edge headless): sem overflow horizontal, sem imagem quebrada, links de âncora + Maps (+ WhatsApp/tel na barbearia, que tinha telefone válido).
 - Achados e correções: (1) telefone inválido gerava "Ligar para" sem número → o gerador só avisa o modelo de telefone válido (`normalizeWhatsappPhone`); (2) as três demos tinham o mesmo hero (foto de ponta a ponta + painel no canto) → guia V6 com 6 arquétipos `[foto-painel|colunas|tipografico|moldura|grade|cor-solida]` e `recentHeroIssue` recusa o arquétipo das 2 demos mais recentes de qualquer segmento (histórico V6 ordenado por `finishedAt`). **Validado com geração real**: "Restaurante Teste Sellora" v2 (site `fd67a0e7-bb3c-4830-b8b1-a90141c7fed4`, ~3 min) saiu com `[tipografico]` (fundo verde chapado, título gigante, foto em faixa), fontes Bricolage Grotesque + Source Serif 4, sem "Ligar para" (telefone inválido virou "Ver como chegar"), sem overflow e sem imagem quebrada nas 4 larguras.
 - ZIP da clínica: 6 arquivos (3 WebP do Codex + HTML/CSS/JS) com SHA-256 idêntico aos gravados; `/api/demos/sites/<id>` devolve o conteúdo real.
-- Pendente: (a) conferir visualmente **Leads → Demos → Revisar → Prévia | Código** com um lead do CRM que tenha demo V6 (o CRM do navegador de teste não tinha nenhuma; gerar uma para lead real gasta cota e altera dados do usuário); (b) teste de geração V6 dentro do `.exe`.
+- **Teste de UI (2026-11-12, 22h BRT):** perfil de navegador isolado (Edge headless, CRM com os leads fictícios de demonstração), lead "Oficina Motor Certo" → **Gerar demo e mensagem com IA** → geração real (site `562f0fac-…`, hero `colunas`) → **Leads → Demos → Revisar**: Prévia (Computador/Celular) e Código com lista de arquivos (3 WebP + HTML/CSS/JS), números de linha, destaque de sintaxe, Copiar código, Baixar arquivo e Baixar código ZIP. O quadro mostra "Imagens · Codex…" (sem Gemini).
+- **Bug achado nesse teste e corrigido:** a auditoria em navegador real não rodava ("navegador real não executado"). O Edge 157 relança a si mesmo (o processo aberto sai em ~60 ms) e não escreve mais "DevTools listening" no stderr; além disso o `kill()` deixava o navegador órfão a cada geração. `qa-browser.ts` agora lê `DevToolsActivePort` no perfil e encerra, no Windows, os processos do perfil temporário. Teste real opcional: `SELLORA_LIVE_BROWSER=<pasta files de um site> npx vitest run src/lib/demos/v6/qa-browser.live.test.ts`.
+- **Teste no `.exe`:** portátil recompilado, aberto com `--user-data-dir` isolado; geração V6 real "Pet Shop Teste Sellora" (site `dd4ed016-…`) concluída em ~2,7 min com imagens WebP (sharp nativo no utilityProcess), auditoria em navegador executada em 1440/1024/768/390 e capturas gravadas em `<userData>/demo-generator/sites`. Fechar a janela encerrou Sellora, Claw3D, adaptador e Edge (0 processos restantes).
 
 ### Missão 2 — Claw3D/Cloud 3D: funcional em desenvolvimento e no `.exe`
 - Arquitetura e detalhes: `docs/CLAW3D_INTEGRATION.md`. Código em `integrations/claw3d/` (setup com commit fixado `51337f7`, adaptador de gateway, núcleo testado, launcher com proxy de enquadramento), `src/lib/agents/bridge.ts` (`claw3dScene`, rota `/api/agents/scene`), `src/components/views/cloud-3d-view.tsx` (iframe + painel), `desktop/main.mjs` (`startOffice`) e `desktop/build.mjs` (copia `integrations/claw3d`).
@@ -68,9 +70,10 @@ Ordem de prioridade dos fatos: Git/código > testes > este documento. Confira `g
 - Commits: `631ab32`, `66fa771`, `a5bf0d7` (+ os posteriores a este documento; veja `git log`).
 
 ### Próxima ação exata
-1. Verificar **Leads → Demos → Revisar → Prévia | Código** na UI: cadastrar um lead fictício rotulado "Demonstração" (ex.: "Clínica Odontológica Teste Sellora", Sorocaba/SP, saúde) num perfil de navegador de teste e gerar a demo pela UI (≈6% da janela de 5 h), conferindo lista de arquivos, destaque, copiar, baixar arquivo e ZIP.
-2. Gerar uma demo V6 dentro do `.exe` (com `SELLORA_CLAW3D_DIR` apontando para `~/.sellora/claw3d/app` para ver a Cloud 3D junto) e conferir imagens WebP (sharp nativo no utilityProcess) e gravação em `%APPDATA%/sellora/demo-generator/sites`.
-3. Cloud 3D no app empacotado: botão "Preparar escritório 3D" que roda `setup.mjs --dir %APPDATA%/sellora/claw3d/app` com aprovação explícita.
+As três missões estão concluídas e testadas. Melhorias opcionais, nesta ordem:
+1. Cloud 3D no app empacotado: botão "Preparar escritório 3D" na aba, que roda `setup.mjs --dir %APPDATA%/sellora/claw3d/app` só com aprovação explícita do administrador (baixa ~600 MB de dependências do Claw3D).
+2. Persistir o estado de erro no escritório 3D (hoje o Claw3D pode voltar a "ocioso" na sincronização de frota).
+3. Avaliar repetição de fontes entre segmentos no histórico V6 (Young Serif e Big Shoulders Display já apareceram duas vezes).
 
 ## Histórico anterior
 
