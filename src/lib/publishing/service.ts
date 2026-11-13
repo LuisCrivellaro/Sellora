@@ -1,6 +1,6 @@
 import { createHash, randomUUID } from "node:crypto";
 import { readSiteFile, readSiteManifest } from "../demos/v6/store";
-import { readPublishingConfig, redactSecrets, type PublishingConfig } from "./config";
+import { readGithubConfig, readPublishingConfig, redactSecrets, type PublishingConfig } from "./config";
 import { CoolifyError, createCoolifyClient, type CoolifyApi, type CoolifyApplication } from "./coolify-client";
 import { demoDomain, publicUrlFromFqdn, uniqueSlug } from "./domain";
 import { createGithubClient, type GithubApi } from "./github-client";
@@ -78,7 +78,7 @@ export const toView = (record: PublicationRecord): PublicationView => {
 
 const now = () => new Date().toISOString();
 const appNameFor = (slug: string) => `sellora-demo-${slug}`.slice(0, 100);
-const messageOf = (error: unknown, config: PublishingConfig | null) => {
+const messageOf = (error: unknown, config: Partial<Pick<PublishingConfig, "coolify" | "github">> | null) => {
   // Erros de sistema de arquivos trazem caminhos locais: a mensagem gravada/mostrada fica genérica.
   if (error && typeof error === "object" && "code" in error && "syscall" in error) return "Falha ao gravar o registro local da publicação. Tente novamente.";
   return redactSecrets(error instanceof Error ? error.message : "Falha inesperada na publicação.", config).slice(0, 480);
@@ -331,8 +331,20 @@ export async function reconcilePublication(leadId: string, owner: string, opts: 
   return toView(record);
 }
 
-/** Teste de autenticação: GET /version com o token configurado. */
-export async function testCoolifyConnection(deps: PublishingDeps = defaultPublishingDeps()): Promise<{ ok: true; version: string } | { ok: false; error: string }> {
-  try { return { ok: true, version: await deps.coolify.version() }; }
-  catch (error) { return { ok: false, error: messageOf(error, deps.config) }; }
+type Check<T> = ({ ok: true } & T) | { ok: false; error: string } | { ok: null; error: string };
+
+/**
+ * Teste de conexão, sem gravar nada: Coolify (GET /version) e GitHub (repositório, escrita, ramo).
+ * Cada parte é testada assim que as variáveis dela existem, para validar o GitHub antes de haver VPS.
+ */
+export async function testPublishingConnection(fetcher: typeof fetch = fetch): Promise<{ coolify: Check<{ version: string }>; github: Check<{ repo: string; private: boolean; branch: string }> }> {
+  const { config } = readPublishingConfig();
+  const github = readGithubConfig();
+  const coolify: Check<{ version: string }> = config
+    ? await createCoolifyClient(config, fetcher).version().then((version) => ({ ok: true as const, version }), (error) => ({ ok: false as const, error: messageOf(error, config) }))
+    : { ok: null, error: "Coolify ainda não configurado (faltam variáveis)." };
+  const githubResult: Check<{ repo: string; private: boolean; branch: string }> = github
+    ? await createGithubClient({ github }, fetcher).checkAccess!().then((info) => ({ ok: true as const, ...info }), (error) => ({ ok: false as const, error: messageOf(error, { github }) }))
+    : { ok: null, error: "Repositório ou token do GitHub ainda não configurado." };
+  return { coolify, github: githubResult };
 }

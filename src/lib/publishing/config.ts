@@ -97,9 +97,18 @@ export function readPublishingConfig(env: Env = process.env): { config: Publishi
   };
 }
 
+/** Só a parte do GitHub (para testar o repositório antes de existir um Coolify). */
+export function readGithubConfig(env: Env = process.env): PublishingConfig["github"] | null {
+  const repo = /^([A-Za-z0-9-]{1,39})\/([A-Za-z0-9._-]{1,100})$/.exec(value(env, "SELLORA_DEMOS_GITHUB_REPO"));
+  const token = value(env, "SELLORA_DEMOS_GITHUB_TOKEN");
+  const branch = value(env, "SELLORA_DEMOS_GITHUB_BRANCH") || "main";
+  if (!repo || !token || !/^[A-Za-z0-9._/-]{1,100}$/.test(branch)) return null;
+  return { owner: repo[1], repo: repo[2], branch, token, basePath: (value(env, "SELLORA_DEMOS_GITHUB_PATH") || "demos").replace(/^\/+|\/+$/g, "") };
+}
+
 /** Remove de qualquer texto (erro, log) os segredos configurados, antes de gravar ou devolver. */
-export function redactSecrets(text: string, config: PublishingConfig | null = readPublishingConfig().config): string {
+export function redactSecrets(text: string, config: Partial<Pick<PublishingConfig, "coolify" | "github">> | null = readPublishingConfig().config): string {
   let out = text;
-  for (const secret of [config?.coolify.token, config?.github.token]) if (secret && secret.length >= 6) out = out.split(secret).join("[segredo removido]");
+  for (const secret of [config?.coolify?.token, config?.github?.token]) if (secret && secret.length >= 6) out = out.split(secret).join("[segredo removido]");
   return out.replace(/(Bearer\s+)[A-Za-z0-9|._-]{8,}/gi, "$1[segredo removido]").replace(/gh[pousr]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,}/g, "[segredo removido]");
 }

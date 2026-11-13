@@ -14,6 +14,8 @@ export class GithubError extends Error {
 export interface FolderCommitResult { commitSha: string; changed: boolean }
 export interface GithubApi {
   commitFolder(folder: string, files: { path: string; data: Buffer }[], message: string): Promise<FolderCommitResult>;
+  /** Teste de acesso: repositório visível, permissão de escrita e ramo existente. Não grava nada. */
+  checkAccess?(): Promise<{ repo: string; private: boolean; branch: string }>;
 }
 
 /** SHA-1 de blob do Git ("blob <tamanho>\0<conteúdo>"): compara com a árvore sem baixar arquivos. */
@@ -23,7 +25,7 @@ const refSchema = z.object({ object: z.object({ sha: z.string() }) }).loose();
 const commitSchema = z.object({ sha: z.string(), tree: z.object({ sha: z.string() }) }).loose();
 const treeSchema = z.object({ sha: z.string(), truncated: z.boolean().optional(), tree: z.array(z.object({ path: z.string(), type: z.string(), sha: z.string().nullable(), mode: z.string() }).loose()) }).loose();
 
-export function createGithubClient(config: PublishingConfig, fetcher: typeof fetch = fetch): GithubApi {
+export function createGithubClient(config: Pick<PublishingConfig, "github"> & Partial<PublishingConfig>, fetcher: typeof fetch = fetch): GithubApi {
   const { owner, repo, branch, token } = config.github;
   const base = `https://api.github.com/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}`;
 
@@ -74,6 +76,12 @@ export function createGithubClient(config: PublishingConfig, fetcher: typeof fet
   }
 
   return {
+    async checkAccess() {
+      const info = await call("GET", "", z.object({ full_name: z.string(), private: z.boolean(), permissions: z.object({ push: z.boolean() }).loose().optional() }).loose());
+      if (!info.permissions?.push) throw new GithubError(`O token lê ${info.full_name}, mas não tem permissão de escrita (Contents: read and write).`, 403);
+      await call("GET", `/git/ref/heads/${branch.split("/").map(encodeURIComponent).join("/")}`, refSchema);
+      return { repo: info.full_name, private: info.private, branch };
+    },
     async commitFolder(folder, files, message) {
       if (!/^[a-z0-9][a-z0-9/_-]{0,120}$/.test(folder) || folder.includes("..")) throw new GithubError("Pasta de destino inválida.", 0);
       try { return await attempt(folder, files, message); }

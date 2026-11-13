@@ -27,7 +27,14 @@ Serviço de publicação (src/lib/publishing/service.ts), uma operação por lea
 - Idempotência: uma operação ativa por lead (cliques repetidos devolvem a mesma), uuid da aplicação gravado logo após a criação, busca por nome antes de criar, no máximo 6 tentativas por hora por demo e 3 publicações simultâneas.
 - **Coolify Deploy Agent** (Cloud 3D): representação do serviço, alimentada só pelas operações reais. Estados: `working` (preparando), `deploying` (publicando), `success` (por 3 min após a confirmação), `error` (falha na última publicação, até a próxima) e `idle`. Ver `docs/CLAW3D_INTEGRATION.md`.
 
-## Variáveis de ambiente (servidor; `.env.local`, nunca no Git)
+## Já preparado (2026-11-13)
+
+- Repositório **`LuisCrivellaro/sellora-demos`** criado, **privado**, ramo `main` com README (primeiro commit). Por ser privado, o Coolify precisa do GitHub App (passo 5 abaixo).
+- App Windows: lê `%APPDATA%\sellora\sellora.env` ao abrir (criado com o modelo na primeira abertura; só chaves conhecidas são aceitas e o log mostra só os nomes). O pacote continua sem nenhum `.env`. Neste computador o arquivo já tem o repositório e a pasta do Claw3D.
+- Desenvolvimento: as mesmas chaves estão no `.env.local` (ignorado pelo Git), com o repositório preenchido.
+- **Testar conexão** no painel Publicação da demo (ou `GET /api/publications?test=1`): confere, sem gravar nada, o token do Coolify e a escrita no repositório. O GitHub pode ser testado antes de existir a VPS.
+
+## Variáveis de ambiente (servidor; `.env.local` ou `%APPDATA%\sellora\sellora.env`, nunca no Git)
 
 | Variável | Obrigatória | Para quê |
 | --- | --- | --- |
@@ -54,7 +61,7 @@ O status (`GET /api/publications`) devolve apenas nomes de variáveis ausentes o
 3. **HTTPS**: o Coolify emite os certificados Let's Encrypt pelo proxy (Traefik) quando o domínio da aplicação começa com `https://` — a integração já cria assim e força HTTPS. Para evitar um certificado por demo, dá para configurar um certificado curinga (desafio DNS) no proxy do Coolify; opcional.
 4. **Painel do Coolify**: ativar a API (Settings → Advanced → API), criar o token (read, write, deploy), criar o projeto e anotar os UUIDs de projeto e servidor.
 5. **GitHub**: criar o repositório das demos com um README; criar o token fine-grained restrito a ele. Para repositório privado, cadastrar o GitHub App no Coolify (Sources) e informar `COOLIFY_GITHUB_APP_UUID`.
-6. Preencher o `.env.local`, reiniciar o app e testar a autenticação: `GET /api/publications?test=1` (responde a versão do Coolify ou o erro).
+6. Preencher o `.env.local` (desenvolvimento) ou `%APPDATA%\sellora\sellora.env` (app Windows), reabrir o app e usar **Testar conexão** no painel (ou `GET /api/publications?test=1`).
 7. Publicar uma demo de teste ("… Teste Sellora") e conferir o endereço antes de publicar a de um lead real.
 
 ## Segurança

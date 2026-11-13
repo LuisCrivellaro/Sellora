@@ -1,8 +1,19 @@
 import { app, BrowserWindow, dialog, shell, utilityProcess } from "electron";
 import path from "node:path";
-import { appendFileSync, existsSync } from "node:fs";
+import { appendFileSync, existsSync, readFileSync, writeFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
-import { navigationKind } from "./policy.mjs";
+import { navigationKind, parseUserConfig, USER_CONFIG_TEMPLATE } from "./policy.mjs";
+
+/** Lê <userData>/sellora.env (cria o modelo na primeira vez). Variáveis já definidas no ambiente têm prioridade. */
+function loadUserConfig() {
+  const file = path.join(app.getPath("userData"), "sellora.env");
+  try {
+    if (!existsSync(file)) writeFileSync(file, USER_CONFIG_TEMPLATE, { encoding: "utf8", flag: "wx" });
+    const values = parseUserConfig(readFileSync(file, "utf8"));
+    for (const [key, value] of Object.entries(values)) if (!process.env[key]) process.env[key] = value;
+    return Object.keys(values);
+  } catch (error) { console.warn(`[sellora-desktop] configuração local não lida: ${error.message}`); return []; }
+}
 
 let server;
 let office; // Escritório 3D (Claw3D + Sellora Gateway Adapter), opcional.
@@ -14,6 +25,8 @@ else {
   app.on("second-instance", () => { const win = BrowserWindow.getAllWindows()[0]; if (win) { win.restore(); win.focus(); } });
   app.whenReady().then(async () => {
     console.info("[sellora-desktop] iniciando servidor local");
+    // Só os nomes das chaves vão ao log, nunca os valores.
+    console.info(`[sellora-desktop] configuração local: ${loadUserConfig().join(", ") || "nenhuma chave preenchida"}`);
     try {
       origin = `http://127.0.0.1:${port}`;
       // Nunca se conectar silenciosamente a um serviço que já ocupava a porta.

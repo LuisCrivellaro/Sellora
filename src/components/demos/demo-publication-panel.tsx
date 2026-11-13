@@ -66,7 +66,9 @@ export function DemoPublicationPanel({ lead, demo }: { lead: Lead; demo: LeadDem
       <p className="font-semibold text-ink">Publicação não configurada neste computador</p>
       <p className="mt-1">A demo continua pronta para revisão. Para publicar, defina no servidor (arquivo .env.local) as variáveis abaixo e reinicie o app. Passo a passo em docs/COOLIFY_INTEGRATION.md.</p>
       <p className="mt-2 font-mono text-[11.5px] break-words text-ink-faint">{[...config.missing, ...config.invalid.map((name) => `${name} (inválida)`)].join(" · ")}</p>
+      <p className="mt-2">No aplicativo Windows, a configuração fica em %APPDATA%\sellora\sellora.env (criado na primeira abertura).</p>
     </div>}
+    {config && <ConnectionTest />}
 
     {url && <div className="flex flex-wrap items-center gap-2 rounded-xl bg-selected p-3">
       <a href={url} target="_blank" rel="noopener noreferrer" className="min-w-0 flex-1 truncate text-[12.5px] font-semibold text-ink underline-offset-2 hover:underline" title={url}>{url}</a>
@@ -107,6 +109,34 @@ export function DemoPublicationPanel({ lead, demo }: { lead: Lead; demo: LeadDem
       description={`Os arquivos da demo de ${demo.business.name} serão enviados ao repositório ${config?.repository ?? "configurado"} e publicados pelo Coolify em ${publication?.domain ?? (config?.baseDomain ? `um subdomínio de ${config.baseDomain}` : "um endereço gerado pelo Coolify")}. O endereço fica acessível a quem tiver o link. Nenhuma mensagem é enviada ao lead.`}
       confirmLabel={confirm === "republish" ? "Republicar" : "Publicar"} onConfirm={() => { const action = confirm; setConfirm(null); if (action) void act(action); }} />
   </section>;
+}
+
+type CheckResult = { ok: boolean | null; error?: string; version?: string; repo?: string; private?: boolean; branch?: string };
+
+/** Testa, sem gravar nada, o token do Coolify e o acesso de escrita ao repositório das demos. */
+function ConnectionTest() {
+  const [state, setState] = useState<{ coolify: CheckResult; github: CheckResult } | "loading" | null>(null);
+  const [failure, setFailure] = useState<string | null>(null);
+  const run = async () => {
+    setState("loading"); setFailure(null);
+    try {
+      const response = await fetch("/api/publications?test=1", { cache: "no-store" });
+      const body = await response.json();
+      if (!response.ok || !body.connection) throw new Error(body.error || "Teste indisponível.");
+      setState(body.connection);
+    } catch (error) { setState(null); setFailure(error instanceof Error ? error.message : "Teste indisponível."); }
+  };
+  const line = (label: string, result: CheckResult, ok: string) => <li className={result.ok ? "text-mint" : result.ok === false ? "text-[#e3a1a1]" : "text-ink-faint"}>
+    {label}: {result.ok ? ok : result.error}
+  </li>;
+  return <div className="flex flex-col gap-2 text-[12px]">
+    <Button size="sm" variant="secondary" className="self-start" loading={state === "loading"} onClick={() => void run()}><RefreshCw aria-hidden /> Testar conexão</Button>
+    {failure && <p role="alert" className="text-warn">{failure}</p>}
+    {state && state !== "loading" && <ul role="status" className="flex flex-col gap-1">
+      {line("Coolify", state.coolify, `conectado (versão ${state.coolify.version})`)}
+      {line("GitHub", state.github, `${state.github.repo} com permissão de escrita, ramo ${state.github.branch}${state.github.private ? " (privado)" : " (público)"}`)}
+    </ul>}
+  </div>;
 }
 
 function History({ publication }: { publication: PublicationView }) {

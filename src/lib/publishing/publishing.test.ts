@@ -124,6 +124,21 @@ describe("clientes HTTP", () => {
   });
 });
 
+describe("teste de conexão do GitHub", () => {
+  it("exige permissão de escrita e ramo existente, sem gravar nada", async () => {
+    const methods: string[] = [];
+    const fetcher = (push: boolean) => (async (url: string, init: RequestInit) => {
+      methods.push(init.method ?? "GET");
+      if (url.endsWith("/repos/sellora/demos")) return Response.json({ full_name: "sellora/demos", private: true, permissions: { push } });
+      if (url.includes("/git/ref/heads/main")) return Response.json({ object: { sha: "c0" } });
+      return Response.json({}, { status: 404 });
+    }) as unknown as typeof fetch;
+    await expect(createGithubClient(config(), fetcher(true)).checkAccess!()).resolves.toEqual({ repo: "sellora/demos", private: true, branch: "main" });
+    await expect(createGithubClient(config(), fetcher(false)).checkAccess!()).rejects.toThrow(/permissão de escrita/);
+    expect(methods.every((method) => method === "GET")).toBe(true);
+  });
+});
+
 /** Coolify falso em memória: só para testes automatizados. */
 function fakeCoolify(overrides: Partial<{ deploymentStatuses: string[] }> = {}) {
   const apps = new Map<string, CoolifyApplication>();
