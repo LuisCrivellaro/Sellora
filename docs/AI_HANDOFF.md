@@ -41,22 +41,24 @@ Estado verificado em 2026-11-12. README descreve o uso e DECISIONS preserva as d
 
 Commits e push exigem autorização explícita conforme CLAUDE.md; nunca presumir o estado do remoto a partir de hashes antigos documentados.
 
-## Missões (estado em 2026-11-12, ~21:10 BRT) — branch `feat/cloud-3d`
+## Missões (estado em 2026-11-12, ~21:30 BRT) — branch `feat/cloud-3d`
 
 Ordem de prioridade dos fatos: Git/código > testes > este documento. Confira `git log -5` antes de agir.
 
 ### Missão 1 — Gerador V6: concluída, com 2 pendências de UI/desktop
 - Feito e verificado: demos reais **Restaurante Teste Sellora** (site `871275a1-d80c-41bd-8de7-4296d8bf1179`, ~4,5 min, ~6% da janela de 5 h) e **Clínica Odontológica Teste Sellora** (site `9469cd61-533c-4d88-9704-0487a56931b6`); a barbearia `f2d9b0ce-…` continua em `.sellora-data/sites` (o job dela não existe mais em `.sellora-data/jobs`). Todos os artefatos são locais (fora do Git).
 - Capturas 1440/1024/768/390 das três (Edge headless): sem overflow horizontal, sem imagem quebrada, links de âncora + Maps (+ WhatsApp/tel na barbearia, que tinha telefone válido).
-- Achados e correções: (1) telefone inválido gerava "Ligar para" sem número → o gerador só avisa o modelo de telefone válido (`normalizeWhatsappPhone`); (2) as três demos tinham o mesmo hero (foto de ponta a ponta + painel no canto) → guia V6 com 6 arquétipos `[foto-painel|colunas|tipografico|moldura|grade|cor-solida]` e `recentHeroIssue` recusa o arquétipo das 2 demos mais recentes de qualquer segmento (histórico V6 ordenado por `finishedAt`). **Não validado com geração real** (custo ~6%/demo): próxima geração deve sair com hero diferente de `foto-painel`.
+- Achados e correções: (1) telefone inválido gerava "Ligar para" sem número → o gerador só avisa o modelo de telefone válido (`normalizeWhatsappPhone`); (2) as três demos tinham o mesmo hero (foto de ponta a ponta + painel no canto) → guia V6 com 6 arquétipos `[foto-painel|colunas|tipografico|moldura|grade|cor-solida]` e `recentHeroIssue` recusa o arquétipo das 2 demos mais recentes de qualquer segmento (histórico V6 ordenado por `finishedAt`). **Validado com geração real**: "Restaurante Teste Sellora" v2 (site `fd67a0e7-bb3c-4830-b8b1-a90141c7fed4`, ~3 min) saiu com `[tipografico]` (fundo verde chapado, título gigante, foto em faixa), fontes Bricolage Grotesque + Source Serif 4, sem "Ligar para" (telefone inválido virou "Ver como chegar"), sem overflow e sem imagem quebrada nas 4 larguras.
 - ZIP da clínica: 6 arquivos (3 WebP do Codex + HTML/CSS/JS) com SHA-256 idêntico aos gravados; `/api/demos/sites/<id>` devolve o conteúdo real.
 - Pendente: (a) conferir visualmente **Leads → Demos → Revisar → Prévia | Código** com um lead do CRM que tenha demo V6 (o CRM do navegador de teste não tinha nenhuma; gerar uma para lead real gasta cota e altera dados do usuário); (b) teste de geração V6 dentro do `.exe`.
 
-### Missão 2 — Claw3D/Cloud 3D: funcional em desenvolvimento
+### Missão 2 — Claw3D/Cloud 3D: funcional em desenvolvimento e no `.exe`
 - Arquitetura e detalhes: `docs/CLAW3D_INTEGRATION.md`. Código em `integrations/claw3d/` (setup com commit fixado `51337f7`, adaptador de gateway, núcleo testado, launcher com proxy de enquadramento), `src/lib/agents/bridge.ts` (`claw3dScene`, rota `/api/agents/scene`), `src/components/views/cloud-3d-view.tsx` (iframe + painel), `desktop/main.mjs` (`startOffice`) e `desktop/build.mjs` (copia `integrations/claw3d`).
 - Verificado: geração real da clínica acompanhada no escritório (running com o `runId` do job → idle); recarga no meio mantém estado; bridge instrumentado em Edge headless: start/progress/end/error corretos (`status=error` aplicado); reconexão do adaptador após reinício do dev server.
 - Limitações: contador "working" do cabeçalho do Claw3D demora a voltar após o fim (travas de animação dele); `error` pode virar ocioso na sincronização de frota do Claw3D.
-- Pendente: build/teste no `.exe` (ver próxima ação); medir CPU/memória; preparar o Claw3D em `%APPDATA%/sellora/claw3d/app` para o app empacotado (hoje só inicia se existir; setup com `--dir`).
+- `.exe` testado (resultados e memória em `docs/CLAW3D_INTEGRATION.md`). Aba Cloud 3D capturada em Edge headless: escritório conectado + painel com última tarefa, etapas, Abrir demo/lead.
+- Pendente: preparar o Claw3D para o app empacotado sem terminal (botão com aprovação do administrador); medir GPU/CPU do renderizador com a cena aberta na janela do app.
+- Atenção (dev): depois de editar `next.config.ts`/`tsconfig.json` ou rodar builds com o dev server aberto, o `next dev` antigo pode entrar em recarga em loop em qualquer página ("Carregando…"). Reiniciar o dev server resolve; não é bug da aba.
 
 ### Missão 3 — Gemini/Imagen removidos: concluída
 - Removidos `gemini-server.ts` (+teste), seletor de imagem, status `gemini`, variáveis do `.env.example`, `.claude/skills/imagen` (local) e linha do `.gitignore`. Leitura legada de "gemini" mantida (`storedImageProviderSchema`); pedido novo com "gemini" vira Codex. README/DECISIONS/SKILLS_SETUP atualizados.
@@ -66,9 +68,9 @@ Ordem de prioridade dos fatos: Git/código > testes > este documento. Confira `g
 - Commits: `631ab32`, `66fa771`, `a5bf0d7` (+ os posteriores a este documento; veja `git log`).
 
 ### Próxima ação exata
-1. Se `release/` tiver o portable novo (`npm run desktop:build`), fechar o launcher de desenvolvimento (portas 3190/3191/18790), abrir o `.exe` com `SELLORA_CLAW3D_DIR=%USERPROFILE%/.sellora/claw3d/app`, conferir `%APPDATA%/sellora/startup.log` (linhas `[cloud-3d]`), abrir Cloud 3D e registrar CPU/memória do processo `node`/Electron do Claw3D.
-2. Gerar uma demo V6 nova (ex.: "Restaurante Teste Sellora" v2) para validar a rotação de hero; comparar com as anteriores.
-3. Verificar Prévia | Código na UI com um lead fictício rotulado "Demonstração".
+1. Verificar **Leads → Demos → Revisar → Prévia | Código** na UI: cadastrar um lead fictício rotulado "Demonstração" (ex.: "Clínica Odontológica Teste Sellora", Sorocaba/SP, saúde) num perfil de navegador de teste e gerar a demo pela UI (≈6% da janela de 5 h), conferindo lista de arquivos, destaque, copiar, baixar arquivo e ZIP.
+2. Gerar uma demo V6 dentro do `.exe` (com `SELLORA_CLAW3D_DIR` apontando para `~/.sellora/claw3d/app` para ver a Cloud 3D junto) e conferir imagens WebP (sharp nativo no utilityProcess) e gravação em `%APPDATA%/sellora/demo-generator/sites`.
+3. Cloud 3D no app empacotado: botão "Preparar escritório 3D" que roda `setup.mjs --dir %APPDATA%/sellora/claw3d/app` com aprovação explícita.
 
 ## Histórico anterior
 

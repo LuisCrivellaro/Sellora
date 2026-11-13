@@ -14,7 +14,6 @@ import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-const here = path.dirname(fileURLToPath(import.meta.url));
 
 export const CLAW3D_DEFAULTS = { port: 3190, adapterPort: 18790 };
 const CRLF = String.fromCharCode(13, 10);
@@ -128,7 +127,6 @@ export function startClaw3d({ appDir, stateDir, bridgeUrl, port = CLAW3D_DEFAULT
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
-  const root = path.resolve(here, "..", "..");
   const service = startClaw3d({
     // Fora do repositório (ver setup.mjs): estado gravado dentro do projeto faz o Next recarregar a página em loop.
     appDir: process.env.SELLORA_CLAW3D_DIR || path.join(os.homedir(), ".sellora", "claw3d", "app"),

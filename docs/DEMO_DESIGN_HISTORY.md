@@ -28,3 +28,16 @@ O Sellora executa a skill com a conta ChatGPT do Codex local, produz JSON valida
 O teste real usou dois leads fictícios do mesmo segmento com uma foto e uma mensagem repetidas em contexto isolado. A ação individual da revisão gerou para **Studio Horizonte de Teste** a abertura “O espelho é só o começo.” e uma natureza-morta de espelho e vidro azul, com origem `4bf7cae2d4008078b3715f189f76b5e5e008668a482c5f6b670fdf41a6b89ba7`. A imagem foi criada pelo Codex acionado pelo aplicativo, sem uma aprovação intermediária da imagem. A mensagem editada no teste foi conservada e a nova demo permaneceu pendente.
 
 Capturas e resultado local em `test-results/runtime-generator/`. A prévia, a miniatura, a recarga, as âncoras e as larguras 360, 768 e 1440 px foram verificadas. Os seis layouts suportados também passaram pelas três larguras e por reflow com zoom de 200% em 1440 px. O lote e seu histórico sequencial, idempotência, edição concorrente, proteção da conta local e falha por limite foram verificados nos testes automatizados. A retomada da revisão do resultado usou o trabalho já concluído para repetir a QA sem consumir outra geração de imagem. Esse teste não substitui a revisão criativa de cada futura demo.
+
+## Demos V6 de teste em 2026-11-12 (negócios fictícios "… Teste Sellora")
+
+Sites locais em `.sellora-data/sites/<id>` (fora do Git). Textos e código: Claude Sonnet 5.5; imagens: Codex (3 por demo).
+
+| Demo | Site | Hero (arquétipo) | Fontes | Observação |
+| --- | --- | --- | --- | --- |
+| Barbearia, Campinas/SP | `f2d9b0ce-…` | foto-painel (painel creme no canto inferior esquerdo) | Big Shoulders Display + Figtree | Telefone válido: WhatsApp e ligação |
+| Restaurante, Ribeirão Preto/SP | `871275a1-…` | foto-painel (faixa escura) | Young Serif + Hanken Grotesk | Telefone inválido no teste: "Ligar para" sem número (bug corrigido depois) |
+| Clínica odontológica, Sorocaba/SP | `9469cd61-…` | foto-painel (painel creme) | Young Serif + Figtree | Mesmo bug do telefone |
+| Restaurante v2 | `fd67a0e7-…` | tipografico (fundo verde, título gigante, foto em faixa) | Bricolage Grotesque + Source Serif 4 | Depois da rotação de arquétipos e da correção do telefone: só "Ver como chegar" |
+
+Achado da comparação: as três primeiras variavam paleta e tipografia, mas repetiam a estrutura do hero. O guia V6 passou a exigir um arquétipo nomeado e o gerador recusa o arquétipo das duas demos mais recentes de qualquer segmento. Fontes já usadas no acervo de teste: Young Serif aparece duas vezes (restaurante e clínica), um ponto a vigiar se a repetição de fontes entre segmentos virar padrão.

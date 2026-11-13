@@ -116,9 +116,10 @@ it("mantém falha explícita quando a conta atinge limite, sem produzir uma demo
   client.image.mockRejectedValue(new Error("Limite de imagens atingido."));
   const input = request();
   await startDemoGeneration(input);
-  await expect.poll(async () => (await getDemoGenerationJob(input.id))?.status).toBe("failed");
+  await expect.poll(async () => (await getDemoGenerationJob(input.id))?.status, { timeout: 5000 }).toBe("failed");
   const job = await getDemoGenerationJob(input.id);
   expect(job?.result).toBeNull();
   expect(job?.error).toContain("Limite");
-  expect(client.close).toHaveBeenCalled();
+  // close() roda no finally, depois de gravar o status: sob carga paralela pode chegar alguns ms depois.
+  await expect.poll(() => client.close.mock.calls.length, { timeout: 5000 }).toBeGreaterThan(0);
 });
