@@ -142,6 +142,8 @@ describe("Kanban (skill task-manager) com execuções reais", () => {
     expect(card.description).toContain("Prospecção IA");
     const list = core.handleMethod(state, "agents.list", {}, "l") as Frame;
     expect((list.payload as { agents: { id: string }[] }).agents.map((a) => a.id)).toEqual(["gerador-de-demos", "prospeccao"]);
+    // Só o nome sob o personagem: subtítulo (role) vazio no escritório.
+    expect((list.payload as { agents: { role: string; name: string }[] }).agents.map((a) => [a.name, a.role])).toEqual([["Gerador de Demos", ""], ["Prospecção", ""]]);
   });
 
   it("execução que começa e termina durante a sessão continua no Kanban depois do fim", () => {

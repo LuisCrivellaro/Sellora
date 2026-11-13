@@ -10,7 +10,7 @@ import { randomBytes } from "node:crypto";
 import http from "node:http";
 import net from "node:net";
 import os from "node:os";
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { copyFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -113,6 +113,13 @@ export function writeStudioSettings(stateDir, { adapterPort, token }) {
  */
 export function startClaw3d({ appDir, stateDir, bridgeUrl, port = CLAW3D_DEFAULTS.port, adapterPort = CLAW3D_DEFAULTS.adapterPort, nodePath = process.execPath, env = {}, log = console.log }) {
   if (!existsSync(path.join(appDir, ".next", "BUILD_ID"))) throw new Error(`Claw3D não preparado em ${appDir}. Rode: node integrations/claw3d/setup.mjs`);
+  // O adaptador roda de dentro do checkout do Claw3D (usa o `ws` de lá): copia a versão que acompanha esta
+  // Sellora a cada início, para uma atualização do app não ficar com o adaptador antigo.
+  const here = path.dirname(fileURLToPath(import.meta.url));
+  for (const file of ["sellora-gateway-adapter.cjs", "sellora-gateway-core.cjs"]) {
+    const source = path.join(here, file);
+    if (existsSync(source)) copyFileSync(source, path.join(appDir, "server", file));
+  }
   if (!existsSync(path.join(appDir, "server", "sellora-gateway-adapter.cjs"))) throw new Error("Adaptador Sellora ausente no Claw3D. Rode o setup novamente.");
   const token = randomBytes(24).toString("base64url");
   writeStudioSettings(stateDir, { adapterPort, token });

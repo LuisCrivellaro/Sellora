@@ -211,12 +211,11 @@ function applyBridgeEvent(state, eventName, data) {
   return [...finish(state, agentId, run, phase), presenceFrame(state)];
 }
 
-/** Rótulo curto exibido sob o personagem no escritório (a descrição completa fica no painel da Sellora). */
-const SHORT_ROLES = { "gerador-de-demos": "Sites demo V6", prospeccao: "OpenStreetMap + regras" };
-
+// Sob o personagem o Claw3D mostra o nome numa plaquinha e o `role` como subtítulo. O subtítulo vai vazio:
+// o escritório mostra só o nome; a descrição completa do agente fica no painel da Sellora.
 function agentList(state) {
   return [...state.agents.values()].map((agent) => ({
-    id: agent.id, name: agent.name, workspace: `sellora://agents/${agent.id}`, role: SHORT_ROLES[agent.id] ?? agent.role.slice(0, 40),
+    id: agent.id, name: agent.name, workspace: `sellora://agents/${agent.id}`, role: "",
     identity: { name: agent.name, emoji: agent.id === "prospeccao" ? "🔎" : "🛠️" },
   }));
 }
