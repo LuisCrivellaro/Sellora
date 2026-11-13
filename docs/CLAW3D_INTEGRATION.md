@@ -81,6 +81,17 @@ Detalhes que o código do Claw3D exige (descobertos nos testes): numeração `se
 - **Estados no perfil Hermes** (bridge instrumentado): início → `running`, fim → `idle`; o estado `error` volta a ocioso no escritório, mas a falha fica permanente no Kanban (Blocked).
 - **Aba Cloud 3D:** escritório na largura toda e altura da janela, botão **Tela cheia** (centro inferior; iframe com `allow="fullscreen"` e Electron liberando a permissão `fullscreen`), faixa de uma linha com status/tarefa/Abrir demo/Abrir lead e detalhes recolhidos abaixo. Tela cheia testada no `.exe` (clique real via DevTools): escritório em 1920×1080 conectado.
 
+## Agentes reais no escritório
+
+| Agente | Como funciona | No Claw3D |
+| --- | --- | --- |
+| Gerador de Demos | Claude Code (briefing e código) + Codex (imagens) + Edge (auditoria); jobs em `<dados>/jobs/` | "Gerador de Demos" (rótulo "Sites demo V6"); Kanban: In progress / Review / Blocked |
+| Prospecção (desde 2026-11-13) | OpenStreetMap + verificação HTTP + regras da skill Local Client Prospector, **sem IA generativa** (`src/lib/prospecting/`) | "Prospecção" (rótulo "OpenStreetMap + regras"); Kanban: In progress / Done / Blocked |
+
+- Prospecção: cada pesquisa grava um resumo sem dados de estabelecimentos em `<dados>/prospect-runs/<id>.json` (cidade, UF, segmento, raio, etapas, contagens, erro). O bridge junta esses resumos com a fila em memória (`readProspectAgentRuns`, `readAllRuns`); eventos `agent` levam `agentId` e `generator` (`osm`).
+- O adaptador guarda as execuções que começam e terminam durante a sessão (`state.finished`), senão o Kanban as perdia até a próxima reconexão (valia também para as demos).
+- Teste real (2026-11-13): pesquisas de Valinhos/SP e Vinhedo/SP (5 km, todos os segmentos) pela API da Sellora: agente trabalhando com a etapa real, fim em ocioso, cartão In progress durante e Done depois ("Pesquisa concluída: 10 oportunidade(s) classificadas."); aba Cloud 3D com as duas faixas e "2 AGENTS" no escritório.
+
 ## Limitações conhecidas
 
 - Checkout e estado do Claw3D ficam **fora** do repositório (`~/.sellora/claw3d/`; no app empacotado, `%APPDATA%/sellora/claw3d/`). Dentro do projeto, o `settings.json` que o Claw3D grava ao conectar fazia o dev server do Next recarregar a aba Cloud 3D em loop (o iframe gravava de novo a cada recarga).
