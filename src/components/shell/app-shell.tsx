@@ -15,6 +15,7 @@ import { NotificationsButton, SearchButton, SettingsShortcut, UserMenu } from ".
 import { findActiveItem, NAV_SECTIONS } from "./nav-config";
 import { Sidebar, SidebarTrigger } from "./sidebar";
 import { SyncStatus } from "./sync-status";
+import { APP_LABEL } from "@/lib/version";
 
 function MotionSync() {
   const { db } = useStore();
@@ -153,7 +154,7 @@ function PanelShell({ children }: { children: ReactNode }) {
                 </main>
 
                 <footer className="mt-8 flex flex-wrap items-center justify-between gap-2 border-t border-seam pt-4 text-[12px] text-ink-faint">
-                  <span>Sellora v0.1 · painel interno</span>
+                  <span>{APP_LABEL} · painel interno</span>
                   <span>{footer}</span>
                 </footer>
               </div>

@@ -16,6 +16,8 @@ function loadUserConfig() {
 }
 
 let server;
+const version = JSON.parse(readFileSync(new URL("../version.json", import.meta.url), "utf8"));
+const appLabel = `Sellora ${version.major}.${version.minor}`;
 let office; // Escritório 3D (Claw3D + Sellora Gateway Adapter), opcional.
 let origin;
 let quitting = false;
@@ -45,7 +47,7 @@ else {
       }
       if (!ready) throw new Error("Não foi possível iniciar o servidor local.");
       function windowFor(url) {
-        const win = new BrowserWindow({ title: "Sellora", width: 1440, height: 960, minWidth: 800, minHeight: 600, backgroundColor: "#111111", autoHideMenuBar: true, webPreferences: { nodeIntegration: false, contextIsolation: true, sandbox: true } });
+        const win = new BrowserWindow({ title: appLabel, width: 1440, height: 960, minWidth: 800, minHeight: 600, backgroundColor: "#111111", autoHideMenuBar: true, webPreferences: { nodeIntegration: false, contextIsolation: true, sandbox: true } });
         win.webContents.session.setPermissionRequestHandler((_wc, permission, callback) => callback(permission === "clipboard-sanitized-write" || permission === "fullscreen"));
         win.webContents.on("will-navigate", (event, destination) => { if (navigationKind(destination, origin) !== "internal") event.preventDefault(); });
         win.webContents.setWindowOpenHandler(({ url: destination }) => {

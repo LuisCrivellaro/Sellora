@@ -1,5 +1,6 @@
 import { readdir, readFile } from "node:fs/promises";
 import path from "node:path";
+import { APP_PACKAGE_VERSION } from "../version";
 import { z } from "zod";
 import { demoDataRoot } from "../demos/codex-server";
 import { CLAUDE_DEMO_MODEL } from "../demos/claude-server";
@@ -15,10 +16,10 @@ import { listPublications } from "../publishing/store";
  * - Prospecção: pesquisas OpenStreetMap + verificação HTTP + regras (sem IA generativa), resumidas em
  *   <dados>/prospect-runs/*.json e na fila em memória do servidor.
  */
-export type AgentStatus = "queued" | "running" | "waiting_approval" | "completed" | "failed" | "cancelled" | "offline" | "idle";
+export type AgentStatus = "paused" | "queued" | "running" | "waiting_approval" | "completed" | "failed" | "cancelled" | "offline" | "idle";
 
 const jobSchema = z.object({
-  id: z.uuid(), businessKey: z.string(), status: z.enum(["running", "completed", "failed"]), phase: z.string(),
+  id: z.uuid(), businessKey: z.string(), status: z.enum(["running", "paused", "cancelled", "completed", "failed"]), phase: z.string(),
   error: z.string().nullable().optional(), textProvider: z.enum(["claude", "codex"]).optional(), imageProvider: z.string().optional(),
   generator: z.enum(["v5", "v6"]).optional(), leadId: z.string().optional(), startedAt: z.string().optional(), finishedAt: z.string().optional(),
   events: z.array(z.object({ at: z.string(), phase: z.string() })).optional(),
@@ -58,7 +59,7 @@ export async function readJobs(limit = 40, liveIds: Set<string> = new Set()): Pr
       const running = job.status === "running";
       runs.push({
         agentId: "gerador-de-demos", runId: job.id,
-        status: running ? (liveIds.has(job.id) ? "running" : "cancelled") : job.status === "completed" ? "waiting_approval" : "failed",
+        status: running ? (liveIds.has(job.id) ? "running" : "cancelled") : job.status === "completed" ? "waiting_approval" : job.status === "paused" ? "paused" : job.status === "cancelled" ? "cancelled" : "failed",
         task: running && !liveIds.has(job.id) ? "Interrompido (o aplicativo foi fechado durante a geração)" : job.phase,
         business: businessName(job.businessKey), runtime: job.textProvider === "codex" ? "codex-app-server" : "claude-code",
         generator: job.generator ?? "v5", startedAt: job.startedAt ?? events[0]?.at ?? null, updatedAt: events.at(-1)?.at ?? job.finishedAt ?? null,
@@ -163,7 +164,7 @@ export async function agentRegistry(): Promise<AgentRecord[]> {
 export async function claw3dState() {
   const agents = await agentRegistry();
   return {
-    runtime: { name: "Sellora Agent Bridge", version: "0.1.0", vendor: "Sellora", status: "ok", active_model: CLAUDE_DEMO_MODEL },
+    runtime: { name: "Sellora Agent Bridge", version: APP_PACKAGE_VERSION, vendor: "Sellora", status: "ok", active_model: CLAUDE_DEMO_MODEL },
     profile: "sellora",
     active: Object.fromEntries(agents.map((agent) => [agent.id, agent.runtime === "codex-app-server" ? "codex" : agent.runtime === "openstreetmap" || agent.runtime === "coolify" ? agent.runtime : CLAUDE_DEMO_MODEL])),
     identity: null,

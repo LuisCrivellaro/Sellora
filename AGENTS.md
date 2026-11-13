@@ -8,6 +8,16 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 
 <!-- END:nextjs-agent-rules -->
 
+## Atualizações validadas
+
+A versão do produto tem dois componentes inteiros e fica em `version.json`. Registre mudanças em `CHANGELOG.md` sob `## Próxima atualização` e finalize cada atualização com `npm run release -- --id <identificador-estável-da-solicitação>`. O comando testa, compila, verifica o desktop em perfil isolado e atualiza o atalho. Repetir sem mudanças mantém a versão. O minor vai de 0 a 9, seguido de incremento do major. Metadados npm/Electron são derivados com patch zero. Preserve o perfil principal durante os testes.
+
+Esta convenção vale para todos os desenvolvedores, incluindo o Lipe, e todos os agentes. Após 1.9 vem 2.0. Versões do produto como 1.10 e 1.0.1 são inválidas. Interfaces usam `APP_LABEL`/`APP_VERSION`, integrações usam `APP_PACKAGE_VERSION` e o desktop deriva de `version.json`. Evite rótulos de versão fixos no código.
+
+Execute `npm run version:check` e `npm run test:version` ao alterar o versionamento. O CI `.github/workflows/version.yml` verifica formato, sincronização e sequência em pushes e pull requests. Uma versão alterada deve ser exatamente a próxima em relação à base. A versão pode permanecer igual durante desenvolvimento, análises e testes. O check **Validar versionamento** deve ser obrigatório na proteção da branch para bloquear merges inválidos.
+
+Uma solicitação para apenas definir ou validar esta convenção preserva a versão vigente e o trabalho em andamento. Nessa situação, execute as checagens de leitura e mantenha a finalização com incremento para a próxima atualização concluída e autorizada.
+
 ## Skills do projeto
 
 Para criar, editar ou revisar demos em Leads → Demos, use `.claude/skills/unique-site-designer/SKILL.md`. Compare imagens e textos com o histórico em `docs/DEMO_DESIGN_HISTORY.md`. Os conceitos aprovados e sua vinculação aos negócios ficam em `src/lib/demos/concepts.ts`.

@@ -16,7 +16,7 @@ Defina primeiro o tipo:
 
 - **Lugar** (as pessoas vão até ele: restaurante, café, padaria, bar, loja, salão, barbearia, academia, estúdio local): a fotografia lidera, cor plana, tipografia forte, a localização e o contato aparecem cedo. Sem efeitos de tecnologia, sem gradientes, sem "glassmorphism", sem fundos animados.
 - **Serviço** (as pessoas contratam: clínica, consultório, escritório, oficina, prestador): clareza, organização e confiança. Fotografia de contexto e do trabalho, hierarquia objetiva, processo de atendimento explicado em linguagem simples.
-- **Produto ou loja**: o que se vende aparece grande, uma imagem diferente por seção.
+- **Produto ou loja**: o que se vende aparece grande, uma imagem de destaque, com as demais seções organizadas por tipografia e cor.
 
 Escolha as seções pela necessidade do negócio, não por uma lista fixa. Possíveis: hero, apresentação, serviços ou produtos, galeria, diferenciais (só os que a categoria sustenta), como funciona o atendimento, perguntas frequentes (respostas honestas, sem dados inventados), contato, rodapé. De 4 a 8 seções costuma bastar. Cada seção tem uma ideia.
 
@@ -30,7 +30,7 @@ Escolha as seções pela necessidade do negócio, não por uma lista fixa. Poss�
   - `[colunas]` colunas assimétricas, texto de um lado e imagem recortada do outro, sem sobreposição;
   - `[tipografico]` nome ou título em escala muito grande ocupando a largura, imagem em faixa abaixo ou ao lado;
   - `[moldura]` imagem dentro de uma forma (arco, recorte, moldura) ao lado de texto editorial;
-  - `[grade]` grade irregular de duas ou três imagens com o título integrado à grade;
+  - `[grade]` grade editorial com uma imagem e o título integrado à grade;
   - `[cor-solida]` fundo de cor plana com título e dados de contato, imagem só na seção seguinte.
   Não repita o arquétipo das duas demos mais recentes (de qualquer segmento): a aplicação confere e pede outro. Duas seções vizinhas não repetem a mesma composição.
 - Todo bloco alinhado às mesmas margens esquerda e direita (um container comum). Nada vazando para um lado.
@@ -69,3 +69,8 @@ Escolha as seções pela necessidade do negócio, não por uma lista fixa. Poss�
 - Contato: com telefone informado, use exatamente os marcadores `{{PHONE_DISPLAY}}` (texto), `{{PHONE_LINK}}` (href tel) e `{{WHATSAPP_LINK}}` (href do WhatsApp); a aplicação os substitui. Sem telefone, não escreva nenhum telefone; use `{{MAPS_LINK}}` (busca do nome na cidade) para "Ver como chegar". Links externos com `target="_blank" rel="noopener"`.
 - Não escreva o aviso de demonstração: a aplicação insere uma faixa padronizada no topo.
 - Sem texto de preenchimento (lorem ipsum, "Seu texto aqui", colchetes, TODO).
+
+
+## Imagem por demo
+
+Planeje exatamente uma imagem ilustrativa por demo. Use essa imagem no site e componha as demais seções com texto, cor e espaçamento.

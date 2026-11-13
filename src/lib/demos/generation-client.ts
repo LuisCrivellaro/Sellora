@@ -11,7 +11,7 @@ import { approvedConcepts } from "./concepts";
 import { demoDesigns } from "./designs";
 
 const queueItemSchema = z.object({
-  leadId: z.string(), id: z.uuid(), status: z.enum(["queued", "running", "paused", "completed", "failed"]),
+  leadId: z.string(), id: z.uuid(), status: z.enum(["queued", "running", "paused", "cancelled", "completed", "failed"]),
   resumeStatus: z.enum(["queued", "running"]).optional(),
   phase: z.string(), error: z.string().nullable(), expectedRevision: z.string().nullable(),
   expectedBusiness: z.string().optional(),
@@ -20,11 +20,12 @@ const queueItemSchema = z.object({
   imageProvider: storedImageProviderSchema.optional(),
 });
 export type DemoQueueItem = z.infer<typeof queueItemSchema>;
-interface GeneratorState { connection: DemoGenerationStatus | null; items: DemoQueueItem[]; textProvider: DemoTextProvider; imageProvider: DemoImageProvider }
-const initialState: GeneratorState = { connection: null, items: [], textProvider: "claude", imageProvider: "codex" };
+interface GeneratorState { connection: DemoGenerationStatus | null; items: DemoQueueItem[]; textProvider: DemoTextProvider; imageProvider: DemoImageProvider; pausingIds: string[] }
+const initialState: GeneratorState = { connection: null, items: [], textProvider: "claude", imageProvider: "codex", pausingIds: [] };
 let state = initialState;
 let loaded = false;
 let pumping = false;
+let processing: { id: string; done: Promise<unknown> } | undefined;
 const listeners = new Set<() => void>();
 const storageKey = "sellora-demo-generator-v1";
 // v2: o padrão passou a ser Claude; preferências gravadas antes da troca não prevalecem.
@@ -83,6 +84,9 @@ async function run(item: DemoQueueItem) {
   if (!lead) throw new Error("O lead foi removido da fila.");
   let job: DemoGenerationJob;
   if (item.status === "running") {
+    const resumed = await fetch(`/api/demos/jobs/${item.id}`, { method: "PATCH" });
+    if (resumed.status === 429) { await delay(1500); return false; }
+    if (!resumed.ok) throw new Error("Não foi possível retomar a geração.");
     const response = await fetch(`/api/demos/jobs/${item.id}`, { cache: "no-store" });
     const data = await response.json();
     if (!response.ok) throw new Error(data.error || "Geração interrompida. Tente novamente.");
@@ -101,10 +105,18 @@ async function run(item: DemoQueueItem) {
     const data = await response.json();
     if (!response.ok) throw new Error(data.error || "Não foi possível iniciar a geração.");
     job = data.job;
+    if (isStopped(item.id)) {
+      const paused = await fetch(`/api/demos/jobs/${item.id}`, { method: "DELETE" });
+      if (!paused.ok) throw new Error("Não foi possível interromper a geração. Tente pausar novamente.");
+      const data = await paused.json();
+      if (data.job && !isCancelled(item.id)) update(item.id, { resumeStatus: "running" });
+      return false;
+    }
     update(item.id, { status: "running", expectedRevision: item.expectedRevision, expectedBusiness: item.expectedBusiness, phase: job.phase });
   }
   let failures = 0;
   while (job.status === "running") {
+    if (isStopped(item.id)) return false;
     update(item.id, { phase: job.phase });
     await delay(1500);
     try {
@@ -117,6 +129,12 @@ async function run(item: DemoQueueItem) {
       if (failures >= 10) throw new Error("Conexão interrompida durante a geração. Reabra o app para retomar a consulta.");
     }
   }
+  if (isStopped(item.id)) return false;
+  if (job.status === "paused") {
+    update(item.id, { status: "paused", resumeStatus: "running", phase: "Geração pausada", error: null });
+    return false;
+  }
+  if (job.status === "cancelled") { update(item.id, { status: "cancelled", phase: "Geração cancelada", error: null }); return false; }
   if (job.status !== "completed" || !job.result) throw new Error(job.error || "A geração não foi concluída.");
   const latest = getDb().leads.find((lead) => lead.id === item.leadId);
   if (!latest || JSON.stringify(latest.demo?.business ?? demoBusinessSchema.parse(latest)) !== item.expectedBusiness) throw new Error("Os dados do negócio mudaram durante a geração. Gere novamente com o cadastro atual.");
@@ -131,10 +149,13 @@ async function pump() {
   try {
     let item = state.items.find((item) => item.status === "queued" || item.status === "running");
     while (item) {
-      try { await run(item); }
+      const operation = run(item);
+      processing = { id: item.id, done: operation };
+      try { await operation; }
       catch (error) {
-        update(item.id, { status: "failed", phase: "Geração pendente", error: error instanceof Error ? error.message : "Falha na geração." });
+        if (!isStopped(item.id)) update(item.id, { status: "failed", phase: "Geração pendente", error: error instanceof Error ? error.message : "Falha na geração." });
       }
+      finally { processing = undefined; }
       item = state.items.find((item) => item.status === "queued" || item.status === "running");
     }
   } finally { pumping = false; }
@@ -142,16 +163,55 @@ async function pump() {
 
 export function enqueueDemoGeneration(leadIds: string[]) {
   initialize();
-  const ids = [...new Set(leadIds)];
+  const stoppingLeads = new Set(state.items.filter((item) => state.pausingIds.includes(item.id)).map((item) => item.leadId));
+  const ids = [...new Set(leadIds)].filter((id) => !stoppingLeads.has(id));
   const pending = state.items.filter((item) => !ids.includes(item.leadId) || item.status === "queued" || item.status === "running");
   const active = new Set(pending.filter((item) => item.status === "queued" || item.status === "running").map((item) => item.leadId));
   const additions: DemoQueueItem[] = ids.filter((id) => !active.has(id)).map((leadId) => {
     const paused = state.items.find((item) => item.leadId === leadId && item.status === "paused");
-    return paused ? { ...paused, status: paused.resumeStatus ?? "queued", phase: "Retomando geração solicitada", error: null }
+    return paused ? { ...paused, id: paused.resumeStatus === "running" ? paused.id : crypto.randomUUID(), status: paused.resumeStatus ?? "queued", phase: "Retomando geração solicitada", error: null }
       : { leadId, id: crypto.randomUUID(), status: "queued", phase: "Na fila de geração", error: null, expectedRevision: null, textProvider: state.textProvider, imageProvider: state.imageProvider };
   });
   set({ ...state, items: [...pending, ...additions] });
   void pump();
+}
+
+function isCancelled(id: string) { return state.items.find((item) => item.id === id)?.status === "cancelled"; }
+function isStopped(id: string) { const item = state.items.find((item) => item.id === id); return item?.status === "paused" || item?.status === "cancelled"; }
+
+export async function pauseDemoGeneration(leadIds?: string[]) {
+  const active = state.items.filter((item) => (!leadIds || leadIds.includes(item.leadId)) && !state.pausingIds.includes(item.id) && (item.status === "queued" || item.status === "running" || (item.status === "paused" && item.error)));
+  const ids = active.map((item) => item.id);
+  set({ ...state, pausingIds: [...state.pausingIds, ...ids], items: state.items.map((item) => active.includes(item)
+    ? { ...item, status: "paused", resumeStatus: "queued", phase: "Geração pausada", error: null } : item) });
+  try {
+    await Promise.all(active.map(async (item) => {
+      const response = await fetch(`/api/demos/jobs/${item.id}`, { method: "DELETE" });
+      if (!response.ok) throw new Error("Não foi possível confirmar a pausa. Tente pausar novamente.");
+      const data = await response.json();
+      if (data.job) update(item.id, { resumeStatus: "running" });
+    }));
+    if (processing && ids.includes(processing.id)) await processing.done.catch(() => {});
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Falha ao pausar a geração.";
+    for (const item of active) update(item.id, { error: message });
+  } finally { set({ ...state, pausingIds: state.pausingIds.filter((id) => !ids.includes(id)) }); }
+}
+
+export function resumeDemoGeneration(leadIds?: string[]) {
+  enqueueDemoGeneration(state.items.filter((item) => item.status === "paused" && (!leadIds || leadIds.includes(item.leadId))).map((item) => item.leadId));
+}
+
+export async function cancelDemoGeneration(leadIds?: string[]) {
+  await pauseDemoGeneration(leadIds);
+  const items = state.items.filter((item) => item.status === "paused" && (!leadIds || leadIds.includes(item.leadId)));
+  for (const item of items) {
+    try {
+      const response = await fetch(`/api/demos/jobs/${item.id}?action=cancel`, { method: "DELETE" });
+      if (!response.ok) throw new Error("Não foi possível cancelar esta geração.");
+      update(item.id, { status: "cancelled", phase: "Geração cancelada", error: null });
+    } catch (error) { update(item.id, { error: error instanceof Error ? error.message : "Falha ao cancelar." }); }
+  }
 }
 
 function initialize() {

@@ -1,6 +1,9 @@
 import { spawnSync } from "node:child_process";
 import { cp, mkdir, readdir, rm, unlink } from "node:fs/promises";
 import path from "node:path";
+import { readFileSync } from "node:fs";
+import { displayVersion, packageVersion } from "../src/lib/release-version.ts";
+const version = JSON.parse(readFileSync(new URL("../version.json", import.meta.url), "utf8"));
 const projectRoot = path.resolve(import.meta.dirname, "..");
 if (process.cwd() !== projectRoot) throw new Error("Execute o build desktop na pasta do projeto Sellora.");
 const standalone = path.join(projectRoot, ".next", "standalone");
@@ -35,4 +38,4 @@ async function removeEnv(dir) {
   }
 }
 await removeEnv(target);
-run("node_modules/electron-builder/cli.js", ["--config", "desktop/builder.json", "--win", "portable", "--x64", "--publish", "never"]);
+run("node_modules/electron-builder/cli.js", ["--config", "desktop/builder.json", `--config.extraMetadata.version=${packageVersion(version)}`, `--config.win.artifactName=Sellora-${displayVersion(version)}-Windows-x64.exe`, "--win", "portable", "--x64", "--publish", "never"]);

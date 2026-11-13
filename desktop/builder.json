@@ -8,6 +8,7 @@
     "desktop/main.mjs",
     "desktop/policy.mjs",
     "package.json",
+    "version.json",
     "!node_modules/**"
   ],
   "extraMetadata": {

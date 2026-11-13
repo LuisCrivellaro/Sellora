@@ -1,4 +1,5 @@
 "use client";
+import { APP_LABEL } from "@/lib/version";
 
 import { Database as DbIcon, Download, Eraser, Mail, MapPin, MessageCircle, Camera, RotateCcw, Upload } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
@@ -387,7 +388,7 @@ function SettingsPanel({ db }: { db: Database }) {
           <dl className="grid grid-cols-2 gap-x-4 gap-y-3 text-[13px]">
             <div>
               <dt className="text-[11.5px] text-ink-faint">Versão</dt>
-              <dd className="text-ink">Sellora 0.1.0</dd>
+              <dd className="text-ink">{APP_LABEL}</dd>
             </div>
             <div>
               <dt className="text-[11.5px] text-ink-faint">Modo</dt>

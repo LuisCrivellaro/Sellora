@@ -1,8 +1,30 @@
 # Sellora
 
+## Versão do aplicativo
+
+### Convenção obrigatória para colaboradores e agentes
+
+Todos os desenvolvedores, incluindo o Lipe, e todos os agentes devem usar `version.json` como fonte de verdade. A versão do produto contém dois inteiros, `major` e `minor`. O `minor` vai de 0 a 9. Depois de 1.9 vem 2.0, seguido de 2.1. Formatos como 1.10 e 1.0.1 são inválidos para o produto. Os metadados exigidos por npm e Electron são derivados com patch sempre zero.
+
+A cada atualização concluída e validada, execute o fluxo `npm run release -- --id <identificador-da-solicitação>` para avançar uma posição e sincronizar os metadados. Use `APP_LABEL`, `APP_VERSION` e `APP_PACKAGE_VERSION` nas interfaces e integrações. O desktop deriva sua identificação do mesmo `version.json`.
+
+Análises, execução de testes e trabalho em andamento mantêm a versão. A adoção desta convenção também preserva a versão atual. Repetir uma atualização já validada com os mesmos arquivos mantém o número existente.
+
+Execute `npm run version:check` para conferir formato, metadados e rótulos das interfaces. Para comparar a sequência com uma base, use `npm run version:check -- --base <commit-ou-branch>`. O CI **Versionamento / Validar versionamento** executa essa checagem e seus testes em todo push e pull request, para qualquer colaborador. Ele aceita a versão atual ou exatamente a próxima, e rejeita saltos, regressões, patch independente e versões fixas espalhadas pelas interfaces.
+
+Para impedir merges com falha, configure **Validar versionamento** como check obrigatório na proteção da branch ou no ruleset do GitHub. O workflow passa a executar após ser enviado ao repositório. A checagem somente lê os arquivos e pode ser executada durante outras alterações.
+
+O gerador V6 usa exatamente uma imagem por demo. **Pausar geração** bloqueia novos itens da fila e conclui a etapa atual antes de mostrar **Pausado**. **Retomar geração** continua o mesmo trabalho com as etapas já concluídas. Briefing, código, imagem e auditoria são salvos em checkpoints locais para retomada após reabrir o aplicativo. Uma etapa interrompida antes de ser salva pode precisar ser executada novamente.
+
+O número exibido no rodapé e no título da janela vem de `version.json`. O executável usa `release/Sellora-<major>.<minor>-Windows-x64.exe`. O atalho acompanha a versão e abre o aplicativo com o servidor local e o escritório 3D configurado no perfil do Windows.
+
+Para concluir uma atualização, registre as mudanças em `CHANGELOG.md` sob `## Próxima atualização` e execute `npm run release -- --id <identificador-da-solicitação>`. O comando executa testes, lint, TypeScript, build e verificação do desktop em perfil isolado antes de confirmar a versão e atualizar o atalho. Feche a janela do Sellora para liberar a porta local usada pela verificação. A sequência vai de 1.0 a 1.9, seguida de 2.0. Repetir o comando com os mesmos arquivos validados mantém a versão. Uma falha restaura os metadados anteriores. npm e Electron usam um patch zero derivado da versão do produto.
+
+Na ficha de um estabelecimento, os controles de geração afetam somente esse lead. Na tela geral de Demos, os controles abrangem a fila. Cancelar aguarda o término seguro da etapa atual e preserva a demo anterior do estabelecimento.
+
 ## Aplicativo para Windows
 
-O executável portátil é gerado em `release/Sellora-0.1.0-Windows-x64.exe`. Abra por duplo clique; não exige Node.js nem servidor iniciado no terminal. Versão para Windows x64, com Electron 45.3 e servidor Next embutido. O pacote local não inclui arquivos `.env`. A pesquisa OSM continua exigindo internet. O WhatsApp abre no navegador padrão; o envio continua manual. As demos continuam com links locais: compartilhar com leads exige uma hospedagem pública.
+O executável portátil é gerado em `release/Sellora-<major>.<minor>-Windows-x64.exe`. Abra por duplo clique; não exige Node.js nem servidor iniciado no terminal. Versão para Windows x64, com Electron 45.3 e servidor Next embutido. O pacote local não inclui arquivos `.env`. A pesquisa OSM continua exigindo internet. O WhatsApp abre no navegador padrão; o envio continua manual. As demos continuam com links locais: compartilhar com leads exige uma hospedagem pública.
 
 Os dados ficam no perfil local do aplicativo, separados do Opera e de outros navegadores; não sincronizam automaticamente. Use Configurações → exportar/restaurar JSON para transferir seus registros e manter backup. O executável pode ser movido, mas os dados permanecem no perfil do Windows. A porta local 3187 é fixa para preservar a origem do armazenamento; o servidor aceita apenas 127.0.0.1 e encerra com o aplicativo. Porta ocupada produz aviso em vez de abrir um serviço desconhecido. Uma segunda abertura traz a janela existente para frente.
 

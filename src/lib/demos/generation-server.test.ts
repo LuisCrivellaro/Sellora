@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { beforeEach, expect, it, vi } from "vitest";
 import { generatedFixture } from "./generation-fixtures";
 import { creationDraftSchema, creationSignature } from "./creation";
-import { draftIssues, generationRequestSchema, getDemoGenerationJob, startDemoGeneration } from "./generation-server";
+import { draftIssues, generationRequestSchema, getDemoGenerationJob, startDemoGeneration, pauseDemoGeneration, resumeDemoGeneration, cancelDemoGeneration } from "./generation-server";
 
 const client = vi.hoisted(() => ({
   status: vi.fn(), startThread: vi.fn(), draft: vi.fn(), image: vi.fn(), close: vi.fn(),
@@ -26,11 +26,55 @@ beforeEach(() => {
   writer.draft.mockResolvedValue(draft);
 });
 
+it("pausa após a etapa atual e retoma o mesmo trabalho sem repetir texto ou imagem", async () => {
+  let finishImage!: (image: typeof generatedFixture.image) => void;
+  client.image.mockImplementationOnce(() => new Promise((resolve) => { finishImage = resolve; }));
+  const input = request();
+  await startDemoGeneration(input);
+  await expect.poll(() => client.image.mock.calls.length).toBe(1);
+  const pause = pauseDemoGeneration(input.id);
+  expect((await getDemoGenerationJob(input.id))?.status).toBe("running");
+  finishImage(generatedFixture.image);
+  expect((await pause)?.status).toBe("paused");
+  expect((await getDemoGenerationJob(input.id))?.status).toBe("paused");
+  await resumeDemoGeneration(input.id);
+  await expect.poll(async () => (await getDemoGenerationJob(input.id))?.status).toBe("completed");
+  expect(client.draft).toHaveBeenCalledTimes(1);
+  expect(client.image).toHaveBeenCalledTimes(1);
+  expect((await getDemoGenerationJob(input.id))?.result?.creation?.image).toEqual(generatedFixture.image);
+});
+
 it("pedido antigo com imagem \"gemini\" vira Codex: nenhuma API paga de imagem existe no fluxo", () => {
   const parsed = generationRequestSchema.parse({ ...request(), imageProvider: "gemini" });
   expect(parsed.imageProvider).toBe("codex");
   expect(generationRequestSchema.parse({ ...request(), imageProvider: undefined }).imageProvider).toBe("codex");
   expect(generationRequestSchema.safeParse({ ...request(), imageProvider: "imagen" }).success).toBe(false);
+});
+
+it("requisições simultâneas com o mesmo id produzem uma única execução", async () => {
+  const input = request();
+  const [first, second] = await Promise.all([startDemoGeneration(input), startDemoGeneration(input)]);
+  expect(first.id).toBe(second.id);
+  await expect.poll(async () => (await getDemoGenerationJob(input.id))?.status).toBe("completed");
+  expect(client.draft).toHaveBeenCalledTimes(1);
+  expect(client.image).toHaveBeenCalledTimes(1);
+});
+
+it("cancelar uma demo pausada permite concluir outro estabelecimento independente", async () => {
+  let finishImage!: (image: typeof generatedFixture.image) => void;
+  client.image.mockImplementationOnce(() => new Promise((resolve) => { finishImage = resolve; }));
+  const first = { ...request(), leadId: "primeiro" };
+  await startDemoGeneration(first);
+  await expect.poll(() => client.image.mock.calls.length).toBe(1);
+  const pause = pauseDemoGeneration(first.id);
+  finishImage(generatedFixture.image);
+  expect((await pause)?.status).toBe("paused");
+  const second = { ...request(), leadId: "segundo", business: { ...request().business, name: "Outro Studio" } };
+  await startDemoGeneration(second);
+  await cancelDemoGeneration(first.id);
+  await expect.poll(async () => (await getDemoGenerationJob(first.id))?.status).toBe("cancelled");
+  await expect.poll(async () => (await getDemoGenerationJob(second.id))?.status).toBe("completed");
+  expect((await getDemoGenerationJob(first.id))?.result).toBeNull();
 });
 
 it("v5 sem Codex disponível falha antes de gastar a cota do Claude", async () => {
