@@ -74,6 +74,10 @@ Detalhes que o código do Claw3D exige (descobertos nos testes): numeração `se
 - Executável Windows (`npm run desktop:build`, portátil de 124 MB) aberto com `SELLORA_CLAW3D_DIR=%USERPROFILE%/.sellora/claw3d/app`: o Electron subiu Sellora (127.0.0.1:3187), proxy do escritório (127.0.0.1:3190), Claw3D (127.0.0.1:3191) e adaptador (127.0.0.1/::1:18790), conectado ao bridge do próprio app; `/api/agents/scene` = disponível e conectado; o escritório mostrou o agente "Gerador de Demos" com o histórico real do app (nos primeiros ~25 s de um perfil novo aparece o marcador "Main" do Claw3D até a lista de agentes carregar). Memória em repouso: servidor Sellora 115 MB, processo principal 105 MB, servidor Claw3D 133 MB, adaptador 77 MB (CPU < 1 s cada). Fechar a janela encerrou todos os processos e liberou as quatro portas. Não medido: GPU/CPU do renderizador com a cena aberta dentro da janela do app.
 - `setup.mjs` validado do zero (clone novo em `~/.sellora/claw3d/app`, npm ci, build) depois de corrigir o checkout de clone `--no-checkout`.
 
+## Andar fixo da Sellora
+
+O Claw3D tem vários "andares" (Lobby, OpenClaw, Hermes…). Só o **Lobby** (provider `demo`) está ligado ao adaptador da Sellora. Observado no `.exe` em 2026-11-12: depois de uma falha de conexão, o Claw3D trocou sozinho para o andar OpenClaw, mostrou a tela "Remote gateway" pedindo um servidor OpenClaw e gravou essa escolha, apagando o token do perfil `demo`. Correção: `writeStudioSettings` (launcher) mescla o `settings.json` existente e fixa gateway `demo` + token da sessão + `activeFloorId: "lobby"`, na abertura do app **e** a cada entrada pela aba (`/__sellora/office`). Testado no `.exe`: arquivo desviado de propósito, aba reaberta → "DEMO • CONNECTED", Lobby, 1 agente, preferências preservadas. Testes em `integrations/claw3d/launcher.test.ts`.
+
 ## Limitações conhecidas
 
 - Checkout e estado do Claw3D ficam **fora** do repositório (`~/.sellora/claw3d/`; no app empacotado, `%APPDATA%/sellora/claw3d/`). Dentro do projeto, o `settings.json` que o Claw3D grava ao conectar fazia o dev server do Next recarregar a aba Cloud 3D em loop (o iframe gravava de novo a cada recarga).

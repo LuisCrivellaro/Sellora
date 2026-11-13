@@ -10,7 +10,7 @@ import { randomBytes } from "node:crypto";
 import http from "node:http";
 import net from "node:net";
 import os from "node:os";
-import { existsSync, mkdirSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -38,11 +38,13 @@ export function frameHeaders(headers, ancestors = SELLORA_FRAME_ANCESTORS) {
  * Proxy local fino na frente do Claw3D (que fixa frame-ancestors 'self' no build): repassa HTTP e
  * WebSocket sem alterar conteúdo, só os cabeçalhos de enquadramento. Escuta apenas em 127.0.0.1.
  */
-export function startFrameProxy({ port, targetPort, ancestors = SELLORA_FRAME_ANCESTORS, log = console.log }) {
+export function startFrameProxy({ port, targetPort, ancestors = SELLORA_FRAME_ANCESTORS, log = console.log, onOfficeEntry = () => {} }) {
   const server = http.createServer((req, res) => {
     // Entrada usada pela Sellora: o gateway já vem configurado pelo launcher, então o assistente de
     // primeira conexão do Claw3D (salvo no localStorage desta origem) é marcado como concluído.
     if (req.url === "/__sellora/office") {
+      // Volta o escritório para o andar da Sellora antes de carregar (o Claw3D pode ter trocado de andar).
+      try { onOfficeEntry(); } catch (error) { log(`[frame-proxy] não foi possível fixar o andar: ${error.message}`); }
       res.writeHead(200, { "content-type": "text/html; charset=utf-8", "cache-control": "no-store", "content-security-policy": `default-src 'none'; script-src 'unsafe-inline'; frame-ancestors 'self' ${ancestors.join(" ")}` });
       res.end(`<!doctype html><meta charset="utf-8"><title>Cloud 3D</title><script>try{localStorage.setItem("claw3d:onboarding:completed","true")}catch(e){}location.replace("/office")</script>`);
       return;
@@ -71,17 +73,29 @@ export function startFrameProxy({ port, targetPort, ancestors = SELLORA_FRAME_AN
   return server;
 }
 
-/** Configuração mínima do Claw3D apontando para o adaptador, com conexão automática (adapterType "demo"). */
+/**
+ * Fixa o Claw3D no andar da Sellora: gateway "demo" apontando para o adaptador local, com o token da sessão,
+ * e andar ativo "lobby". Preserva o resto do settings.json (avatares, mesas, preferências).
+ * Motivo: depois de uma falha de conexão o Claw3D pode trocar sozinho para o andar "OpenClaw", que pede um
+ * servidor que a Sellora não usa, e passa a gravar essa escolha (perdendo o token do perfil "demo").
+ */
 export function writeStudioSettings(stateDir, { adapterPort, token }) {
   const dir = path.join(stateDir, "claw3d");
   mkdirSync(dir, { recursive: true });
-  const url = `ws://127.0.0.1:${adapterPort}`;
+  const file = path.join(dir, "settings.json");
+  let current = {};
+  try { const parsed = JSON.parse(readFileSync(file, "utf8")); if (parsed && typeof parsed === "object") current = parsed; } catch { /* primeiro uso ou arquivo inválido */ }
+  const url = `ws://localhost:${adapterPort}`;
+  const previous = current.gateway && typeof current.gateway === "object" ? current.gateway : {};
   const gateway = {
-    url, token, adapterType: "demo",
-    profiles: { demo: { url, token } },
+    ...previous, url, token, adapterType: "demo",
+    profiles: { ...(previous.profiles ?? {}), demo: { url, token } },
     lastKnownGood: { adapterType: "demo", url, token },
   };
-  writeFileSync(path.join(dir, "settings.json"), JSON.stringify({ version: 1, gateway }, null, 2), { encoding: "utf8", mode: 0o600 });
+  const floors = current.officeFloors && typeof current.officeFloors === "object" ? { ...current.officeFloors } : undefined;
+  if (floors?.lobby) floors.lobby = { ...floors.lobby, provider: "demo", gatewayUrl: url, status: "disconnected", lastErrorCode: null, lastErrorMessage: null };
+  const next = { ...current, version: 1, gateway, activeFloorId: "lobby", ...(floors ? { officeFloors: floors } : {}) };
+  writeFileSync(file, JSON.stringify(next, null, 2), { encoding: "utf8", mode: 0o600 });
 }
 
 /**
@@ -113,7 +127,7 @@ export function startClaw3d({ appDir, stateDir, bridgeUrl, port = CLAW3D_DEFAULT
     UPSTREAM_ALLOWLIST: "127.0.0.1,localhost",
     NEXT_TELEMETRY_DISABLED: "1",
   });
-  const proxy = startFrameProxy({ port, targetPort: port + 1, log });
+  const proxy = startFrameProxy({ port, targetPort: port + 1, log, onOfficeEntry: () => writeStudioSettings(stateDir, { adapterPort, token }) });
   let stopped = false;
   const stop = () => {
     if (stopped) return;
