@@ -131,4 +131,32 @@ describe("Kanban (skill task-manager) com execuções reais", () => {
     expect(byId["sellora-run-velho"]).toBeUndefined();
     expect(store.schemaVersion).toBe(1);
   });
+
+  it("pesquisas da Prospecção viram cartões próprios (concluída → Done) do agente prospeccao", () => {
+    const state = core.createState();
+    const prospect = { id: "prospeccao", name: "Prospecção", role: "OpenStreetMap + regras", type: "worker", runtime: "openstreetmap", status: "idle", currentRun: null, lastRun: null,
+      recent: [{ runId: "p1", status: "completed", generator: "osm", business: "Campinas/SP · todos os segmentos · 5 km", task: "Pesquisa concluída: 3 oportunidade(s) classificadas.", updatedAt: "2026-11-13T10:02:00Z", events: [] }] };
+    core.applyBridgeEvent(state, "presence", { agents: [agent(), prospect] });
+    const [card] = core.taskBoardStore(state, null).tasks;
+    expect(card).toMatchObject({ id: "sellora-run-p1", status: "done", title: "Prospecção · Campinas/SP · todos os segmentos · 5 km", assignedAgentId: "prospeccao" });
+    expect(card.description).toContain("Prospecção IA");
+    const list = core.handleMethod(state, "agents.list", {}, "l") as Frame;
+    expect((list.payload as { agents: { id: string }[] }).agents.map((a) => a.id)).toEqual(["gerador-de-demos", "prospeccao"]);
+  });
+
+  it("execução que começa e termina durante a sessão continua no Kanban depois do fim", () => {
+    const state = core.createState();
+    const prospect = { id: "prospeccao", name: "Prospecção", role: "", type: "worker", runtime: "openstreetmap", status: "idle", currentRun: null, lastRun: null, recent: [] };
+    core.applyBridgeEvent(state, "presence", { agents: [agent(), prospect] });
+    const base = { agentId: "prospeccao", runId: "p-nova", business: "Valinhos/SP · todos os segmentos · 5 km", generator: "osm" };
+    core.applyBridgeEvent(state, "agent", { ...base, phase: "start", text: "Buscando estabelecimentos", at: "2026-11-13T03:14:09Z" });
+    expect(core.taskBoardStore(state, null).tasks.find((t: { id: string }) => t.id === "sellora-run-p-nova")).toMatchObject({ status: "in_progress", title: "Prospecção · Valinhos/SP · todos os segmentos · 5 km" });
+    core.applyBridgeEvent(state, "agent", { ...base, phase: "end", text: "Pesquisa concluída: 10 oportunidade(s) classificadas.", at: "2026-11-13T03:14:56Z" });
+    const card = core.taskBoardStore(state, null).tasks.find((t: { id: string }) => t.id === "sellora-run-p-nova");
+    expect(card).toMatchObject({ status: "done", title: "Prospecção · Valinhos/SP · todos os segmentos · 5 km", assignedAgentId: "prospeccao" });
+    const demo = { agentId: "gerador-de-demos", runId: "d-nova", business: "Pet Shop", generator: "v6" };
+    core.applyBridgeEvent(state, "agent", { ...demo, phase: "start", text: "Etapas 1–3" });
+    core.applyBridgeEvent(state, "agent", { ...demo, phase: "error", text: "Interrompido (o aplicativo foi fechado durante a geração)" });
+    expect(core.taskBoardStore(state, null).tasks.find((t: { id: string }) => t.id === "sellora-run-d-nova")?.status).toBe("blocked");
+  });
 });

@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronDown, ExternalLink, Maximize2, Minimize2, RefreshCw, UserRound } from "lucide-react";
+import { ChevronDown, ExternalLink, Maximize2, Minimize2, RefreshCw, Search, UserRound } from "lucide-react";
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
@@ -10,6 +10,7 @@ const statusLabel: Record<string, { text: string; tone: string; dot: string }> =
   running: { text: "Executando", tone: "text-mint", dot: "bg-mint" },
   idle: { text: "Disponível", tone: "text-ink-soft", dot: "bg-ink-faint" },
   waiting_approval: { text: "Concluída · aguardando sua aprovação", tone: "text-mint", dot: "bg-mint" },
+  completed: { text: "Concluída", tone: "text-mint", dot: "bg-mint" },
   failed: { text: "Falhou", tone: "text-[#e3a1a1]", dot: "bg-[#e3a1a1]" },
   cancelled: { text: "Interrompida", tone: "text-warn", dot: "bg-warn" },
   queued: { text: "Na fila", tone: "text-ink-soft", dot: "bg-ink-faint" },
@@ -98,6 +99,7 @@ function AgentStrip({ agent }: { agent: AgentRecord }) {
     <span className="flex shrink-0 gap-1.5">
       {run?.siteId && <Button size="sm" variant="secondary" asChild><a href={`/sites/${run.siteId}/index.html`} target="_blank" rel="noopener noreferrer"><ExternalLink aria-hidden /> Abrir demo</a></Button>}
       {run?.leadId && <Button size="sm" variant="ghost" asChild><Link href={`/leads?id=${run.leadId}`}><UserRound aria-hidden /> Abrir lead</Link></Button>}
+      {agent.id === "prospeccao" && <Button size="sm" variant="secondary" asChild><Link href="/leads?aba=prospeccao"><Search aria-hidden /> Abrir Prospecção</Link></Button>}
     </span>
   </section>;
 }

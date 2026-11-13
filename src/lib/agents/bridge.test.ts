@@ -15,10 +15,32 @@ async function save(...jobs: Record<string, unknown>[]) {
   for (const item of jobs) await writeFile(path.join(dir, `${item.id}.json`), JSON.stringify(item));
 }
 
-it("sem jobs, há um único agente real e ele está parado (nada simulado)", async () => {
-  const [agent] = await agentRegistry();
-  expect(agent).toMatchObject({ id: "gerador-de-demos", status: "idle", currentRun: null, lastRun: null });
-  expect(Object.keys((await claw3dState()).active)).toEqual(["gerador-de-demos"]);
+it("sem execuções, os dois agentes reais aparecem parados (nada simulado)", async () => {
+  const agents = await agentRegistry();
+  expect(agents.map((agent) => agent.id)).toEqual(["gerador-de-demos", "prospeccao"]);
+  for (const agent of agents) expect(agent).toMatchObject({ status: "idle", currentRun: null, lastRun: null, recent: [] });
+  expect(agents[1].role).toContain("sem IA generativa");
+  expect(Object.keys((await claw3dState()).active)).toEqual(["gerador-de-demos", "prospeccao"]);
+});
+
+it("pesquisa da Prospecção vira execução do agente prospeccao: ativa, concluída e interrompida", async () => {
+  const { recordProspectRun } = await import("../prospecting/run-log");
+  const view = (id: string, status: "running" | "completed" | "failed", extra: Record<string, unknown> = {}) => ({
+    id, executor: "osm", params: { city: "Campinas", uf: "SP", segment: "todos", radiusKm: 5, maxResults: 10, opportunity: "sem_site" },
+    status, phase: "verifying", message: "Verificando presença digital…", candidates: 40, analyzed: 12, planned: 20, found: 3, warnings: [],
+    error: null, startedAt: "2026-11-13T10:00:00.000Z", finishedAt: status === "running" ? null : "2026-11-13T10:02:00.000Z", results: null, attribution: "", ...extra,
+  }) as never;
+  recordProspectRun(view("p-live", "running"));
+  recordProspectRun(view("p-done", "completed", { message: "Pesquisa concluída: 3 oportunidade(s) classificadas.", phase: "done" }));
+  recordProspectRun(view("p-orfa", "running"));
+  (globalThis as { __selloraProspectJobs?: unknown }).__selloraProspectJobs = { jobs: new Map([["p-live", { owner: "x", view: { id: "p-live", status: "running" }, controller: new AbortController() }]]), starts: new Map() };
+  const prospect = (await agentRegistry()).find((agent) => agent.id === "prospeccao")!;
+  expect(prospect.status).toBe("running");
+  expect(prospect.currentRun).toMatchObject({ runId: "p-live", agentId: "prospeccao", runtime: "openstreetmap", business: "Campinas/SP · todos os segmentos · 5 km" });
+  const byId = Object.fromEntries(prospect.recent.map((run) => [run.runId, run]));
+  expect(byId["p-done"]).toMatchObject({ status: "completed", task: "Pesquisa concluída: 3 oportunidade(s) classificadas." });
+  expect(byId["p-orfa"].status).toBe("cancelled");
+  delete (globalThis as { __selloraProspectJobs?: unknown }).__selloraProspectJobs;
 });
 
 it("job ativo neste processo aparece em execução com etapa e horário reais; job órfão aparece interrompido", async () => {

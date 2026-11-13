@@ -44,6 +44,8 @@ function createState() {
     history: new Map(),
     /** chaves de eventos já aplicados (deduplicação) */
     seen: new Set(),
+    /** runId -> execução que terminou durante esta sessão (o retrato inicial não a conhece; o Kanban precisa dela) */
+    finished: new Map(),
     seq: 0,
     bridge: { connected: false, lastEventAt: null, lastError: null },
   };
@@ -98,7 +100,7 @@ function startOrProgress(state, agentId, run, phase) {
   const current = state.active.get(agentId);
   if (!current || current.runId !== run.runId) {
     if (current) frames.push(lifecycle(state, agentId, current.runId, "end", new Date().toISOString()));
-    state.active.set(agentId, { runId: run.runId, business: run.business, task: run.text, startedAt: run.at });
+    state.active.set(agentId, { runId: run.runId, business: run.business, task: run.text, startedAt: run.at, generator: run.generator ?? "" });
     frames.push(lifecycle(state, agentId, run.runId, "start", run.at));
   } else if (phase === "start") {
     return frames;
@@ -165,7 +167,7 @@ function applyBridgeEvent(state, eventName, data) {
       const active = state.active.get(agent.id);
       if (live) {
         frames.push(...startOrProgress(state, agent.id, {
-          runId: str(live.runId), business: str(live.business), text: str(live.task), at: str(live.updatedAt) || str(live.startedAt),
+          runId: str(live.runId), business: str(live.business), text: str(live.task), at: str(live.updatedAt) || str(live.startedAt), generator: str(live.generator),
         }, "progress"));
       } else if (active) {
         // A execução que estava ativa já terminou: usa o registro para saber como.
@@ -187,7 +189,7 @@ function applyBridgeEvent(state, eventName, data) {
   const phase = str(data?.phase);
   if (!agentId || !runId || !["start", "progress", "end", "error"].includes(phase)) return [];
   if (!state.agents.has(agentId)) return [];
-  const run = { runId, business: str(data.business), text: str(data.text), at: str(data.at) || new Date().toISOString() };
+  const run = { runId, business: str(data.business), text: str(data.text), at: str(data.at) || new Date().toISOString(), generator: str(data.generator) };
   if (!remember(state, `${runId}|${phase}|${run.text}`)) return [];
   const agent = state.agents.get(agentId);
   if (phase === "start" || phase === "progress") {
@@ -196,13 +198,26 @@ function applyBridgeEvent(state, eventName, data) {
   }
   agent.status = phase === "error" ? "failed" : "waiting_approval";
   agent.lastRun = { runId, business: run.business, task: run.text, siteId: data.siteId ?? null, leadId: data.leadId ?? null };
+  const startedAt = state.active.get(agentId)?.runId === runId ? state.active.get(agentId).startedAt : null;
+  state.finished.set(runId, {
+    agentId, run: {
+      runId, generator: str(data.generator), business: run.business, task: run.text, error: phase === "error" ? run.text : null,
+      status: phase === "error" ? (/interromp/i.test(run.text) ? "cancelled" : "failed") : agentId === "prospeccao" ? "completed" : "waiting_approval",
+      startedAt, updatedAt: run.at, siteId: data.siteId ?? null, leadId: data.leadId ?? null,
+      events: (state.history.get(runId) ?? []).map((line) => ({ at: line.at, phase: line.text })),
+    },
+  });
+  if (state.finished.size > 100) state.finished.delete(state.finished.keys().next().value);
   return [...finish(state, agentId, run, phase), presenceFrame(state)];
 }
 
+/** Rótulo curto exibido sob o personagem no escritório (a descrição completa fica no painel da Sellora). */
+const SHORT_ROLES = { "gerador-de-demos": "Sites demo V6", prospeccao: "OpenStreetMap + regras" };
+
 function agentList(state) {
   return [...state.agents.values()].map((agent) => ({
-    id: agent.id, name: agent.name, workspace: `sellora://agents/${agent.id}`, role: agent.role,
-    identity: { name: agent.name, emoji: "🛠️" },
+    id: agent.id, name: agent.name, workspace: `sellora://agents/${agent.id}`, role: SHORT_ROLES[agent.id] ?? agent.role.slice(0, 40),
+    identity: { name: agent.name, emoji: agent.id === "prospeccao" ? "🔎" : "🛠️" },
   }));
 }
 
@@ -350,6 +365,7 @@ const RUN_LABEL = { running: "Em execução", waiting_approval: "Pronta, aguarda
 /** Cartão do Kanban para uma execução real (id estável por execução: o quadro é uma visão, não um cadastro). */
 function runToTask(run, agentId) {
   const status = RUN_TO_COLUMN[run.status] ?? "todo";
+  const prospect = str(run.generator) === "osm";
   const events = Array.isArray(run.events) ? run.events : [];
   const created = str(run.startedAt) || str(events[0]?.at) || str(run.updatedAt) || new Date(0).toISOString();
   const updated = str(run.updatedAt) || str(run.finishedAt) || created;
@@ -358,10 +374,12 @@ function runToTask(run, agentId) {
     run.status === "running" ? `Etapa atual: ${str(run.task)}` : str(run.task) ? `Última etapa: ${str(run.task)}` : "",
     run.error ? `Erro: ${str(run.error)}` : "",
     run.siteId ? `Demo: /sites/${run.siteId}/index.html` : "",
-    "Somente leitura: aprove, recuse ou gere de novo pela Sellora (Leads → Demos).",
+    prospect
+      ? "Somente leitura: revise e importe os resultados pela Sellora (Leads → Prospecção IA)."
+      : "Somente leitura: aprove, recuse ou gere de novo pela Sellora (Leads → Demos).",
   ].filter(Boolean);
   return {
-    id: `${TASK_PREFIX}${str(run.runId)}`, title: `${str(run.business) || "Estabelecimento"} · demo ${str(run.generator) === "v5" ? "v5" : "V6"}`,
+    id: `${TASK_PREFIX}${str(run.runId)}`, title: prospect ? `Prospecção · ${str(run.business) || "pesquisa"}` : `${str(run.business) || "Estabelecimento"} · demo ${str(run.generator) === "v5" ? "v5" : "V6"}`,
     description: lines.join(String.fromCharCode(10)), status, source: "openclaw_event", sourceEventId: str(run.runId) || null,
     assignedAgentId: agentId, createdAt: created, updatedAt: updated, playbookJobId: null, runId: str(run.runId) || null,
     channel: "sellora", externalThreadId: run.leadId ? str(run.leadId) : null, lastActivityAt: updated,
@@ -383,9 +401,10 @@ function taskBoardStore(state, existing) {
     for (const run of [...(agent.recent ?? [])].reverse()) if (run?.runId) runs.set(run.runId, { run, agentId: agent.id });
     if (agent.currentRun?.runId) runs.set(agent.currentRun.runId, { run: agent.currentRun, agentId: agent.id });
   }
+  for (const [runId, entry] of state.finished) runs.set(runId, { agentId: entry.agentId, run: { ...(runs.get(runId)?.run ?? {}), ...entry.run, generator: entry.run.generator || runs.get(runId)?.run?.generator } });
   for (const [agentId, active] of state.active) {
     const known = runs.get(active.runId)?.run ?? {};
-    runs.set(active.runId, { agentId, run: { ...known, runId: active.runId, status: "running", business: active.business, task: active.task, startedAt: known.startedAt ?? active.startedAt, updatedAt: new Date().toISOString(), events: (state.history.get(active.runId) ?? []).map((line) => ({ at: line.at, phase: line.text })) } });
+    runs.set(active.runId, { agentId, run: { ...known, runId: active.runId, status: "running", generator: active.generator || known.generator || (agentId === "prospeccao" ? "osm" : ""), business: active.business, task: active.task, startedAt: known.startedAt ?? active.startedAt, updatedAt: new Date().toISOString(), events: (state.history.get(active.runId) ?? []).map((line) => ({ at: line.at, phase: line.text })) } });
   }
   const tasks = [...runs.values()].map(({ run, agentId }) => runToTask(run, agentId));
   const all = [...tasks, ...manual];

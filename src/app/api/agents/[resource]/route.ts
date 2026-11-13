@@ -1,5 +1,5 @@
 import { requireAccess, json } from "@/lib/prospecting/access";
-import { agentRegistry, claw3dRegistry, claw3dScene, claw3dState, liveJobIds, lifecycleEvents, readJobs, type AgentRun } from "@/lib/agents/bridge";
+import { agentRegistry, claw3dRegistry, claw3dScene, claw3dState, lifecycleEvents, readAllRuns, type AgentRun } from "@/lib/agents/bridge";
 
 export const runtime = "nodejs";
 
@@ -24,12 +24,12 @@ export async function GET(request: Request, context: { params: Promise<{ resourc
   const stream = new ReadableStream({
     async start(controller) {
       const send = (event: string, data: unknown) => controller.enqueue(encoder.encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`));
-      let previous = new Map<string, AgentRun>((await readJobs(40, liveJobIds())).map((run) => [run.runId, run]));
+      let previous = new Map<string, AgentRun>((await readAllRuns(40)).map((run) => [run.runId, run]));
       send("presence", { agents: await agentRegistry(), at: new Date().toISOString() });
       let beats = 0;
       timer = setInterval(async () => {
         try {
-          const runs = await readJobs(40, liveJobIds());
+          const runs = await readAllRuns(40);
           for (const event of lifecycleEvents(previous, runs)) send("agent", event);
           previous = new Map(runs.map((run) => [run.runId, run]));
           if (++beats % 8 === 0) send("heartbeat", { at: new Date().toISOString() });

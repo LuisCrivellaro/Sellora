@@ -3,6 +3,7 @@ import { runOsmProspecting, type Progress } from "./executor";
 import { SourceError } from "./osm";
 import type { JobView, ProspectParams } from "./types";
 import { uid } from "../utils";
+import { recordProspectRun } from "./run-log";
 
 /**
  * Fila de jobs em memória do processo do servidor (globalThis sobrevive ao
@@ -45,6 +46,7 @@ function sweep(now = Date.now()) {
 function finish(job: Job, status: JobView["status"], error: string | null) {
   if (!isActive(job)) return;
   job.view = { ...job.view, status, phase: "done", error, finishedAt: new Date().toISOString(), message: error ?? job.view.message };
+  recordProspectRun(job.view);
 }
 
 export function startJob(owner: string, params: ProspectParams, executor: ExecutorId): JobView {
@@ -81,11 +83,13 @@ export function startJob(owner: string, params: ProspectParams, executor: Execut
     },
   };
   registry.jobs.set(job.view.id, job);
+  recordProspectRun(job.view);
 
   const report = (p: Progress) => {
     if (!isActive(job)) return;
     const { warning, ...rest } = p;
     job.view = { ...job.view, ...rest, status: "running", warnings: warning ? [...job.view.warnings, warning] : job.view.warnings };
+    recordProspectRun(job.view);
   };
 
   void (async () => {
@@ -96,6 +100,7 @@ export function startJob(owner: string, params: ProspectParams, executor: Execut
       job.view = { ...job.view, results: out.results, attribution: out.attribution, found: out.results.filter((r) => r.classification !== "SKIP").length };
       finish(job, "completed", null);
       job.view = { ...job.view, message: out.results.length ? `Pesquisa concluída: ${job.view.found} oportunidade(s) classificadas.` : "Pesquisa concluída sem resultados para esse filtro." };
+      recordProspectRun(job.view);
     } catch (e) {
       if (job.controller.signal.aborted && job.view.status !== "failed") {
         finish(job, "cancelled", "Pesquisa cancelada.");
@@ -128,4 +133,9 @@ export function cancelJob(id: string, owner: string): JobView | null {
     finish(job, "cancelled", "Pesquisa cancelada.");
   }
   return publicView(job);
+}
+
+/** Ids das pesquisas ativas neste processo (observabilidade: Cloud 3D). */
+export function liveProspectJobIds(): Set<string> {
+  return new Set([...(g.__selloraProspectJobs ?? registry).jobs.values()].filter(isActive).map((job) => job.view.id));
 }
