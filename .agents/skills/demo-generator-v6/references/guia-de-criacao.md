@@ -25,7 +25,14 @@ Escolha as seções pela necessidade do negócio, não por uma lista fixa. Poss�
 - A direção nasce do segmento específico, da cidade e do público provável, não de um gosto genérico. Escreva o conceito em uma frase concreta antes de escolher cores e fontes.
 - Tipografia: duas famílias do Google Fonts no máximo (uma de destaque e uma de leitura), com caráter adequado ao negócio. Evite repetir a fonte de destaque das demos anteriores do mesmo segmento. Evite Inter, Roboto, Arial e fontes de sistema como voz principal.
 - Paleta de seis cores (fundo, superfície, texto, texto secundário, destaque, texto sobre destaque) com contraste de pelo menos 4,5:1 para texto e 3:1 para títulos grandes. Nada de violeta ou lilás como cor própria. Escolha claro ou escuro pela cena de uso (quem, onde, que luz), não pela categoria.
-- Composição: o hero ocupa a primeira tela sozinho e diz o que é e onde fica. Varie a estrutura: imagem de ponta a ponta, título grande sobre fotografia, colunas assimétricas, faixa tipográfica com o nome em grande escala, galeria em grade irregular, lista editorial. Duas seções vizinhas não repetem a mesma composição.
+- Composição: o hero ocupa a primeira tela sozinho e diz o que é e onde fica. Escolha um arquétipo e comece `heroComposition` com o id entre colchetes:
+  - `[foto-painel]` fotografia de ponta a ponta com painel ou faixa de texto sobreposto;
+  - `[colunas]` colunas assimétricas, texto de um lado e imagem recortada do outro, sem sobreposição;
+  - `[tipografico]` nome ou título em escala muito grande ocupando a largura, imagem em faixa abaixo ou ao lado;
+  - `[moldura]` imagem dentro de uma forma (arco, recorte, moldura) ao lado de texto editorial;
+  - `[grade]` grade irregular de duas ou três imagens com o título integrado à grade;
+  - `[cor-solida]` fundo de cor plana com título e dados de contato, imagem só na seção seguinte.
+  Não repita o arquétipo das duas demos mais recentes (de qualquer segmento): a aplicação confere e pede outro. Duas seções vizinhas não repetem a mesma composição.
 - Todo bloco alinhado às mesmas margens esquerda e direita (um container comum). Nada vazando para um lado.
 - Recuse: cards iguais de ícone + título + texto como estrutura da página, cards dentro de cards, rótulo pequeno acima de títulos ("eyebrow"), números de seção (01/02/03), texto com gradiente, borda lateral colorida grossa em cards, sombras duras deslocadas, emoji no lugar de ícones, círculos e máscaras geométricas imitando recortes de fotografia, legenda explicando imagens, carrossel automático, abas com tempo.
 

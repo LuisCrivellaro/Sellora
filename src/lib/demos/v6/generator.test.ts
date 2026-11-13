@@ -16,7 +16,7 @@ import { readSiteFile, readSiteManifest, readSiteMeta } from "./store";
 
 const brief = (font: string) => siteBriefSchema.parse({
   analysis: { businessType: "lugar", specificSegment: "barbearia", confirmed: ["Nome e cidade"], unknown: ["Horários"], audienceInference: "Inferência: moradores.", commercialGoal: "Contato." },
-  direction: { concept: "Barbearia de bairro com luz quente", mood: "sóbrio", displayFont: font, bodyFont: "Work Sans", typographyReason: "x", palette: { background: "#f4efe6", surface: "#e9e1d3", ink: "#1d1a16", muted: "#5a5248", accent: "#7a2e1f", accentInk: "#ffffff" }, paletteReason: "x", imageStyle: "foto quente", motion: "calma", motionPlan: "hero", tone: "direto", primaryAction: "Ver como chegar", heroComposition: "foto ampla" },
+  direction: { concept: "Barbearia de bairro com luz quente", mood: "sóbrio", displayFont: font, bodyFont: "Work Sans", typographyReason: "x", palette: { background: "#f4efe6", surface: "#e9e1d3", ink: "#1d1a16", muted: "#5a5248", accent: "#7a2e1f", accentInk: "#ffffff" }, paletteReason: "x", imageStyle: "foto quente", motion: "calma", motionPlan: "hero", tone: "direto", primaryAction: "Ver como chegar", heroComposition: "[colunas] foto ampla à direita" },
   sections: [{ id: "inicio", purpose: "hero", composition: "foto", imageId: "hero" }, { id: "servicos", purpose: "s", composition: "lista", imageId: null }, { id: "contato", purpose: "c", composition: "faixa", imageId: "detalhe" }],
   images: [{ id: "hero", role: "hero", aspect: "16:9", prompt: "Cadeira de barbeiro.", alt: "Cadeira de barbeiro" }, { id: "detalhe", role: "detalhe", aspect: "4:3", prompt: "Navalha.", alt: "Navalha sobre toalha" }],
   differentiation: "x", message: "Olá! Preparei uma demonstração não oficial de site para a barbearia. Posso enviar o link?",
@@ -75,4 +75,17 @@ it("sem nenhum gerador de imagem a demo sai com composições SVG, sem chamar se
   expect(result.site.qa.browser).toBe("unavailable");
   expect(result.site.preview).toBe(false);
   expect(codex.imageBuffer).not.toHaveBeenCalled();
+});
+
+it("hero: arquétipo marcado ou inferido e rotação entre as duas demos mais recentes de qualquer segmento", async () => {
+  const { heroArchetype, recentHeroIssue } = await import("./generator");
+  // As três demos de teste de 2026-11-12 (briefs reais, sem id de arquétipo) caem em foto-painel.
+  expect(heroArchetype("Fotografia de ponta a ponta em 100svh. Um painel plano de cor creme, ancorado embaixo à esquerda.")).toBe("foto-painel");
+  expect(heroArchetype("[colunas] texto à esquerda e imagem recortada à direita")).toBe("colunas");
+  expect(heroArchetype("[inventado] algo")).toBeNull();
+  const recent = [{ hero: "Fotografia de ponta a ponta com faixa escura" }, { hero: "[grade] três imagens" }, { hero: "[colunas] antigo" }];
+  expect(recentHeroIssue("[foto-painel] foto inteira com painel", recent)).toContain("[foto-painel]");
+  expect(recentHeroIssue("[grade] duas imagens", recent)).toContain("[grade]");
+  expect(recentHeroIssue("[colunas] texto e imagem", recent)).toBeNull();
+  expect(recentHeroIssue("hero bonito", recent)).toContain("arquétipo do guia");
 });

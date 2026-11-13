@@ -52,6 +52,8 @@ export function draftIssues(draft: CreationDraft, request: GenerationRequest): s
 
 async function withSavedHistory(request: GenerationRequest): Promise<GenerationRequest> {
   const history = [...request.history];
+  // Demos V6 entram da mais nova para a mais antiga: o gerador confere o hero das mais recentes de qualquer segmento.
+  const sites: { at: string; reference: GenerationRequest["history"][number] }[] = [];
   const directory = path.join(demoDataRoot(), "jobs");
   for (const filename of await readdir(directory).catch(() => [])) {
     if (!filename.endsWith(".json") || !z.uuid().safeParse(filename.slice(0, -5)).success) continue;
@@ -62,9 +64,9 @@ async function withSavedHistory(request: GenerationRequest): Promise<GenerationR
       const business = demoBusinessSchema.parse({ ...JSON.parse(saved.businessKey), phone: "" });
       if (result.site) {
         const s = result.site.summary;
-        history.push({ segment: business.segment, signature: s.signature, photoOrigin: result.site.images[0]?.sha256 ?? null, imageDescription: result.site.images[0]?.alt,
+        sites.push({ at: String(saved.finishedAt ?? result.site.createdAt ?? ""), reference: { segment: business.segment, signature: s.signature, photoOrigin: result.site.images[0]?.sha256 ?? null, imageDescription: result.site.images[0]?.alt,
           texts: s.texts.slice(0, 20).map((text) => withoutBusinessFields(text, business)), message: withoutBusinessFields(result.message, business),
-          style: { fonts: s.fonts, palette: s.palette, sections: s.sections, hero: s.hero, headline: withoutBusinessFields(s.headline, business).slice(0, 200) } });
+          style: { fonts: s.fonts, palette: s.palette, sections: s.sections, hero: s.hero, headline: withoutBusinessFields(s.headline, business).slice(0, 200) } } });
         continue;
       }
       const c = result.creation!;
@@ -73,6 +75,7 @@ async function withSavedHistory(request: GenerationRequest): Promise<GenerationR
         texts: [c.headline, c.intro, c.cta, ...c.sections.flatMap((section) => [section.title, section.body])].map((text) => withoutBusinessFields(text, business)), message: withoutBusinessFields(result.message, business) });
     } catch { /* records from older generator versions are not comparison evidence */ }
   }
+  history.unshift(...sites.sort((a, b) => b.at.localeCompare(a.at)).map((item) => item.reference));
   const unique = [...new Map(history.map((reference) => [JSON.stringify(reference), reference])).values()];
   if (unique.length > 500) throw new Error("O histórico ultrapassa 500 criações. Amplie a comparação antes de gerar novas demos.");
   return { ...request, history: unique };

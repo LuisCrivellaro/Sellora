@@ -58,8 +58,28 @@ async function resolveImageEngine(workspace: string): Promise<{ engine: ImageEng
   }
 }
 
+/** Arquétipos de hero do guia V6. Briefs antigos (sem o id) são classificados pelas palavras da descrição. */
+export const HERO_ARCHETYPES = ["foto-painel", "colunas", "tipografico", "moldura", "grade", "cor-solida"] as const;
+export function heroArchetype(text: string): string | null {
+  const tagged = text.match(/^\s*\[([a-z-]+)\]/i)?.[1]?.toLowerCase();
+  if (tagged && (HERO_ARCHETYPES as readonly string[]).includes(tagged)) return tagged;
+  const t = normalizeCreativeText(text);
+  if (/ponta a ponta|full ?bleed|tela inteira|fundo fotografic/.test(t) && /painel|faixa|cartao|caixa|bloco|sobre/.test(t)) return "foto-painel";
+  return null;
+}
+
+/** O hero não pode repetir o arquétipo das duas demos mais recentes, de qualquer segmento (histórico do mais novo ao mais antigo). */
+export function recentHeroIssue(heroComposition: string, history: Pick<V6HistoryItem, "hero">[]): string | null {
+  const current = heroArchetype(heroComposition);
+  if (!current) return `Comece heroComposition com um arquétipo do guia entre colchetes (${HERO_ARCHETYPES.map((id) => `[${id}]`).join(", ")}).`;
+  const recent = history.slice(0, 2).map((item) => heroArchetype(item.hero));
+  return recent.includes(current) ? `O hero repete o arquétipo [${current}] de uma das duas demos mais recentes; escolha outro arquétipo do guia.` : null;
+}
+
 function historyIssues(brief: SiteBrief, history: V6HistoryItem[], segment: string): string[] {
   const issues: string[] = [];
+  const hero = recentHeroIssue(brief.direction.heroComposition, history);
+  if (hero) issues.push(hero);
   const same = history.filter((item) => item.segment === segment).slice(0, 12);
   const font = brief.direction.displayFont.toLowerCase();
   const sections = brief.sections.map((section) => section.id).join(">");

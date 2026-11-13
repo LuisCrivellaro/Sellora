@@ -45,7 +45,7 @@ Instaladas copiando as pastas dos repositórios oficiais para `.claude/skills/`,
 - **Uso automático x interativo:** nas sessões do Claude Code, as skills ficam disponíveis por nome (`/impeccable audit`, `/humanizer` etc.). O gerador do aplicativo não executa skills: ele roda o Claude Code com `--safe-mode` e sem ferramentas, ou o `codex app-server` com skills e MCP desligados. Instalar uma skill no Claude Code não a torna disponível ao `codex app-server`.
 - **Integração real com o gerador:** as regras pertinentes das quatro skills foram adaptadas, com atribuição, em `.agents/skills/demo-generator-v6/references/guia-de-criacao.md`. O app envia esse guia como instrução de sistema a cada geração V6 e mede o que consegue em `src/lib/demos/v6/qa-static.ts` e `qa-browser.ts`. Os checkers originais (gate do Taste, detector do Impeccable) não rodam dentro do app.
 - **demo-generator-v6:** skill do projeto (fonte canônica em `.agents/skills/`, espelho em `.claude/skills/`), empacotada no Windows pelo `desktop/build.mjs`.
-- **imagen** (tysszl/imagen-skill): sem licença, local e fora do git. Remoção agendada (ver AI_HANDOFF, missão 3).
+- **imagen** (tysszl/imagen-skill): **removida em 2026-11-12** (pasta local `.claude/skills/imagen`, nunca versionada, sem licença), junto com a integração paga do Gemini no app. Imagens só pelo Codex, com fallback SVG gratuito.
 
 ## Origem e manutenção
 
@@ -54,3 +54,20 @@ Instaladas copiando as pastas dos repositórios oficiais para `.claude/skills/`,
 - Unique Site Designer: fornecida pelo usuário, incorporada após aprovação. Conceitos e evidências em DEMO_DESIGN_HISTORY; mídias/fontes e licenças em public/demos/unique.
 
 Antes de adicionar outra skill, confira fonte, licença, scripts, dependências e hooks. Preserve o escopo autorizado e registre decisões relevantes. Não instale pacotes ou cadeias de skills apenas porque aparecem como referência nos guias.
+
+## Auditoria de 2026-11-12 (noite)
+
+Verificado nesta máquina (Windows 11, Node 24.15.0, npm 11.12.1, Git 2.55, Claude Code 2.1.321 da cópia do app Claude em `%APPDATA%/Claude/claude-code`, Codex da extensão `openai.chatgpt-26.1106.51428` do VS Code; nenhum dos dois no PATH, o app os encontra pelos caminhos conhecidos):
+
+| Skill | Instalada | Claude Code (sessão) | Dentro do gerador da Sellora |
+| --- | --- | --- | --- |
+| emil-design-eng, animate, improve-animations, animation-performance, mobile-native, break-ui | Sim (SKILL.md + LICENSE MIT) | Disponíveis por nome | Regras adaptadas no guia V6 (seção 5) |
+| review-animations | Sim | Só pelo usuário (`/review-animations`): o frontmatter tem `disable-model-invocation: true` | Regras adaptadas no guia V6 |
+| impeccable | Sim (LICENSE Apache-2.0, NOTICE) | Disponível | Regras no guia V6 (seção 6); o CLI/detector não roda no app |
+| design-taste-frontend | Sim, com `assets/` local (37 MB, fora do git) | Disponível; hook `Stop` roda `scripts/gate.mjs` quando a skill é usada | Regras no guia V6 (seções 2 e 4); o gate não roda no app |
+| humanizer | Sim (MIT) | Disponível | Regras no guia V6 (seção 4) |
+| demo-generator-v6 | Sim; `.agents` e `.claude` idênticos (`diff -rq`) | Disponível | **Lida a cada geração** por `src/lib/demos/v6/prompts.ts` (`guia-de-criacao.md`) e empacotada pelo `desktop/build.mjs` |
+| unique-site-designer | Sim; espelhos idênticos | Disponível | Lida pelo gerador v5 |
+| Skills próprias (dashboard-builder, design-review, quality-assurance, prompt-architect, lead-research, local-client-prospector, website-audit, modernizar-sites-locais, sales-strategy, proposal-writer, website-builder) | Sim | Disponíveis | Não são executadas pelo app |
+
+Os assets do Taste não são necessários ao gerador (ele não lê `assets/`); só servem a sessões interativas do Claude Code. Para restaurá-los em outra máquina: clonar `leonxlnx/taste-skill` e copiar `skills/taste-skill/assets`. O gerador continua sem depender de nenhuma skill em tempo de execução além do guia V6 versionado: o Claude Code roda com `--safe-mode`, sem ferramentas, e o `codex app-server` sem skills/MCP.
