@@ -96,7 +96,7 @@ async function run(item: DemoQueueItem) {
       item = { ...item, expectedRevision: demoRevision(lead.demo), expectedBusiness: JSON.stringify(business) };
       update(item.id, { expectedRevision: item.expectedRevision, expectedBusiness: item.expectedBusiness });
     }
-    const response = await fetch("/api/demos/jobs", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: item.id, business: publicContext, history, textProvider: item.textProvider ?? "claude", imageProvider: item.imageProvider ?? "gemini", generator: "v6", phone: business.phone ?? "", leadId: item.leadId }) });
+    const response = await fetch("/api/demos/jobs", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: item.id, business: publicContext, history, textProvider: item.textProvider ?? "claude", imageProvider: "codex", generator: "v6", phone: business.phone ?? "", leadId: item.leadId }) });
     if (response.status === 429) { await delay(3000); return false; }
     const data = await response.json();
     if (!response.ok) throw new Error(data.error || "Não foi possível iniciar a geração.");

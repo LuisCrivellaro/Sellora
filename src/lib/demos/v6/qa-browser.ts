@@ -1,5 +1,5 @@
 import { spawn, type ChildProcess } from "node:child_process";
-import { access, mkdtemp, rm } from "node:fs/promises";
+import { access, mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
@@ -64,19 +64,52 @@ class Cdp {
   close() { try { this.socket.close(); } catch { /* already closed */ } }
 }
 
+/**
+ * Encerra o navegador de auditoria. No Windows o Edge 157 relança a si mesmo: o processo que o app abre sai em
+ * milissegundos e o navegador real fica com outro PID. Por isso, lá, encerra todo processo que usa o perfil
+ * temporário desta auditoria (caminho único criado por mkdtemp).
+ */
+export function killBrowser(child: ChildProcess | undefined, profile?: string): Promise<void> {
+  if (process.platform !== "win32") { if (child?.exitCode === null) child.kill(); return Promise.resolve(); }
+  if (child?.exitCode === null) child.kill();
+  if (!profile || !/^[\w:\\/. -]+$/.test(profile)) return Promise.resolve();
+  const script = `Get-CimInstance Win32_Process -Filter "Name='msedge.exe' OR Name='chrome.exe'" | Where-Object { $_.CommandLine -like '*${profile.replace(/'/g, "")}*' } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }`;
+  return new Promise((resolve) => {
+    const killer = spawn("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command", script], { windowsHide: true, stdio: "ignore" });
+    const done = () => { clearTimeout(limit); resolve(); };
+    const limit = setTimeout(() => { killer.kill(); resolve(); }, 15_000);
+    killer.on("error", done);
+    killer.on("exit", done);
+  });
+}
+
+/**
+ * Endereço DevTools do navegador: pela linha "DevTools listening on" no stderr ou, nas versões que não
+ * a escrevem mais (Edge 157), pelo arquivo DevToolsActivePort que o navegador grava no perfil.
+ */
+export function endpointFromActivePort(content: string): string | null {
+  const [port, browserPath] = content.split(String.fromCharCode(10)).map((line) => line.trim());
+  return /^\d+$/.test(port ?? "") && browserPath?.startsWith("/devtools/browser/") ? `ws://127.0.0.1:${port}${browserPath}` : null;
+}
+
 function launch(browser: string, profile: string): Promise<{ child: ChildProcess; endpoint: string }> {
   return new Promise((resolve, reject) => {
     const child = spawn(browser, ["--headless=new", "--remote-debugging-port=0", `--user-data-dir=${profile}`, "--no-first-run", "--no-default-browser-check",
       "--disable-extensions", "--disable-sync", "--disable-background-networking", "--disable-component-update", "--hide-scrollbars", "--mute-audio",
       "--disable-gpu", "--allow-file-access-from-files", "about:blank"], { windowsHide: true, stdio: ["ignore", "ignore", "pipe"] });
-    const timer = setTimeout(() => { child.kill(); reject(new Error("O navegador de auditoria não respondeu.")); }, 20_000);
+    let settled = false;
+    const finish = (endpoint: string) => { if (settled) return; settled = true; clearTimeout(timer); clearInterval(poll); resolve({ child, endpoint }); };
+    const timer = setTimeout(() => { settled = true; clearInterval(poll); void killBrowser(child, profile); reject(new Error("O navegador de auditoria não respondeu.")); }, 20_000);
+    const poll = setInterval(() => {
+      void readFile(path.join(profile, "DevToolsActivePort"), "utf8").then((content) => { const endpoint = endpointFromActivePort(content); if (endpoint) finish(endpoint); }).catch(() => {});
+    }, 250);
     let buffer = "";
     child.stderr!.on("data", (chunk) => {
       buffer += chunk;
       const match = buffer.match(/DevTools listening on (ws:\/\/\S+)/);
-      if (match) { clearTimeout(timer); resolve({ child, endpoint: match[1] }); }
+      if (match) finish(match[1]);
     });
-    child.on("error", () => { clearTimeout(timer); reject(new Error("Não foi possível abrir o navegador de auditoria.")); });
+    child.on("error", () => { settled = true; clearTimeout(timer); clearInterval(poll); reject(new Error("Não foi possível abrir o navegador de auditoria.")); });
   });
 }
 
@@ -120,7 +153,7 @@ export async function browserQa(siteDir: string, timeoutMs = 150_000): Promise<B
   const profile = await mkdtemp(path.join(tmpdir(), "sellora-qa-"));
   let child: ChildProcess | undefined;
   let cdp: Cdp | undefined;
-  const deadline = setTimeout(() => { child?.kill(); }, timeoutMs);
+  const deadline = setTimeout(() => { void killBrowser(child, profile); }, timeoutMs);
   const result: BrowserQa = { executed: true, fixable: [], warnings: [], shots: {} };
   try {
     const launched = await launch(browser, profile);
@@ -174,7 +207,7 @@ export async function browserQa(siteDir: string, timeoutMs = 150_000): Promise<B
   } finally {
     clearTimeout(deadline);
     cdp?.close();
-    child?.kill();
+    await killBrowser(child, profile);
     await new Promise((resolve) => setTimeout(resolve, 300));
     await rm(profile, { recursive: true, force: true }).catch(() => {});
   }
