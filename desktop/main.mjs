@@ -33,7 +33,7 @@ else {
       if (!ready) throw new Error("Não foi possível iniciar o servidor local.");
       function windowFor(url) {
         const win = new BrowserWindow({ title: "Sellora", width: 1440, height: 960, minWidth: 800, minHeight: 600, backgroundColor: "#111111", autoHideMenuBar: true, webPreferences: { nodeIntegration: false, contextIsolation: true, sandbox: true } });
-        win.webContents.session.setPermissionRequestHandler((_wc, permission, callback) => callback(permission === "clipboard-sanitized-write"));
+        win.webContents.session.setPermissionRequestHandler((_wc, permission, callback) => callback(permission === "clipboard-sanitized-write" || permission === "fullscreen"));
         win.webContents.on("will-navigate", (event, destination) => { if (navigationKind(destination, origin) !== "internal") event.preventDefault(); });
         win.webContents.setWindowOpenHandler(({ url: destination }) => {
           const kind = navigationKind(destination, origin);

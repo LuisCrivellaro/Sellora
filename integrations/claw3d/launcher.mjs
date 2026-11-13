@@ -16,6 +16,8 @@ import { fileURLToPath } from "node:url";
 
 
 export const CLAW3D_DEFAULTS = { port: 3190, adapterPort: 18790 };
+/** Andar do Claw3D ligado ao adaptador da Sellora (perfil "hermes"). */
+export const SELLORA_FLOOR_ID = "hermes-first";
 const CRLF = String.fromCharCode(13, 10);
 /** Origens locais da Sellora que podem enquadrar o escritório (dev 3100, produção local 3102, desktop 3187). */
 export const SELLORA_FRAME_ANCESTORS = ["http://localhost:3100", "http://127.0.0.1:3100", "http://localhost:3102", "http://127.0.0.1:3102", "http://localhost:3187", "http://127.0.0.1:3187"];
@@ -74,8 +76,8 @@ export function startFrameProxy({ port, targetPort, ancestors = SELLORA_FRAME_AN
 }
 
 /**
- * Fixa o Claw3D no andar da Sellora: gateway "demo" apontando para o adaptador local, com o token da sessão,
- * e andar ativo "lobby". Preserva o resto do settings.json (avatares, mesas, preferências).
+ * Fixa o Claw3D no andar da Sellora: gateway apontando para o adaptador local, com o token da sessão,
+ * e andar ativo da Sellora. Preserva o resto do settings.json (avatares, mesas, preferências).
  * Motivo: depois de uma falha de conexão o Claw3D pode trocar sozinho para o andar "OpenClaw", que pede um
  * servidor que a Sellora não usa, e passa a gravar essa escolha (perdendo o token do perfil "demo").
  */
@@ -87,14 +89,21 @@ export function writeStudioSettings(stateDir, { adapterPort, token }) {
   try { const parsed = JSON.parse(readFileSync(file, "utf8")); if (parsed && typeof parsed === "object") current = parsed; } catch { /* primeiro uso ou arquivo inválido */ }
   const url = `ws://localhost:${adapterPort}`;
   const previous = current.gateway && typeof current.gateway === "object" ? current.gateway : {};
+  // Perfil "hermes": habilita skills (Kanban) no Claw3D e conecta com o token da sessão injetado pelo proxy do
+  // servidor. (No perfil "openclaw" o navegador manda assinatura de dispositivo no lugar do token e o adaptador
+  // recusa; no "demo" não há skills.) O adaptador se anuncia como "hermes" no handshake, então perfil
+  // selecionado, handshake e andar coincidem e o Claw3D não troca de andar sozinho. Todos os perfis conhecidos
+  // apontam para o adaptador: nenhum andar leva a um servidor externo.
   const gateway = {
-    ...previous, url, token, adapterType: "demo",
-    profiles: { ...(previous.profiles ?? {}), demo: { url, token } },
-    lastKnownGood: { adapterType: "demo", url, token },
+    ...previous, url, token, adapterType: "hermes",
+    profiles: { ...(previous.profiles ?? {}), hermes: { url, token }, openclaw: { url, token }, demo: { url, token } },
+    lastKnownGood: { adapterType: "hermes", url, token },
   };
   const floors = current.officeFloors && typeof current.officeFloors === "object" ? { ...current.officeFloors } : undefined;
-  if (floors?.lobby) floors.lobby = { ...floors.lobby, provider: "demo", gatewayUrl: url, status: "disconnected", lastErrorCode: null, lastErrorMessage: null };
-  const next = { ...current, version: 1, gateway, activeFloorId: "lobby", ...(floors ? { officeFloors: floors } : {}) };
+  for (const [id, provider] of [["lobby", "demo"], ["openclaw-ground", "openclaw"], ["hermes-first", "hermes"]]) {
+    if (floors?.[id]) floors[id] = { ...floors[id], provider, gatewayUrl: url, status: "disconnected", lastErrorCode: null, lastErrorMessage: null };
+  }
+  const next = { ...current, version: 1, gateway, activeFloorId: SELLORA_FLOOR_ID, ...(floors ? { officeFloors: floors } : {}) };
   writeFileSync(file, JSON.stringify(next, null, 2), { encoding: "utf8", mode: 0o600 });
 }
 
@@ -118,7 +127,7 @@ export function startClaw3d({ appDir, stateDir, bridgeUrl, port = CLAW3D_DEFAULT
     return child;
   };
   const adapter = launch("sellora-gateway", ["server/sellora-gateway-adapter.cjs"], {
-    SELLORA_ADAPTER_PORT: String(adapterPort), SELLORA_ADAPTER_TOKEN: token, SELLORA_BRIDGE_URL: bridgeUrl,
+    SELLORA_ADAPTER_PORT: String(adapterPort), SELLORA_ADAPTER_TOKEN: token, SELLORA_BRIDGE_URL: bridgeUrl, OPENCLAW_STATE_DIR: stateDir,
   });
   // O Claw3D roda numa porta interna; a porta pública (local) é a do proxy de enquadramento.
   const studio = launch("claw3d", ["server/index.js"], {

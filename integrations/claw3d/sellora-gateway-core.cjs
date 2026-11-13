@@ -12,6 +12,9 @@
  */
 
 const MAIN_KEY = "main";
+// Perfil anunciado no handshake: o Claw3D decide as capacidades da interface por ele. "hermes" habilita skills
+// (Kanban/task-manager) e coincide com o perfil configurado pelo launcher (conexão por token).
+const HELLO_ADAPTER_TYPE = process.env.SELLORA_HELLO_ADAPTER || "hermes";
 const READ_ONLY_MESSAGE =
   "Cloud 3D da Sellora é só observação: execuções começam e terminam no próprio aplicativo Sellora.";
 const MUTATING_METHODS = new Set([
@@ -264,7 +267,7 @@ function handleMethod(state, method, params, id) {
     case "exec.approvals.get":
       return ok(id, { path: "", exists: true, hash: "sellora", file: { version: 1, defaults: { security: "deny", ask: "always", autoAllowSkills: false }, agents: {} } });
     case "skills.status":
-      return ok(id, { skills: [] });
+      return ok(id, skillsReport());
     case "models.list":
       return ok(id, { models: [...new Set([...state.agents.values()].map((agent) => agent.runtime).filter(Boolean))].map((runtime) => ({ id: runtime, name: runtime, provider: "sellora" })) });
     case "cron.list":
@@ -272,14 +275,15 @@ function handleMethod(state, method, params, id) {
     case "wake":
       return ok(id, { ok: true });
     default:
-      return fail(id, "unsupported_method", `Método ${method} não disponível na Cloud 3D da Sellora.`);
+      // Código padrão do protocolo: o Claw3D trata como "recurso ausente" e segue sem mostrar erro (ex.: tasks.list).
+      return fail(id, "METHOD_NOT_FOUND", `unknown method: ${method} (não disponível na Cloud 3D da Sellora)`);
   }
 }
 
 function helloPayload(state) {
   const agents = [...state.agents.values()];
   return {
-    type: "hello-ok", protocol: 3, adapterType: "demo",
+    type: "hello-ok", protocol: 3, adapterType: HELLO_ADAPTER_TYPE,
     features: { methods: SUPPORTED_METHODS, events: ["agent", "presence", "heartbeat"] },
     snapshot: {
       health: { agents: agents.map((agent, index) => ({ agentId: agent.id, name: agent.name, isDefault: index === 0 })), defaultAgentId: agents[0]?.id ?? "" },
@@ -322,7 +326,74 @@ function createSseParser(onEvent) {
   };
 }
 
+/**
+ * Skill "task-manager" do Claw3D (habilita o Kanban). Aqui ela não instala nada nos agentes: o próprio
+ * adaptador alimenta o quadro com as execuções reais do gerador (ver taskBoardStore).
+ */
+const EMPTY_REQUIREMENTS = { bins: [], anyBins: [], env: [], config: [], os: [] };
+function skillsReport() {
+  return {
+    workspaceDir: "sellora://agents", managedSkillsDir: "sellora://skills",
+    skills: [{
+      name: "task-manager", skillKey: "task-manager", description: "Quadro Kanban com as execuções reais dos agentes da Sellora.",
+      source: "sellora", bundled: true, filePath: "sellora://skills/task-manager", baseDir: "sellora://skills/task-manager", emoji: "📋",
+      always: true, disabled: false, blockedByAllowlist: false, eligible: true,
+      requirements: EMPTY_REQUIREMENTS, missing: EMPTY_REQUIREMENTS, configChecks: [], install: [],
+    }],
+  };
+}
+
+const TASK_PREFIX = "sellora-run-";
+const RUN_TO_COLUMN = { running: "in_progress", waiting_approval: "review", failed: "blocked", cancelled: "blocked", completed: "done", queued: "todo" };
+const RUN_LABEL = { running: "Em execução", waiting_approval: "Pronta, aguardando sua aprovação na Sellora", failed: "Falhou", cancelled: "Interrompida (o aplicativo foi fechado durante a geração)", completed: "Concluída", queued: "Na fila" };
+
+/** Cartão do Kanban para uma execução real (id estável por execução: o quadro é uma visão, não um cadastro). */
+function runToTask(run, agentId) {
+  const status = RUN_TO_COLUMN[run.status] ?? "todo";
+  const events = Array.isArray(run.events) ? run.events : [];
+  const created = str(run.startedAt) || str(events[0]?.at) || str(run.updatedAt) || new Date(0).toISOString();
+  const updated = str(run.updatedAt) || str(run.finishedAt) || created;
+  const lines = [
+    `${RUN_LABEL[run.status] ?? run.status}.`,
+    run.status === "running" ? `Etapa atual: ${str(run.task)}` : str(run.task) ? `Última etapa: ${str(run.task)}` : "",
+    run.error ? `Erro: ${str(run.error)}` : "",
+    run.siteId ? `Demo: /sites/${run.siteId}/index.html` : "",
+    "Somente leitura: aprove, recuse ou gere de novo pela Sellora (Leads → Demos).",
+  ].filter(Boolean);
+  return {
+    id: `${TASK_PREFIX}${str(run.runId)}`, title: `${str(run.business) || "Estabelecimento"} · demo ${str(run.generator) === "v5" ? "v5" : "V6"}`,
+    description: lines.join(String.fromCharCode(10)), status, source: "openclaw_event", sourceEventId: str(run.runId) || null,
+    assignedAgentId: agentId, createdAt: created, updatedAt: updated, playbookJobId: null, runId: str(run.runId) || null,
+    channel: "sellora", externalThreadId: run.leadId ? str(run.leadId) : null, lastActivityAt: updated,
+    notes: events.slice(-12).map((event) => `${str(event.at).slice(11, 16)} ${str(event.phase)}`),
+    isArchived: false, isInferred: false,
+    history: [{ at: created, type: "created", note: "Execução registrada pelo gerador da Sellora.", fromStatus: null, toStatus: "in_progress" }]
+      .concat(status === "in_progress" ? [] : [{ at: updated, type: "status_changed", note: RUN_LABEL[run.status] ?? null, fromStatus: "in_progress", toStatus: status }]),
+  };
+}
+
+/**
+ * Junta as execuções reais (do registro do bridge) com o arquivo atual do Kanban. Cartões criados à mão no
+ * Claw3D são preservados; os cartões da Sellora são regravados a partir das execuções (fonte da verdade).
+ */
+function taskBoardStore(state, existing) {
+  const manual = (Array.isArray(existing?.tasks) ? existing.tasks : []).filter((task) => task && !String(task.id ?? "").startsWith(TASK_PREFIX));
+  const runs = new Map();
+  for (const agent of state.agents.values()) {
+    for (const run of [...(agent.recent ?? [])].reverse()) if (run?.runId) runs.set(run.runId, { run, agentId: agent.id });
+    if (agent.currentRun?.runId) runs.set(agent.currentRun.runId, { run: agent.currentRun, agentId: agent.id });
+  }
+  for (const [agentId, active] of state.active) {
+    const known = runs.get(active.runId)?.run ?? {};
+    runs.set(active.runId, { agentId, run: { ...known, runId: active.runId, status: "running", business: active.business, task: active.task, startedAt: known.startedAt ?? active.startedAt, updatedAt: new Date().toISOString(), events: (state.history.get(active.runId) ?? []).map((line) => ({ at: line.at, phase: line.text })) } });
+  }
+  const tasks = [...runs.values()].map(({ run, agentId }) => runToTask(run, agentId));
+  const all = [...tasks, ...manual];
+  const updatedAt = all.reduce((latest, task) => (str(task.updatedAt) > latest ? str(task.updatedAt) : latest), new Date(0).toISOString());
+  return { schemaVersion: 1, updatedAt, tasks: all };
+}
+
 module.exports = {
   MAIN_KEY, READ_ONLY_MESSAGE, SUPPORTED_METHODS, sessionKeyFor, createState, applyBridgeEvent, handleMethod,
-  helloPayload, replayFrames, createSseParser,
+  helloPayload, replayFrames, createSseParser, skillsReport, runToTask, taskBoardStore, TASK_PREFIX,
 };

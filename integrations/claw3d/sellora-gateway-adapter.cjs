@@ -19,6 +19,8 @@
 
 const http = require("node:http");
 const crypto = require("node:crypto");
+const fs = require("node:fs");
+const path = require("node:path");
 const { WebSocketServer } = require("ws");
 const core = require("./sellora-gateway-core.cjs");
 
@@ -36,6 +38,26 @@ if (!/^http:\/\/(127\.0\.0\.1|localhost|\[::1\])(:\d+)?$/i.test(BRIDGE_URL)) {
 }
 
 const state = core.createState();
+
+// Kanban do Claw3D (skill task-manager): o servidor do Claw3D lê <OPENCLAW_STATE_DIR>/claw3d/task-manager/tasks.json
+// a cada 4 s. O adaptador grava ali as execuções reais; cartões criados à mão no Claw3D são preservados.
+const TASKS_FILE = process.env.OPENCLAW_STATE_DIR ? path.join(process.env.OPENCLAW_STATE_DIR, "claw3d", "task-manager", "tasks.json") : null;
+let taskTimer = null;
+function syncTaskBoard() {
+  if (!TASKS_FILE) return;
+  clearTimeout(taskTimer);
+  taskTimer = setTimeout(() => {
+    try {
+      let existing = null;
+      try { existing = JSON.parse(fs.readFileSync(TASKS_FILE, "utf8")); } catch { /* primeiro uso */ }
+      const next = core.taskBoardStore(state, existing);
+      fs.mkdirSync(path.dirname(TASKS_FILE), { recursive: true });
+      const temp = `${TASKS_FILE}.${process.pid}.tmp`;
+      fs.writeFileSync(temp, JSON.stringify(next, null, 2), "utf8");
+      fs.renameSync(temp, TASKS_FILE);
+    } catch (error) { console.warn(`[sellora-gateway] Kanban não atualizado: ${error.message}`); }
+  }, 400);
+}
 const clients = new Set();
 
 const safeEqual = (a, b) => {
@@ -61,7 +83,7 @@ async function followBridge() {
       state.bridge.lastError = null;
       retryMs = 1000;
       console.info(`[sellora-gateway] conectado ao bridge ${BRIDGE_URL}`);
-      const parse = core.createSseParser((event, data) => broadcast(core.applyBridgeEvent(state, event, data)));
+      const parse = core.createSseParser((event, data) => { broadcast(core.applyBridgeEvent(state, event, data)); if (event !== "heartbeat") syncTaskBoard(); });
       const decoder = new TextDecoder();
       for await (const chunk of response.body) parse(decoder.decode(chunk, { stream: true }));
       throw new Error("bridge encerrou o stream");

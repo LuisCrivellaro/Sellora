@@ -87,7 +87,7 @@ describe("Sellora gateway adapter (núcleo)", () => {
       expect(response.ok).toBe(false);
       expect(response.error?.code).toBe("read_only");
     }
-    expect((core.handleMethod(state, "metodo.desconhecido", {}, "y") as Frame).error?.code).toBe("unsupported_method");
+    expect((core.handleMethod(state, "metodo.desconhecido", {}, "y") as Frame).error?.code).toBe("METHOD_NOT_FOUND");
   });
 
   it("parser SSE lida com blocos quebrados entre pedaços e CRLF", () => {
@@ -96,5 +96,39 @@ describe("Sellora gateway adapter (núcleo)", () => {
     parse("event: agent\ndata: {\"runId\":");
     parse("\"a\"}\n\nevent: heartbeat\r\ndata: {}\r\n\r\n: comentário\n\n");
     expect(seen).toEqual([["agent", { runId: "a" }], ["heartbeat", {}]]);
+  });
+});
+
+describe("Kanban (skill task-manager) com execuções reais", () => {
+  it("relata a skill task-manager pronta com todos os campos que o Claw3D lê", () => {
+    const report = core.skillsReport();
+    expect(report.workspaceDir).toBeTruthy();
+    const skill = report.skills[0];
+    expect(skill).toMatchObject({ skillKey: "task-manager", name: "task-manager", eligible: true, disabled: false, blockedByAllowlist: false });
+    expect(skill.missing).toEqual({ bins: [], anyBins: [], env: [], config: [], os: [] });
+    expect((core.handleMethod(core.createState(), "skills.status", {}, "s") as Frame).payload).toEqual(report);
+  });
+
+  it("cada execução vira um cartão na coluna certa e cartões manuais são preservados", () => {
+    const state = core.createState();
+    const runs = [
+      { runId: "r-ok", status: "waiting_approval", business: "Clínica Teste", task: "Demo pronta para revisão", startedAt: "2026-11-12T23:00:00Z", updatedAt: "2026-11-12T23:04:00Z", events: [{ at: "2026-11-12T23:00:00Z", phase: "Etapas 1–3" }], siteId: "s1", leadId: "lead-1" },
+      { runId: "r-fail", status: "failed", business: "Restaurante", task: "Geração interrompida", error: "Codex sem cota", updatedAt: "2026-11-12T22:00:00Z", events: [] },
+      { runId: "r-cancel", status: "cancelled", business: "Barbearia", task: "Interrompido", updatedAt: "2026-11-12T21:00:00Z", events: [] },
+    ];
+    core.applyBridgeEvent(state, "presence", { agents: [agent(null, runs)] });
+    core.applyBridgeEvent(state, "agent", { agentId: "gerador-de-demos", runId: "r-live", phase: "start", text: "Gerando imagem 1 de 3", business: "Pet Shop" });
+    const manual = { id: "manual-1", title: "Ligar para o contador", status: "todo" };
+    const store = core.taskBoardStore(state, { tasks: [manual, { id: "sellora-run-velho", title: "antigo" }] });
+    const byId = Object.fromEntries(store.tasks.map((task: { id: string }) => [task.id, task]));
+    expect(byId["sellora-run-r-ok"]).toMatchObject({ status: "review", title: "Clínica Teste · demo V6", assignedAgentId: "gerador-de-demos", runId: "r-ok", externalThreadId: "lead-1" });
+    expect(byId["sellora-run-r-ok"].description).toContain("/sites/s1/index.html");
+    expect(byId["sellora-run-r-fail"]).toMatchObject({ status: "blocked" });
+    expect(byId["sellora-run-r-fail"].description).toContain("Codex sem cota");
+    expect(byId["sellora-run-r-cancel"].status).toBe("blocked");
+    expect(byId["sellora-run-r-live"]).toMatchObject({ status: "in_progress", title: "Pet Shop · demo V6" });
+    expect(byId["manual-1"]).toEqual(manual);
+    expect(byId["sellora-run-velho"]).toBeUndefined();
+    expect(store.schemaVersion).toBe(1);
   });
 });
