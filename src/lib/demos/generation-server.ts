@@ -27,11 +27,99 @@ type GenerationRequest = z.infer<typeof generationRequestSchema>;
 const globalJobs = globalThis as typeof globalThis & { selloraDemoJobs?: Map<string, DemoGenerationJob>; selloraDemoStarts?: Map<string, Promise<DemoGenerationJob>> };
 const jobs: Map<string, DemoGenerationJob> = globalJobs.selloraDemoJobs ??= new Map();
 const starts: Map<string, Promise<DemoGenerationJob>> = globalJobs.selloraDemoStarts ??= new Map();
+interface GenerationControl {
+  requested: boolean;
+  cancelled?: boolean;
+  paused: Promise<void>;
+  notifyPaused: () => void;
+  resume?: () => void;
+}
+const controls = new Map<string, GenerationControl>();
+const requestFile = (id: string) => path.join(demoDataRoot(), "requests", `${z.uuid().parse(id)}.json`);
+const writes = new Map<string, Promise<void>>();
+class DemoCancelledError extends Error {}
+
+function launchExecution(job: DemoGenerationJob, request: GenerationRequest) {
+  const control: GenerationControl = { requested: false, paused: Promise.resolve(), notifyPaused: () => {} };
+  control.paused = new Promise<void>((resolve) => { control.notifyPaused = resolve; });
+  controls.set(job.id, control);
+  void execute(job, request).finally(() => { control.notifyPaused(); controls.delete(job.id); });
+}
+
+async function checkpoint(job: DemoGenerationJob) {
+  const control = controls.get(job.id);
+  if (!control?.requested) return;
+  job.status = "paused";
+  phase(job, "Geração pausada");
+  await persist(job);
+  const resumed = new Promise<void>((resolve) => { control.resume = resolve; });
+  control.notifyPaused();
+  await resumed;
+  if (control.cancelled) throw new DemoCancelledError("Geração cancelada pelo administrador.");
+  job.status = "running";
+  phase(job, "Retomando geração");
+}
+
+export async function pauseDemoGeneration(id: string): Promise<DemoGenerationJob | null> {
+  if (starts.has(id)) await starts.get(id);
+  const control = controls.get(id);
+  if (control) {
+    control.requested = true;
+    await control.paused;
+  }
+  return getDemoGenerationJob(id);
+}
+
+export async function resumeDemoGeneration(id: string): Promise<DemoGenerationJob | null> {
+  if ([...jobs.values()].some((job) => job.id !== id && job.status === "running")) throw new DemoBusyError("Há outra geração em andamento.");
+  const control = controls.get(id);
+  if (control?.resume) {
+    control.requested = false;
+    control.resume();
+    control.resume = undefined;
+    control.paused = new Promise<void>((resolve) => { control.notifyPaused = resolve; });
+  }
+  if (!control) {
+    if (starts.has(id)) return starts.get(id)!;
+    const operation = (async () => {
+      const job = await getDemoGenerationJob(id);
+      if (!job) throw new Error("Geração não encontrada.");
+      if (job.status !== "paused") return job;
+      if ([...jobs.values()].some((other) => other.id !== id && other.status === "running")) throw new DemoBusyError("Há outra geração em andamento.");
+      const request = generationRequestSchema.parse(JSON.parse(await readFile(requestFile(id), "utf8")));
+      job.status = "running";
+      jobs.set(id, job);
+      await persist(job);
+      launchExecution(job, request);
+      return job;
+    })();
+    // A retomada também é idempotente quando duas consultas chegam juntas.
+    starts.set(id, operation);
+    try { return await operation; } finally { starts.delete(id); }
+  }
+  return getDemoGenerationJob(id);
+}
+
+export async function cancelDemoGeneration(id: string): Promise<DemoGenerationJob | null> {
+  const job = await pauseDemoGeneration(id);
+  if (!job || job.status === "completed" || job.status === "failed" || job.status === "cancelled") return job;
+  const control = controls.get(id);
+  if (control) { control.cancelled = true; control.resume?.(); }
+  Object.assign(job, { status: "cancelled", phase: "Geração cancelada", error: null, finishedAt: new Date().toISOString() });
+  await persist(job);
+  return job;
+}
 const jobFile = (id: string) => path.join(demoDataRoot(), "jobs", `${z.uuid().parse(id)}.json`);
 
-async function persist(job: DemoGenerationJob) {
-  await mkdir(path.join(demoDataRoot(), "jobs"), { recursive: true });
-  await writeFile(jobFile(job.id), JSON.stringify(job), "utf8");
+function persist(job: DemoGenerationJob) {
+  const data = JSON.stringify(job);
+  const previous = writes.get(job.id) ?? Promise.resolve();
+  const write = previous.catch(() => {}).then(async () => {
+    await mkdir(path.join(demoDataRoot(), "jobs"), { recursive: true });
+    await writeFile(jobFile(job.id), data, "utf8");
+  });
+  writes.set(job.id, write);
+  return write;
 }
 
 export function draftIssues(draft: CreationDraft, request: GenerationRequest): string[] {
@@ -92,7 +180,7 @@ async function executeV6(job: DemoGenerationJob, request: GenerationRequest) {
   try {
     request = await withSavedHistory(request);
     const history = request.history.filter((item) => item.style).map((item) => ({ segment: item.segment, ...item.style!, texts: item.texts }));
-    const result = await generateV6(job.id, { business: request.business, phone: request.phone, history, textProvider: request.textProvider, imageProvider: request.imageProvider }, { phase: (text) => phase(job, text) });
+    const result = await generateV6(job.id, { business: request.business, phone: request.phone, history, textProvider: request.textProvider, imageProvider: request.imageProvider }, { phase: (text) => phase(job, text), checkpoint: () => checkpoint(job) });
     job.textEstimatedUsd = result.estimatedUsd;
     const finished: DemoGenerationJob = { ...job, status: "completed", phase: "Demo pronta para revisão", finishedAt: new Date().toISOString(), result: { site: result.site, message: result.message, textProvider: request.textProvider, imageProvider: request.imageProvider }, error: null };
     finished.events = [...(job.events ?? []), { at: finished.finishedAt!, phase: finished.phase }];
@@ -101,6 +189,7 @@ async function executeV6(job: DemoGenerationJob, request: GenerationRequest) {
   } catch (error) {
     const at = new Date().toISOString();
     Object.assign(job, { status: "failed", phase: "Geração interrompida", finishedAt: at, events: [...(job.events ?? []), { at, phase: "Geração interrompida" }], result: null, error: error instanceof Error ? error.message : "Não foi possível gerar a demo." });
+    if (error instanceof DemoCancelledError) Object.assign(job, { status: "cancelled", phase: "Geração cancelada", error: null });
     await persist(job).catch(() => {});
   }
 }
@@ -129,15 +218,18 @@ async function execute(job: DemoGenerationJob, request: GenerationRequest) {
     // The prompt receives public page copy only. Private approach messages are used solely by the comparator.
     const promptHistory = request.history.map(({ segment, signature, texts, photoOrigin, imageDescription }) => ({ segment, signature, texts, photoOrigin, imageDescription }));
     let draft = await write(draftPrompt(request.business, promptHistory));
+    await checkpoint(job);
     let issues = draftIssues(draft, request);
     if (issues.length) {
       draft = await write(correctionPrompt(issues), draft);
+      await checkpoint(job);
       issues = draftIssues(draft, request);
     }
     if (claude) job.textEstimatedUsd = Math.round(claude.estimatedUsd * 10_000) / 10_000;
     if (issues.length) throw new Error(`A direção precisa de uma nova tentativa. ${issues.join(" ")}`);
     job.phase = "Gerando imagem exclusiva";
     const image = await activeCodex!.image(threadId, draft);
+    await checkpoint(job);
     if (request.history.some((previous) => previous.photoOrigin === image.sourceHash)) throw new Error("A imagem gerada repete uma origem do histórico. Gere novamente.");
     job.phase = "Conferindo e salvando a demo";
     const publicDraft = generatedCreationSchema.omit({ id: true, image: true }).strip().parse(draft);
@@ -147,6 +239,7 @@ async function execute(job: DemoGenerationJob, request: GenerationRequest) {
     Object.assign(job, finished);
   } catch (error) {
     Object.assign(job, { status: "failed", phase: "Geração interrompida", result: null, error: error instanceof Error ? error.message : "Não foi possível gerar a demo." });
+    if (error instanceof DemoCancelledError) Object.assign(job, { status: "cancelled", phase: "Geração cancelada", error: null });
     await persist(job).catch(() => {});
   } finally { codex?.close(); }
 }
@@ -157,7 +250,7 @@ export async function getDemoGenerationJob(id: string): Promise<DemoGenerationJo
   if (running) return running;
   try {
     const saved = JSON.parse(await readFile(jobFile(id), "utf8")) as DemoGenerationJob;
-    if (saved.status === "running") return { ...saved, status: "failed", error: "O aplicativo foi fechado durante a geração. Tente novamente.", result: null };
+    if (saved.status === "running") return { ...saved, status: "paused", phase: "Geração pausada ao fechar o aplicativo", error: null, result: null };
     return saved;
   } catch { return null; }
 }
@@ -178,11 +271,16 @@ export function startDemoGeneration(request: GenerationRequest): Promise<DemoGen
       return existing;
     }
     if ([...jobs.values()].some((job) => job.status === "running")) throw new DemoBusyError("Há uma geração em andamento. O próximo item começará ao terminar.");
+    if (request.leadId && [...jobs.values()].some((job) => job.leadId === request.leadId && job.status === "paused")) throw new DemoBusyError("Este estabelecimento já tem uma geração pausada. Retome o trabalho existente.");
     const job: DemoGenerationJob = { id: request.id, businessKey, textProvider: request.textProvider, imageProvider: request.imageProvider, generator: request.generator, leadId: request.leadId, startedAt: new Date().toISOString(), events: [{ at: new Date().toISOString(), phase: "Preparando a geração" }], status: "running", phase: "Preparando a geração", error: null, result: null };
     jobs.set(job.id, job);
-    try { await persist(job); }
+    try {
+      await mkdir(path.join(demoDataRoot(), "requests"), { recursive: true });
+      await writeFile(requestFile(job.id), JSON.stringify(request), "utf8");
+      await persist(job);
+    }
     catch { jobs.delete(job.id); throw new Error("Não foi possível salvar o trabalho de geração neste computador."); }
-    void execute(job, request);
+    launchExecution(job, request);
     return job;
   })();
   starts.set(request.id, operation);

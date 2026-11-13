@@ -109,7 +109,7 @@ export interface DemoGenerationJob {
   finishedAt?: string;
   /** Consumo estimado pelo Claude Code em dólares equivalentes de API. No plano de assinatura, sai da cota do plano. */
   textEstimatedUsd?: number | null;
-  status: "running" | "completed" | "failed";
+  status: "running" | "paused" | "cancelled" | "completed" | "failed";
   phase: string;
   result: GenerationResult | null;
   error: string | null;

@@ -5,6 +5,7 @@ import path from "node:path";
 import { createHash } from "node:crypto";
 import { createInterface } from "node:readline";
 import { z } from "zod";
+import { APP_PACKAGE_VERSION } from "../version";
 import { creationDraftSchema, type CreationDraft, type DemoGenerationStatus, type GeneratedCreation } from "./creation";
 import { GENERATOR_BASE_INSTRUCTIONS, IMAGE_CONTENT_RULES } from "./generation-prompts";
 
@@ -46,7 +47,7 @@ export class LocalCodex {
   private turn: { resolve: (items: CodexItem[]) => void; reject: (error: Error) => void; items: CodexItem[] } | null = null;
   private timer: ReturnType<typeof setTimeout>;
 
-  private constructor(file: string, cwd: string, private report: (phase: string) => void, timeoutMs: number) {
+  private constructor(file: string, cwd: string, private report: (phase: string) => void, private timeoutMs: number) {
     this.process = spawn(file, ["app-server", "-c", "features.shell_tool=false", "-c", "features.unified_exec=false", "-c", "features.code_mode=false", "-c", "mcp_servers={}"], { cwd, windowsHide: true, stdio: ["pipe", "pipe", "pipe"] });
     this.timer = setTimeout(() => this.close(new Error("O Codex demorou demais. Tente novamente mais tarde.")), timeoutMs);
     this.process.stderr.on("data", () => { /* never expose account/runtime diagnostics to the browser */ });
@@ -79,10 +80,16 @@ export class LocalCodex {
     });
   }
 
+  suspendTimeout() { clearTimeout(this.timer); }
+  restartTimeout() {
+    clearTimeout(this.timer);
+    this.timer = setTimeout(() => this.close(new Error("O Codex demorou demais. Tente novamente mais tarde.")), this.timeoutMs);
+  }
+
   static async connect(cwd: string, report: (phase: string) => void = () => {}, timeoutMs = 8 * 60_000) {
     const client = new LocalCodex(await executable(), cwd, report, timeoutMs);
     try {
-      await client.call("initialize", { clientInfo: { name: "sellora", title: "Sellora", version: "0.1.0" }, capabilities: { experimentalApi: true } });
+      await client.call("initialize", { clientInfo: { name: "sellora", title: "Sellora", version: APP_PACKAGE_VERSION }, capabilities: { experimentalApi: true } });
       client.process.stdin.write(JSON.stringify({ method: "initialized", params: {} }) + "\n");
       return client;
     } catch (error) { client.close(); throw error; }

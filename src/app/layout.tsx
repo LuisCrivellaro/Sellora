@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Manrope } from "next/font/google";
 import { AppShell } from "@/components/shell/app-shell";
 import "./globals.css";
+import { APP_LABEL } from "@/lib/version";
 
 const manrope = Manrope({
   subsets: ["latin"],
@@ -10,7 +11,7 @@ const manrope = Manrope({
 });
 
 export const metadata: Metadata = {
-  title: { default: "Sellora", template: "%s · Sellora" },
+  title: { default: APP_LABEL, template: `%s · ${APP_LABEL}` },
   description: "Painel interno da Sellora: leads, clientes, projetos, propostas e financeiro.",
   robots: { index: false, follow: false },
 };

@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
-import { mkdir, rm, writeFile } from "node:fs/promises";
+import { mkdir, rm, readFile, writeFile, rename } from "node:fs/promises";
+import { serialize, deserialize } from "node:v8";
 import path from "node:path";
 import type { z } from "zod";
 import { ClaudeWriter, type ClaudeEffort } from "../claude-server";
@@ -16,7 +17,7 @@ import { siteBriefSchema, siteCodeSchema, siteRefSchema, siteSignature, type Sit
 import { sha256, writeSite } from "./store";
 
 /** Limites de consumo por demo: evitam loops e gasto excessivo de cota. */
-export const V6_LIMITS = { generatedImages: 3, briefCorrections: 1, fixRounds: 1 } as const;
+export const V6_LIMITS = { generatedImages: 1, briefCorrections: 1, fixRounds: 1 } as const;
 
 export interface V6Request {
   business: V6Business;
@@ -25,10 +26,10 @@ export interface V6Request {
   textProvider: DemoTextProvider;
   imageProvider: DemoImageProvider;
 }
-export interface V6Progress { phase: (text: string) => void }
+export interface V6Progress { phase: (text: string) => void; checkpoint?: () => Promise<void> }
 export interface V6Result { site: SiteRef; message: string; estimatedUsd: number | null; imageEngine: ImageEngine }
 
-interface Writer { structured<T>(prompt: string, schema: z.ZodType<T>, effort: ClaudeEffort): Promise<T>; estimatedUsd: number | null; close(): void }
+interface Writer { structured<T>(prompt: string, schema: z.ZodType<T>, effort: ClaudeEffort): Promise<T>; estimatedUsd: number | null; close(): void; suspendTimeout?: () => void; restartTimeout?: () => void }
 
 async function openWriter(provider: DemoTextProvider, workspace: string, instructions: string): Promise<Writer> {
   if (provider === "claude") {
@@ -39,7 +40,7 @@ async function openWriter(provider: DemoTextProvider, workspace: string, instruc
   const status = await codex.status();
   if (!status.connected) { codex.close(); throw new Error(status.message); }
   const thread = await codex.startThread(workspace, instructions);
-  return { structured: (prompt, schema) => codex.structured(thread, prompt, schema), estimatedUsd: null, close: () => codex.close() };
+  return { structured: (prompt, schema) => codex.structured(thread, prompt, schema), estimatedUsd: null, close: () => codex.close(), suspendTimeout: () => codex.suspendTimeout(), restartTimeout: () => codex.restartTimeout() };
 }
 
 /**
@@ -109,12 +110,25 @@ export function summarize(html: string, brief: SiteBrief): SiteRef["summary"] {
 export async function generateV6(jobId: string, request: V6Request, progress: V6Progress): Promise<V6Result> {
   const workspace = path.join(demoDataRoot(), "workspace", jobId);
   await mkdir(workspace, { recursive: true });
+  const checkpointFile = path.join(workspace, "checkpoint.bin");
+  type SavedProgress = { brief?: SiteBrief; approved?: boolean; code?: SiteCode; assets?: Awaited<ReturnType<typeof produceImages>>; checked?: Awaited<ReturnType<typeof audit>>; rounds: number };
+  const saved: SavedProgress = await readFile(checkpointFile).then((data) => deserialize(data) as SavedProgress).catch(() => ({ rounds: 0 }));
+  const save = async () => {
+    await writeFile(`${checkpointFile}.tmp`, serialize(saved));
+    await rename(`${checkpointFile}.tmp`, checkpointFile);
+  };
   const instructions = await v6Instructions();
   // Só um telefone que vira link válido conta: um número inválido seria apagado no pós-processamento e
   // deixaria chamadas como "Ligar para" sem o número.
   const contact = { hasPhone: !!normalizeWhatsappPhone(request.phone) };
   let writer: Writer | undefined;
   let images: Awaited<ReturnType<typeof resolveImageEngine>> | undefined;
+  const checkpoint = async () => {
+    writer?.suspendTimeout?.();
+    images?.codex?.suspendTimeout();
+    try { await progress.checkpoint?.(); }
+    finally { writer?.restartTimeout?.(); images?.codex?.restartTimeout(); }
+  };
   try {
     progress.phase("Conferindo geradores de texto e imagem");
     images = await resolveImageEngine(workspace);
@@ -122,35 +136,60 @@ export async function generateV6(jobId: string, request: V6Request, progress: V6
 
     progress.phase("Etapas 1–3: analisando o negócio e definindo a direção de arte");
     const firstPrompt = briefPrompt(request.business, contact, request.history);
-    let brief = await writer.structured(firstPrompt, siteBriefSchema, "high");
-    for (let round = 0; round < V6_LIMITS.briefCorrections; round += 1) {
+    let brief = saved.brief ?? await writer.structured(firstPrompt, siteBriefSchema, "high");
+    saved.brief = brief;
+    await save();
+    await checkpoint();
+    for (let round = 0; !saved.approved && round < V6_LIMITS.briefCorrections; round += 1) {
       const issues = historyIssues(brief, request.history, request.business.segment);
       if (!issues.length) break;
       progress.phase("Revisando a direção para não repetir demos anteriores");
       brief = await writer.structured(`${firstPrompt}\n\nSeu briefing anterior: ${JSON.stringify(brief)}\n\n${correctBriefPrompt(issues)}`, siteBriefSchema, "medium");
+      saved.brief = brief;
+      saved.approved = true;
+      await save();
+      await checkpoint();
     }
+    saved.approved = true;
+    await save();
 
     progress.phase(`Etapa 4: escrevendo o código e gerando ${brief.images.length} imagem(ns)`);
-    const imageJob = produceImages(brief, request, images, progress);
+    const imageJob = saved.assets ? Promise.resolve(saved.assets) : produceImages(brief, request, images, progress);
+    const codeJob = () => saved.code ? Promise.resolve(saved.code) : writer!.structured(codePrompt(request.business, brief, contact), siteCodeSchema, "high");
     // Com Codex escrevendo o texto e gerando a imagem, o mesmo app-server atende um turno por vez.
     const codeFirst = request.textProvider === "codex";
     let code: SiteCode;
     let assets: Awaited<typeof imageJob>;
-    if (codeFirst) { code = await writer.structured(codePrompt(request.business, brief, contact), siteCodeSchema, "high"); assets = await imageJob; }
-    else [code, assets] = await Promise.all([writer.structured(codePrompt(request.business, brief, contact), siteCodeSchema, "high"), imageJob]);
+    if (codeFirst) { code = await codeJob(); assets = await imageJob; }
+    else [code, assets] = await Promise.all([codeJob(), imageJob]);
+    saved.code = code;
+    saved.assets = assets;
+    await save();
+    await checkpoint();
 
     const assetPaths = new Map(assets.map((asset) => [asset.id, asset.path]));
     const assetFiles = assets.map((asset) => asset.path);
     const historyTexts = request.history.filter((item) => item.segment === request.business.segment).map((item) => ({ headline: item.headline, texts: item.texts }));
-    let rounds = 0;
+    let rounds = saved.rounds;
     let final = postprocessSite({ code, business: request.business, phone: request.phone, assets: assetPaths });
-    let checked = await audit(final, brief, assetFiles, assets, historyTexts, workspace, progress);
+    let checked = saved.checked ?? await audit(final, brief, assetFiles, assets, historyTexts, workspace, progress);
+    saved.checked = checked;
+    await save();
+    await checkpoint();
     while ((checked.critical.length || checked.fixable.length) && rounds < V6_LIMITS.fixRounds) {
       rounds += 1;
       progress.phase(`Etapa 5: corrigindo ${checked.critical.length + checked.fixable.length} problema(s) encontrados`);
       code = await writer.structured(`${codePrompt(request.business, brief, contact)}\n\n${fixPrompt(code, [...checked.critical, ...checked.fixable])}`, siteCodeSchema, "medium");
+      saved.code = code;
+      saved.rounds = rounds;
+      saved.checked = undefined;
+      await save();
+      await checkpoint();
       final = postprocessSite({ code, business: request.business, phone: request.phone, assets: assetPaths });
       checked = await audit(final, brief, assetFiles, assets, historyTexts, workspace, progress);
+      saved.checked = checked;
+      await save();
+      await checkpoint();
     }
     if (checked.critical.length) throw new Error(`A demo não passou nas verificações obrigatórias: ${checked.critical.join(" ")}`);
 
@@ -176,11 +215,11 @@ export async function generateV6(jobId: string, request: V6Request, progress: V6
       images: assets.map((asset) => ({ id: asset.id, path: asset.path, source: asset.source, sha256: sha256(asset.data), alt: asset.alt })),
       preview: !!checked.shots["shot-1440.png"], summary: summarize(final.html, brief), qa,
     });
+    await rm(workspace, { recursive: true, force: true }).catch(() => {});
     return { site, message: brief.message, estimatedUsd: writer.estimatedUsd, imageEngine: images.engine };
   } finally {
     writer?.close();
     images?.codex?.close();
-    await rm(workspace, { recursive: true, force: true }).catch(() => {});
   }
 }
 
