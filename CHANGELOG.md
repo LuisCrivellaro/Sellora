@@ -9,6 +9,8 @@
 - Centralizada a versão em `version.json`, com sequência de dois componentes e avanço de 1.9 para 2.0.
 - Adicionado o comando de atualização validada, com proteção contra incrementos repetidos, restauração da versão em caso de falha e atualização do atalho do Windows.
 - Incluídos testes de isolamento entre gerações individuais, lote e controles, além da validação do desktop em perfil separado.
+- Cloud 3D: perfis completos dos agentes Gerador de Demos, Prospecção e Coolify Deploy Agent no Agent Editor do Claw3D (Identity, Soul, Agents, User, Tools, Memory, Heartbeat). Perfis versionados em `integrations/claw3d/agent-profiles/`; edições feitas no escritório ficam no estado local do Claw3D, com cópia de segurança, e não alteram nenhum serviço. Nome, credenciais e agentes continuam sob controle da Sellora.
+- Cloud 3D: agentes exibidos como Website Designer, Lead Generation Specialist e Deployment Manager (ids internos inalterados). Renomear pelo Agent Editor do Claw3D agora funciona e o nome persiste após recarregar e reiniciar o app.
 
 ## 1.0 — 2026-11-13
 

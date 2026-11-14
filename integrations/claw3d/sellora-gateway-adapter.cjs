@@ -23,6 +23,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 const { WebSocketServer } = require("ws");
 const core = require("./sellora-gateway-core.cjs");
+const { createProfileStore } = require("./sellora-agent-profiles.cjs");
 
 const PORT = Number.parseInt(process.env.SELLORA_ADAPTER_PORT || "18790", 10);
 const BRIDGE_URL = (process.env.SELLORA_BRIDGE_URL || "http://127.0.0.1:3187").replace(/\/$/, "");
@@ -58,6 +59,14 @@ function syncTaskBoard() {
     } catch (error) { console.warn(`[sellora-gateway] Kanban não atualizado: ${error.message}`); }
   }, 400);
 }
+// Perfis do Agent Editor (Identity, Soul, Agents, User, Tools, Memory, Heartbeat): padrão versionado copiado pelo
+// launcher para server/sellora-agent-profiles/; edições feitas no Claw3D ficam no estado privado dele, com backup.
+// Nenhum serviço da Sellora lê esses arquivos: editar não inicia nem altera execuções.
+const profiles = createProfileStore({
+  defaultsDir: path.join(__dirname, "sellora-agent-profiles"),
+  overridesDir: process.env.OPENCLAW_STATE_DIR ? path.join(process.env.OPENCLAW_STATE_DIR, "claw3d", "agent-profiles") : null,
+  agentName: (agentId) => state.agents.get(agentId)?.name ?? null,
+});
 const clients = new Set();
 
 const safeEqual = (a, b) => {
@@ -145,14 +154,18 @@ wss.on("connection", (ws) => {
       }
       authorized = true;
       clients.add(send);
-      ws.send(JSON.stringify({ type: "res", id: message.id, ok: true, payload: core.helloPayload(state) }));
+      ws.send(JSON.stringify({ type: "res", id: message.id, ok: true, payload: core.helloPayload(state, { profiles }) }));
       return;
     }
     if (!authorized) {
       ws.send(JSON.stringify({ type: "res", id: message.id, ok: false, error: { code: "not_connected", message: "Envie connect primeiro." } }));
       return;
     }
-    ws.send(JSON.stringify(core.handleMethod(state, message.method, message.params, message.id)));
+    const response = core.handleMethod(state, message.method, message.params, message.id, { profiles });
+    ws.send(JSON.stringify(response));
+    // Nome de exibição alterado no Agent Editor: avisa os demais clientes (ex.: a aba Cloud 3D e outra janela) para
+    // recarregarem a lista de agentes com o nome novo.
+    if (message.method === "agents.update" && response.ok) broadcast(core.presenceFrames(state));
     // O Claw3D só aplica eventos de agentes que já carregou: reenvia o estado das execuções em andamento
     // depois que o cliente pede a lista de agentes (conexão nova ou recarga da página).
     if (message.method === "agents.list" && !replayed) {

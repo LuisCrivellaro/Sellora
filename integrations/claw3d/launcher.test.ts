@@ -1,8 +1,9 @@
-import { mkdtempSync, readFileSync, writeFileSync, mkdirSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { expect, it } from "vitest";
-import { frameHeaders, writeStudioSettings } from "./launcher.mjs";
+import { fileURLToPath } from "node:url";
+import { ADAPTER_FILES, frameHeaders, installAdapterFiles, writeStudioSettings } from "./launcher.mjs";
 
 it("devolve o escritório ao andar da Sellora (perfis openclaw e demo no adaptador) sem apagar as outras preferências", () => {
   const stateDir = mkdtempSync(path.join(os.tmpdir(), "claw3d-state-"));
@@ -40,4 +41,18 @@ it("proxy só libera o enquadramento para as origens locais da Sellora", () => {
   expect(headers["content-security-policy"]).toContain("frame-ancestors 'self' http://localhost:3100");
   expect(headers["content-security-policy"]).toContain("http://127.0.0.1:3187");
   expect(headers["content-security-policy"]).not.toContain("upgrade-insecure-requests");
+});
+
+it("copia adaptador e perfis dos agentes para server/ do Claw3D, sem sobrar perfil antigo", () => {
+  const appDir = mkdtempSync(path.join(os.tmpdir(), "claw3d-app-"));
+  const stale = path.join(appDir, "server", "sellora-agent-profiles", "antigo");
+  mkdirSync(stale, { recursive: true });
+  writeFileSync(path.join(stale, "SOUL.md"), "removido do repositório");
+  installAdapterFiles(path.dirname(fileURLToPath(import.meta.url)), appDir);
+  for (const file of ADAPTER_FILES) expect(existsSync(path.join(appDir, "server", file))).toBe(true);
+  for (const agent of ["gerador-de-demos", "prospeccao", "coolify-deploy"]) {
+    expect(existsSync(path.join(appDir, "server", "sellora-agent-profiles", agent, "IDENTITY.md"))).toBe(true);
+  }
+  expect(existsSync(path.join(appDir, "server", "sellora-agent-profiles", "_shared", "USER.md"))).toBe(true);
+  expect(existsSync(stale)).toBe(false);
 });

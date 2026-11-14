@@ -18,13 +18,13 @@ const HELLO_ADAPTER_TYPE = process.env.SELLORA_HELLO_ADAPTER || "hermes";
 const READ_ONLY_MESSAGE =
   "Cloud 3D da Sellora é só observação: execuções começam e terminam no próprio aplicativo Sellora.";
 const MUTATING_METHODS = new Set([
-  "chat.send", "chat.abort", "agents.create", "agents.update", "agents.delete", "agents.files.set",
+  "chat.send", "chat.abort", "agents.create", "agents.delete",
   "config.set", "config.patch", "exec.approvals.set", "exec.approval.resolve", "cron.add", "cron.run",
   "cron.remove", "sessions.patch", "sessions.reset", "agents.message", "agents.handoff",
 ]);
 const SUPPORTED_METHODS = [
   "agents.list", "sessions.list", "sessions.preview", "chat.history", "agent.wait", "status", "config.get",
-  "agents.files.get", "exec.approvals.get", "skills.status", "models.list", "cron.list", "wake",
+  "agents.files.get", "agents.files.set", "agents.update", "exec.approvals.get", "skills.status", "models.list", "cron.list", "wake",
 ];
 
 const sessionKeyFor = (agentId) => `agent:${agentId}:${MAIN_KEY}`;
@@ -35,8 +35,8 @@ const sessionKeyFor = (agentId) => `agent:${agentId}:${MAIN_KEY}`;
  */
 const COOLIFY_AGENT = "coolify-deploy";
 const AGENT_PROFILE = {
-  "gerador-de-demos": { emoji: "🛠️", request: "Gerar demo V6", done: "Concluído, aguardando revisão humana", completes: false },
-  prospeccao: { emoji: "🔎", request: "Pesquisar estabelecimentos", done: "Concluído, aguardando revisão humana", completes: true },
+  "gerador-de-demos": { emoji: "🎨", request: "Gerar demo V6", done: "Concluído, aguardando revisão humana", completes: false },
+  prospeccao: { emoji: "🎯", request: "Pesquisar estabelecimentos", done: "Concluído, aguardando revisão humana", completes: true },
   [COOLIFY_AGENT]: { emoji: "🚀", request: "Publicar demo", done: "Publicação confirmada (conteúdo conferido no endereço)", completes: true },
 };
 const profileOf = (agentId) => AGENT_PROFILE[agentId] ?? AGENT_PROFILE["gerador-de-demos"];
@@ -227,10 +227,16 @@ function applyBridgeEvent(state, eventName, data) {
 
 // Sob o personagem o Claw3D mostra o nome numa plaquinha e o `role` como subtítulo. O subtítulo vai vazio:
 // o escritório mostra só o nome; a descrição completa do agente fica no painel da Sellora.
-function agentList(state) {
+// Nome de exibição: única fonte é o `Name` do IDENTITY.md efetivo (editável pelo Agent Editor); o nome do bridge é o
+// rótulo interno do serviço e só aparece se o perfil não existir. O id nunca muda. O emoji também vem do IDENTITY.md.
+function displayName(agent, profiles) {
+  return profiles?.nameOf(agent.id) || agent.name;
+}
+
+function agentList(state, profiles) {
   return [...state.agents.values()].map((agent) => ({
-    id: agent.id, name: agent.name, workspace: `sellora://agents/${agent.id}`, role: "",
-    identity: { name: agent.name, emoji: profileOf(agent.id).emoji },
+    id: agent.id, name: displayName(agent, profiles), workspace: `sellora://agents/${agent.id}`, role: "",
+    identity: { name: displayName(agent, profiles), emoji: profiles?.emojiOf(agent.id) || profileOf(agent.id).emoji },
   }));
 }
 
@@ -257,18 +263,23 @@ const ok = (id, payload) => ({ type: "res", id, ok: true, payload: payload ?? {}
 const fail = (id, code, message) => ({ type: "res", id, ok: false, error: { code, message } });
 const agentFromSession = (key) => (str(key).startsWith("agent:") ? str(key).split(":")[1] : "");
 
-function handleMethod(state, method, params, id) {
+/**
+ * Responde a um método do Claw3D. `options.profiles` (sellora-agent-profiles.cjs) habilita as abas do Agent Editor:
+ * sem ele, os arquivos aparecem ausentes e `agents.files.set` é recusado como antes.
+ */
+function handleMethod(state, method, params, id, options = {}) {
   const p = params && typeof params === "object" ? params : {};
+  const profiles = options.profiles ?? null;
   if (MUTATING_METHODS.has(method)) return fail(id, "read_only", READ_ONLY_MESSAGE);
   const defaultId = state.agents.keys().next().value ?? "";
   switch (method) {
     case "agents.list":
-      return ok(id, { defaultId, mainKey: MAIN_KEY, agents: agentList(state) });
+      return ok(id, { defaultId, mainKey: MAIN_KEY, agents: agentList(state, profiles) });
     case "sessions.list":
       return ok(id, {
         sessions: [...state.agents.values()].map((agent) => ({
           key: sessionKeyFor(agent.id), agentId: agent.id, updatedAt: state.active.has(agent.id) ? Date.now() : null,
-          displayName: "Execuções reais", origin: { label: agent.name, provider: "sellora" }, model: agent.runtime, modelProvider: "sellora",
+          displayName: "Execuções reais", origin: { label: displayName(agent, profiles), provider: "sellora" }, model: agent.runtime, modelProvider: "sellora",
         })),
       });
     case "sessions.preview": {
@@ -290,8 +301,34 @@ function handleMethod(state, method, params, id) {
       return ok(id, presenceFrame(state).payload);
     case "config.get":
       return ok(id, { config: { gateway: { reload: { mode: "hot" } } }, hash: "sellora", exists: true, path: "sellora://config" });
-    case "agents.files.get":
-      return ok(id, { file: { missing: true } });
+    case "agents.files.get": {
+      const agentId = str(p.agentId);
+      if (!profiles || !state.agents.has(agentId)) return ok(id, { file: { missing: true } });
+      try {
+        return ok(id, { workspace: `sellora://agents/${agentId}`, file: profiles.get(agentId, str(p.name)) });
+      } catch (error) { return fail(id, error.code || "invalid_request", error.message); }
+    }
+    case "agents.files.set": {
+      // Perfis são documentação exibida no editor: não iniciam, alteram nem configuram execuções da Sellora.
+      if (!profiles) return fail(id, "read_only", READ_ONLY_MESSAGE);
+      const agentId = str(p.agentId);
+      try {
+        const saved = profiles.set(agentId, str(p.name), p.content);
+        return ok(id, { ok: true, agentId, name: str(p.name), path: saved.path, changed: saved.changed });
+      } catch (error) { return fail(id, error.code || "invalid_request", error.message); }
+    }
+    case "agents.update": {
+      // Só o nome de exibição (o Claw3D chama depois de salvar o Identity). Modelo, workspace, ferramentas ou
+      // qualquer outro campo continuam recusados: o agente representa um serviço configurado na Sellora.
+      const extra = Object.keys(p).filter((key) => key !== "agentId" && key !== "name");
+      const agentId = str(p.agentId);
+      if (!profiles || extra.length || typeof p.name !== "string") return fail(id, "read_only", READ_ONLY_MESSAGE);
+      if (!state.agents.has(agentId)) return fail(id, "unknown_agent", "Agente não registrado no Sellora Agent Bridge.");
+      try {
+        const renamed = profiles.rename(agentId, p.name);
+        return ok(id, { ok: true, agentId, name: renamed.name });
+      } catch (error) { return fail(id, error.code || "invalid_request", error.message); }
+    }
     case "exec.approvals.get":
       return ok(id, { path: "", exists: true, hash: "sellora", file: { version: 1, defaults: { security: "deny", ask: "always", autoAllowSkills: false }, agents: {} } });
     case "skills.status":
@@ -308,18 +345,23 @@ function handleMethod(state, method, params, id) {
   }
 }
 
-function helloPayload(state) {
+function helloPayload(state, options = {}) {
   const agents = [...state.agents.values()];
   return {
     type: "hello-ok", protocol: 3, adapterType: HELLO_ADAPTER_TYPE,
     features: { methods: SUPPORTED_METHODS, events: ["agent", "presence", "heartbeat"] },
     snapshot: {
-      health: { agents: agents.map((agent, index) => ({ agentId: agent.id, name: agent.name, isDefault: index === 0 })), defaultAgentId: agents[0]?.id ?? "" },
+      health: { agents: agents.map((agent, index) => ({ agentId: agent.id, name: displayName(agent, options.profiles ?? null), isDefault: index === 0 })), defaultAgentId: agents[0]?.id ?? "" },
       sessionDefaults: { mainKey: MAIN_KEY },
     },
     auth: { role: "operator", scopes: ["operator.read"] },
     policy: { tickIntervalMs: 30000 },
   };
+}
+
+/** Presença atual: depois de renomear, faz os outros clientes conectados recarregarem a lista de agentes. */
+function presenceFrames(state) {
+  return [presenceFrame(state)];
 }
 
 /** Frames que um cliente recém-conectado precisa para mostrar execuções já em andamento. */
@@ -430,5 +472,5 @@ function taskBoardStore(state, existing) {
 
 module.exports = {
   MAIN_KEY, READ_ONLY_MESSAGE, SUPPORTED_METHODS, sessionKeyFor, createState, applyBridgeEvent, handleMethod,
-  helloPayload, replayFrames, createSseParser, skillsReport, runToTask, taskBoardStore, TASK_PREFIX,
+  helloPayload, replayFrames, presenceFrames, createSseParser, skillsReport, runToTask, taskBoardStore, TASK_PREFIX,
 };

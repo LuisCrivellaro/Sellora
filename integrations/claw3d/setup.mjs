@@ -9,10 +9,11 @@
 // Padrão: `~/.sellora/claw3d/app`, fora do repositório: o Claw3D grava estado e cache em tempo de execução,
 // e arquivos mudando dentro do projeto fazem o dev server do Next recarregar a página (e o iframe) em loop.
 import { spawnSync } from "node:child_process";
-import { copyFileSync, existsSync, mkdirSync, readFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { installAdapterFiles } from "./launcher.mjs";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(here, "..", "..");
@@ -56,7 +57,6 @@ const license = readFileSync(path.join(target, "LICENSE"), "utf8");
 if (!/MIT License/i.test(license)) throw new Error("Licença do Claw3D diferente da MIT registrada: revise antes de continuar.");
 
 if (!existsSync(path.join(target, "node_modules", "next"))) run(npm, ["ci", "--no-audit", "--no-fund"], target);
-copyFileSync(path.join(here, "sellora-gateway-adapter.cjs"), path.join(target, "server", "sellora-gateway-adapter.cjs"));
-copyFileSync(path.join(here, "sellora-gateway-core.cjs"), path.join(target, "server", "sellora-gateway-core.cjs"));
+installAdapterFiles(here, target);
 if (!skipBuild && !existsSync(path.join(target, ".next", "BUILD_ID"))) run(npm, ["run", "build"], target);
 console.log(`Claw3D pronto em ${target} (commit ${pin.commit}).`);

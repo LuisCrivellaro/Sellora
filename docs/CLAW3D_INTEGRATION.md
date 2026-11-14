@@ -96,6 +96,34 @@ Detalhes que o código do Claw3D exige (descobertos nos testes): numeração `se
 - O adaptador guarda as execuções que começam e terminam durante a sessão (`state.finished`), senão o Kanban as perdia até a próxima reconexão (valia também para as demos).
 - Teste real (2026-11-13): pesquisas de Valinhos/SP e Vinhedo/SP (5 km, todos os segmentos) pela API da Sellora: agente trabalhando com a etapa real, fim em ocioso, cartão In progress durante e Done depois ("Pesquisa concluída: 10 oportunidade(s) classificadas."); aba Cloud 3D com as duas faixas e "2 AGENTS" no escritório.
 
+## Perfis dos agentes no Agent Editor (2026-11-13)
+
+O Agent Editor do Claw3D tem as abas Identity, Avatar, Soul, Agents, User, Tools, Memory e Heartbeat. As abas de arquivo leem e gravam pelo gateway (`agents.files.get` / `agents.files.set`); o Avatar é separado e fica no `settings.json` do Claw3D (`avatars[<url do gateway>][<agentId>]`), sem relação com os arquivos.
+
+- **Não é um workspace OpenClaw.** O gateway é o adaptador da Sellora; nenhum serviço (gerador, prospecção, publicação) lê esses arquivos. São documentação exibida no escritório: editar não inicia, altera nem configura execuções, e não muda prompts, modelos, limites ou regras.
+- **Padrão versionado:** `integrations/claw3d/agent-profiles/<agentId>/{IDENTITY,SOUL,AGENTS,TOOLS,MEMORY,HEARTBEAT}.md` e `agent-profiles/_shared/USER.md` (um único contexto do administrador para os três). O launcher e o `setup.mjs` copiam a pasta para `server/sellora-agent-profiles/` do checkout (recriada a cada início). O `CLAUDE.md`/`AGENTS.md` da raiz da Sellora não são usados nem alterados.
+- **Edições feitas no Claw3D:** `<estado>/claw3d/agent-profiles/<agentId>/<arquivo>` (dev: `~/.sellora/claw3d/state`; app Windows: `%APPDATA%/sellora/claw3d/state`), fora do Git, gravação atômica e até 5 cópias `*.bak` com data antes de cada gravação. Salvar um texto igual ao padrão apaga a edição local (o backup fica). O editor grava as 7 abas a cada "Save"; arquivos sem mudança não são regravados.
+- **Recusas (mensagem aparece no editor):** agente que o bridge não declarou, arquivo fora das 7 abas, mais de 64 KB, conteúdo com padrão de credencial (chaves `sk-`, `ghp_`, `github_pat_`, token do Coolify, JWT, chave privada, `api_key=`/`token=`/`senha=` com valor longo) e IDENTITY.md sem nome (ou com mais de 60 caracteres). Criar e apagar agentes, chat, config, cron e handoff continuam `read_only` (o botão "Delete Agent" do Claw3D não tem efeito); `agents.update` só aceita o nome (ver abaixo).
+- **Identity:** só os campos que o Claw3D serializa (Name, Creature/Role, Vibe, Emoji, Avatar). Avatar fica vazio de propósito: a aparência é a da aba Avatar. O emoji do `agents.list` vem do IDENTITY.md; o escritório não o desenha.
+
+### Nomes de exibição (2026-11-13)
+
+| id (não muda) | Serviço (nome interno no bridge) | Nome padrão no escritório |
+| --- | --- | --- |
+| `gerador-de-demos` | Gerador de Demos | 🎨 Website Designer |
+| `prospeccao` | Prospecção | 🎯 Lead Generation Specialist |
+| `coolify-deploy` | Coolify Deploy Agent | 🚀 Deployment Manager |
+
+- **Fonte única do nome no escritório:** o `Name` do IDENTITY.md efetivo (edição local, se houver; senão o padrão versionado). O adaptador usa esse nome em `agents.list`, no handshake (`hello-ok`) e em `sessions.list`. O nome do bridge (`src/lib/agents/bridge.ts`) é o rótulo interno do serviço e só aparece se o perfil não existir. Ids, pastas, avatar (chaveado pelo id), Kanban e execuções não dependem do nome.
+- **Renomear pelo Claw3D:** Identity → Name → Save. O Claw3D grava o IDENTITY.md (`agents.files.set`) e chama `agents.update { agentId, name }`; o adaptador aceita só esse formato (qualquer outro campo, como modelo ou workspace, continua `read_only`), troca a linha `- Name:` preservando os demais campos e envia `presence` para os outros clientes conectados recarregarem a lista. A interface atualiza na hora.
+- **Persistência:** a edição fica em `<estado>/claw3d/agent-profiles/<id>/IDENTITY.md` (app Windows: `%APPDATA%/sellora/claw3d/state`), que sobrevive a recarga, reinício do app e atualização do `.exe`. O launcher recopia só os padrões; um padrão nunca sobrescreve uma edição local. Voltar ao nome padrão apaga a edição local (o backup fica).
+- **Causa do problema anterior:** o adaptador recusava `agents.update` e travava o `Name` do IDENTITY.md no nome do bridge; o `agents.list` sempre devolvia o nome fixo do bridge, então qualquer troca se perdia na recarga.
+- **Heartbeat:** desativado em todos; o arquivo só documenta isso. O evento `heartbeat` do adaptador (30 s) apenas mantém a conexão.
+- Código: `integrations/claw3d/sellora-agent-profiles.cjs` (store), `sellora-gateway-core.cjs` (`agents.files.*`, opção `profiles`), `sellora-gateway-adapter.cjs`, `launcher.mjs` (`installAdapterFiles`). Testes: `sellora-agent-profiles.test.ts` e `launcher.test.ts`.
+- **App Windows:** o `.exe` já compilado continua com o adaptador anterior (abas vazias, salvar recusado). Os perfis passam a aparecer depois do próximo `npm run desktop:build` (que copia `integrations/claw3d`), ou no desenvolvimento com `node integrations/claw3d/launcher.mjs`.
+
+Teste real (2026-11-13): instância isolada (adaptador em 18890, Claw3D em 3291, estado em pasta temporária) ligada ao bridge do app aberto, só leitura. Os três agentes abriram as 7 abas com o conteúdo versionado; uma linha nova no Memory foi salva, sobreviveu à recarga da página e, removida pela UI, apagou a edição local deixando o backup; trocar o Name e colar um "api_key" foram recusados com a mensagem no editor; agentes continuaram ociosos e nenhum arquivo de jobs, pesquisas, publicações ou sites mudou.
+
 ## Limitações conhecidas
 
 - Checkout e estado do Claw3D ficam **fora** do repositório (`~/.sellora/claw3d/`; no app empacotado, `%APPDATA%/sellora/claw3d/`). Dentro do projeto, o `settings.json` que o Claw3D grava ao conectar fazia o dev server do Next recarregar a aba Cloud 3D em loop (o iframe gravava de novo a cada recarga).

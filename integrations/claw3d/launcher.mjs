@@ -10,7 +10,7 @@ import { randomBytes } from "node:crypto";
 import http from "node:http";
 import net from "node:net";
 import os from "node:os";
-import { copyFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { copyFileSync, cpSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -107,6 +107,27 @@ export function writeStudioSettings(stateDir, { adapterPort, token }) {
   writeFileSync(file, JSON.stringify(next, null, 2), { encoding: "utf8", mode: 0o600 });
 }
 
+/** Arquivos do adaptador copiados para server/ do Claw3D (o checkout do Claw3D em si não é alterado). */
+export const ADAPTER_FILES = ["sellora-gateway-adapter.cjs", "sellora-gateway-core.cjs", "sellora-agent-profiles.cjs"];
+
+/**
+ * Copia o adaptador e os perfis padrão dos agentes (integrations/claw3d/agent-profiles → server/sellora-agent-profiles).
+ * A pasta de perfis é recriada a cada cópia para não sobrar arquivo removido do repositório. Edições feitas no
+ * Agent Editor não ficam aqui: ficam no estado privado do Claw3D.
+ */
+export function installAdapterFiles(sourceDir, appDir) {
+  for (const file of ADAPTER_FILES) {
+    const source = path.join(sourceDir, file);
+    if (existsSync(source)) copyFileSync(source, path.join(appDir, "server", file));
+  }
+  const profiles = path.join(sourceDir, "agent-profiles");
+  if (existsSync(profiles)) {
+    const target = path.join(appDir, "server", "sellora-agent-profiles");
+    rmSync(target, { recursive: true, force: true });
+    cpSync(profiles, target, { recursive: true });
+  }
+}
+
 /**
  * Inicia os dois processos. Retorna { url, stop, done }.
  * appDir: checkout do Claw3D preparado por setup.mjs; stateDir: pasta privada de estado.
@@ -116,10 +137,7 @@ export function startClaw3d({ appDir, stateDir, bridgeUrl, port = CLAW3D_DEFAULT
   // O adaptador roda de dentro do checkout do Claw3D (usa o `ws` de lá): copia a versão que acompanha esta
   // Sellora a cada início, para uma atualização do app não ficar com o adaptador antigo.
   const here = path.dirname(fileURLToPath(import.meta.url));
-  for (const file of ["sellora-gateway-adapter.cjs", "sellora-gateway-core.cjs"]) {
-    const source = path.join(here, file);
-    if (existsSync(source)) copyFileSync(source, path.join(appDir, "server", file));
-  }
+  installAdapterFiles(here, appDir);
   if (!existsSync(path.join(appDir, "server", "sellora-gateway-adapter.cjs"))) throw new Error("Adaptador Sellora ausente no Claw3D. Rode o setup novamente.");
   const token = randomBytes(24).toString("base64url");
   writeStudioSettings(stateDir, { adapterPort, token });
