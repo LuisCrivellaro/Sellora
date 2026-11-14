@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { siteRefSchema } from "./v6/schema";
+import { siteRefSchema, visualIdentitySchema } from "./v6/schema";
 
 const copy = (max: number) => z.string().trim().min(3).max(max);
 const hexColor = z.string().regex(/^#[0-9a-f]{6}$/i);
@@ -38,6 +38,8 @@ export const creativeReferenceSchema = z.object({
   style: z.object({
     fonts: z.array(z.string().max(40)).max(2), palette: z.array(z.string().max(9)).max(6),
     sections: z.array(z.string().max(40)).max(9), hero: z.string().max(200), headline: z.string().max(200),
+    /** Identidade visual estruturada (demos V6 gravadas a partir de 2026-11-13). */
+    identity: visualIdentitySchema.optional(),
   }).strict().optional(),
 }).strict();
 export type CreativeReference = z.infer<typeof creativeReferenceSchema>;
@@ -84,6 +86,10 @@ export type GenerationResult = z.infer<typeof generationResultSchema>;
 export interface DemoTextProviderStatus {
   available: boolean;
   message: string;
+  /** Perfil do Claude Code usado pelas demos: conta dedicada (SELLORA_DEMO_CLAUDE_CONFIG_DIR) ou o perfil padrão. */
+  profile?: "dedicated" | "default";
+  /** Procedimento de login quando a conta dedicada não está conectada (sem credenciais). */
+  setup?: string;
 }
 
 export interface DemoGenerationStatus {
@@ -110,6 +116,8 @@ export interface DemoGenerationJob {
   /** Consumo estimado pelo Claude Code em dólares equivalentes de API. No plano de assinatura, sai da cota do plano. */
   textEstimatedUsd?: number | null;
   status: "running" | "paused" | "cancelled" | "completed" | "failed";
+  /** V6: falha com etapas salvas no checkpoint; "Tentar novamente" retoma o mesmo trabalho sem refazer o que já foi feito. */
+  recoverable?: boolean;
   phase: string;
   result: GenerationResult | null;
   error: string | null;

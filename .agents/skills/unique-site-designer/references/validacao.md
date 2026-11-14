@@ -15,6 +15,28 @@ Para a avaliação visual, escolha a demo mais parecida do mesmo nicho e inclua 
 
 A primeira dobra deve continuar distinguível quando o nome e a cor de destaque forem ocultados. A sequência da página e a forma de guiar até a ação principal devem ter uma razão ligada ao conteúdo. Para o vizinho mais semelhante, descreva diferenças concretas em composição, estrutura das seções, tipografia, paleta, direção de imagens, texto e identidade visual. Se a marca já definir fontes ou cores, registre a restrição e obtenha a diferença pelos demais eixos. Rótulos convencionais como **Contato**, avisos de demo e componentes utilitários podem ser compartilhados.
 
+## Originalidade estruturada
+
+Compare por eixos, do mais estrutural ao mais superficial. Semelhança relevante é a que sobrevive quando nome e cor são ocultados; coincidências utilitárias (mesmo rótulo "Ver como chegar", mesma fonte de leitura, seção Contato) não reprovam sozinhas.
+
+| Eixo | Peso no V6 | O que conta como repetição |
+| --- | --- | --- |
+| Arquétipo do hero | alto | mesmo arquétipo (foto-painel, colunas, tipográfico, moldura, grade, cor sólida, faixa panorâmica, índice) das duas demos mais recentes |
+| Esqueleto de seções | alto | mesma sequência de funções (hero → apresentação → oferta → processo → perguntas → contato) em duas das seis mais recentes |
+| Tipografia | médio | mesma fonte de destaque entre as quatro mais recentes ou no mesmo segmento; mesma fonte de leitura em duas das quatro mais recentes |
+| Paleta | médio | conta, mas trocar só a cor de uma estrutura igual é **repetição com troca de cor** |
+| Imagem | médio | mesma proporção e mesmo tipo de cena (ambiente amplo, detalhe, natureza-morta, mãos) |
+| Título e chamadas | baixo | mesma construção depois de retirar nome, cidade e UF |
+
+No V6 a comparação é automática (`identity.ts`): acima do limite de repetição o briefing é replanejado antes do código; entre "parecida" e "repetida" a demo segue com nota para revisão humana. Demos gravadas antes da identidade estruturada são comparadas só pelos eixos que existem nelas (hero, fontes, paleta, seções e título); registre essa cobertura parcial.
+
+## Qualidade da imagem
+
+- A especificação nasce da direção de arte (assunto, contexto, estilo, luz, enquadramento, profundidade, proporção, área livre para texto, cores e restrições), nunca de um pedido genérico.
+- Pessoas fictícias em situação realista do segmento (atendendo, trabalhando, conversando) são permitidas e ajudam o impacto, desde que a demo nunca as apresente como a equipe, os clientes ou o local reais. Recuse imagem com texto legível, logotipo, placa, pessoa real ou famosa reconhecível, fachada que pareça o local real, produto de marca, ou que sugira credencial, resultado ou serviço não confirmado. Recuse também a que contradiz a paleta ou o tom.
+- Num conjunto de até três imagens (V6), cada uma tem papel próprio no layout; duas fotos com o mesmo assunto e enquadramento contam como repetição.
+- Uma composição gráfica no lugar da imagem (gerador indisponível) nunca conta como demo aprovada: fica pendente até a imagem ser gerada.
+
 Uma foto criativa reaproveitada entre negócios reprova a revisão. Compare a origem e o hash disponível. Verifique lado a lado reenquadramentos, espelhamentos, filtros, arquivos renomeados e versões exportadas do mesmo original. Quando o acervo disponível estiver esgotado, faça uma nova seleção com direitos verificados ou use um conceito sem fotografia adequado ao briefing.
 
 Uma frase criativa ou mensagem de abordagem reaproveitada entre negócios também reprova. Para detectar o molde, retire temporariamente nomes, cidades, links e variáveis. Ignore diferenças de acento, caixa, pontuação e espaços. Releia o que sobrou e procure uma abertura, construção de promessa ou sequência de argumentos reaproveitada com trocas cosméticas. A nova redação deve refletir informações confirmadas do negócio ou explicar a proposta específica da demo. Trate preços, serviços, avaliações, resultados, endereço e horários sem confirmação como pendências.

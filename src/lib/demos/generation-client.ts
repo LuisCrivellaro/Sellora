@@ -18,6 +18,8 @@ const queueItemSchema = z.object({
   /** Fixado ao entrar na fila: trocar a opção não altera um lote já em andamento. */
   textProvider: demoTextProviderSchema.optional(),
   imageProvider: storedImageProviderSchema.optional(),
+  /** V6: a falha deixou etapas salvas; "Tentar novamente" reusa o mesmo id e retoma do checkpoint. */
+  recoverable: z.boolean().optional(),
 });
 export type DemoQueueItem = z.infer<typeof queueItemSchema>;
 interface GeneratorState { connection: DemoGenerationStatus | null; items: DemoQueueItem[]; textProvider: DemoTextProvider; imageProvider: DemoImageProvider; pausingIds: string[] }
@@ -47,12 +49,12 @@ export function setDemoTextProvider(textProvider: DemoTextProvider) {
   set({ ...state, textProvider });
 }
 
-/** O serviço de texto escolhido precisa estar conectado. Imagens vêm do Codex ou, sem ele, da composição gráfica gratuita. */
-export function canGenerateDemos(snapshot: Pick<GeneratorState, "connection" | "textProvider" | "imageProvider">): boolean {
-  const connection = snapshot.connection;
-  if (!connection) return false;
-  // V6: a imagem nunca bloqueia a geração (sem gerador disponível entra a composição SVG gratuita); o texto sim.
-  return snapshot.textProvider === "claude" ? !!connection.claude?.available : connection.connected;
+/**
+ * V6: Claude escreve textos, design e código, então a conta Claude das demos precisa estar conectada. A imagem nunca
+ * bloqueia (sem Codex entra a composição SVG gratuita, marcada para revisão).
+ */
+export function canGenerateDemos(snapshot: Pick<GeneratorState, "connection">): boolean {
+  return !!snapshot.connection?.claude?.available;
 }
 function update(id: string, changes: Partial<DemoQueueItem>) {
   set({ ...state, items: state.items.map((item) => item.id === id ? { ...item, ...changes } : item) });
@@ -75,7 +77,7 @@ function historyReferences(): CreativeReference[] {
     const signature = site ? site.summary.signature : lead.demo.creation ? creationSignature(lead.demo.creation) : `v${lead.demo.version}:${lead.demo.design?.layout ?? lead.demo.conceptId ?? "original"}`;
     return [{ segment: lead.demo.business.segment, signature, photoOrigin: content.photoOrigin, imageDescription: site?.images[0]?.alt ?? imageDescription,
       texts: content.texts.slice(0, 20).map((text) => withoutBusinessFields(text, lead.demo!.business)), message: withoutBusinessFields(content.message, lead.demo.business),
-      ...(site ? { style: { fonts: site.summary.fonts, palette: site.summary.palette, sections: site.summary.sections, hero: site.summary.hero, headline: withoutBusinessFields(site.summary.headline, lead.demo.business).slice(0, 200) } } : {}) }];
+      ...(site ? { style: { fonts: site.summary.fonts, palette: site.summary.palette, sections: site.summary.sections, hero: site.summary.hero, headline: withoutBusinessFields(site.summary.headline, lead.demo.business).slice(0, 200), ...(site.summary.identity ? { identity: site.summary.identity } : {}) } } : {}) }];
   });
 }
 
@@ -100,7 +102,7 @@ async function run(item: DemoQueueItem) {
       item = { ...item, expectedRevision: demoRevision(lead.demo), expectedBusiness: JSON.stringify(business) };
       update(item.id, { expectedRevision: item.expectedRevision, expectedBusiness: item.expectedBusiness });
     }
-    const response = await fetch("/api/demos/jobs", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: item.id, business: publicContext, history, textProvider: item.textProvider ?? "claude", imageProvider: "codex", generator: "v6", phone: business.phone ?? "", leadId: item.leadId }) });
+    const response = await fetch("/api/demos/jobs", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: item.id, business: publicContext, history, textProvider: "claude", imageProvider: "codex", generator: "v6", phone: business.phone ?? "", leadId: item.leadId }) });
     if (response.status === 429) { await delay(3000); return false; }
     const data = await response.json();
     if (!response.ok) throw new Error(data.error || "Não foi possível iniciar a geração.");
@@ -135,7 +137,10 @@ async function run(item: DemoQueueItem) {
     return false;
   }
   if (job.status === "cancelled") { update(item.id, { status: "cancelled", phase: "Geração cancelada", error: null }); return false; }
-  if (job.status !== "completed" || !job.result) throw new Error(job.error || "A geração não foi concluída.");
+  if (job.status !== "completed" || !job.result) {
+    if (job.status === "failed") update(item.id, { recoverable: !!job.recoverable });
+    throw new Error(job.error || "A geração não foi concluída.");
+  }
   const latest = getDb().leads.find((lead) => lead.id === item.leadId);
   if (!latest || JSON.stringify(latest.demo?.business ?? demoBusinessSchema.parse(latest)) !== item.expectedBusiness) throw new Error("Os dados do negócio mudaram durante a geração. Gere novamente com o cadastro atual.");
   applyGeneratedLeadDemo(item.leadId, job.result, item.expectedRevision);
@@ -169,7 +174,10 @@ export function enqueueDemoGeneration(leadIds: string[]) {
   const active = new Set(pending.filter((item) => item.status === "queued" || item.status === "running").map((item) => item.leadId));
   const additions: DemoQueueItem[] = ids.filter((id) => !active.has(id)).map((leadId) => {
     const paused = state.items.find((item) => item.leadId === leadId && item.status === "paused");
-    return paused ? { ...paused, id: paused.resumeStatus === "running" ? paused.id : crypto.randomUUID(), status: paused.resumeStatus ?? "queued", phase: "Retomando geração solicitada", error: null }
+    if (paused) return { ...paused, id: paused.resumeStatus === "running" ? paused.id : crypto.randomUUID(), status: paused.resumeStatus ?? "queued", phase: "Retomando geração solicitada", error: null };
+    // Falha recuperável do V6: o mesmo id retoma do checkpoint no servidor (não refaz briefing, código nem imagem).
+    const failed = state.items.find((item) => item.leadId === leadId && item.status === "failed" && item.recoverable);
+    return failed ? { ...failed, status: "queued" as const, phase: "Retomando das etapas salvas", error: null, recoverable: false }
       : { leadId, id: crypto.randomUUID(), status: "queued", phase: "Na fila de geração", error: null, expectedRevision: null, textProvider: state.textProvider, imageProvider: state.imageProvider };
   });
   set({ ...state, items: [...pending, ...additions] });

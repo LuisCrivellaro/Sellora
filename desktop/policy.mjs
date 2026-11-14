@@ -13,7 +13,7 @@ export function navigationKind(value, origin) {
  * O pacote não leva .env; este arquivo fica no perfil do Windows, fora do Git e do instalador.
  * Só chaves conhecidas são aceitas: nada de PATH, NODE_OPTIONS ou outras variáveis que mudem o runtime.
  */
-export const USER_CONFIG_KEYS = /^(COOLIFY_[A-Z_]+|SELLORA_DEMOS_[A-Z_]+|SELLORA_CLAW3D_DIR|SELLORA_CLAUDE_(PATH|MODEL)|SELLORA_CODEX_PATH)$/;
+export const USER_CONFIG_KEYS = /^(COOLIFY_[A-Z_]+|SELLORA_DEMOS_[A-Z_]+|SELLORA_CLAW3D_DIR|SELLORA_CLAUDE_(PATH|MODEL)|SELLORA_CODEX_PATH|SELLORA_DEMO_CLAUDE_CONFIG_DIR|SELLORA_DEMO_MAX_IMAGES|SELLORA_DEMO_VISUAL_REVIEW_ROUNDS)$/;
 
 export function parseUserConfig(text) {
   const values = {};
@@ -49,4 +49,13 @@ SELLORA_DEMOS_BASE_DOMAIN=
 
 # Cloud 3D: pasta do Claw3D já preparado (deixe vazio para usar a pasta padrão do app).
 SELLORA_CLAW3D_DIR=
+
+# Gerador de demos: conta Claude separada só para as demos (ex.: C:\Users\voce\AppData\Roaming\sellora\claude-demos).
+# Vazio = perfil padrão do Claude Code. Com a pasta definida, faça o login uma vez nela (o app mostra o comando);
+# sem login, a geração para e nunca usa a conta principal no lugar.
+SELLORA_DEMO_CLAUDE_CONFIG_DIR=
+# Imagens geradas pelo Codex por demo (1 a 3; padrão 3, cada uma com papel próprio). Menos imagens = menos cota do ChatGPT.
+SELLORA_DEMO_MAX_IMAGES=3
+# Rodadas da revisão de impacto visual (0 a 3; padrão 2; 0 desliga). Cada rodada = 1 correção + 1 avaliação no Claude.
+# SELLORA_DEMO_VISUAL_REVIEW_ROUNDS=2
 `;

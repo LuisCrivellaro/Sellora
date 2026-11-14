@@ -26,7 +26,12 @@ try {
     if (!ready) await new Promise((resolve) => setTimeout(resolve, 500));
   }
   assert.ok(ready, "O portátil não iniciou o servidor no perfil isolado");
-  const title = powershell(`${testProcesses} | ForEach-Object { (Get-Process -Id $_.ProcessId -ErrorAction SilentlyContinue).MainWindowTitle }`).stdout;
+  // A janela só é criada depois que o main.mjs confirma a rota de status (logo após o "Ready"): espera o título aparecer.
+  let title = "";
+  for (const until = Date.now() + 30000; !title.includes(`Sellora ${displayVersion(version)}`) && Date.now() < until;) {
+    title = powershell(`${testProcesses} | ForEach-Object { (Get-Process -Id $_.ProcessId -ErrorAction SilentlyContinue).MainWindowTitle }`).stdout;
+    if (!title.includes(`Sellora ${displayVersion(version)}`)) await new Promise((resolve) => setTimeout(resolve, 500));
+  }
   assert.ok(title.includes(`Sellora ${displayVersion(version)}`), "A janela desktop deve exibir a versão candidata");
   browser = await chromium.launch({ channel: "msedge", headless: true });
   const context = await browser.newContext();

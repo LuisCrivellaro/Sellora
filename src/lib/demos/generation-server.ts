@@ -7,7 +7,7 @@ import { normalizeCreativeText } from "./concepts";
 import { creationContrastIssues, creationSignature, creativeReferenceSchema, demoTextProviderSchema, generatedCreationSchema, generationResultSchema, type CreationDraft, type DemoGenerationJob, type DemoImageProvider, type GenerationResult } from "./creation";
 import { demoDataRoot, LocalCodex } from "./codex-server";
 import { ClaudeWriter } from "./claude-server";
-import { generateV6 } from "./v6/generator";
+import { generateV6, V6GenerationError } from "./v6/generator";
 import { withoutBusinessFields } from "./creative-review";
 import { correctionPrompt, draftPrompt, skillInstructions } from "./generation-prompts";
 
@@ -154,7 +154,7 @@ async function withSavedHistory(request: GenerationRequest): Promise<GenerationR
         const s = result.site.summary;
         sites.push({ at: String(saved.finishedAt ?? result.site.createdAt ?? ""), reference: { segment: business.segment, signature: s.signature, photoOrigin: result.site.images[0]?.sha256 ?? null, imageDescription: result.site.images[0]?.alt,
           texts: s.texts.slice(0, 20).map((text) => withoutBusinessFields(text, business)), message: withoutBusinessFields(result.message, business),
-          style: { fonts: s.fonts, palette: s.palette, sections: s.sections, hero: s.hero, headline: withoutBusinessFields(s.headline, business).slice(0, 200) } } });
+          style: { fonts: s.fonts, palette: s.palette, sections: s.sections, hero: s.hero, headline: withoutBusinessFields(s.headline, business).slice(0, 200), ...(s.identity ? { identity: s.identity } : {}) } } });
         continue;
       }
       const c = result.creation!;
@@ -180,16 +180,20 @@ async function executeV6(job: DemoGenerationJob, request: GenerationRequest) {
   try {
     request = await withSavedHistory(request);
     const history = request.history.filter((item) => item.style).map((item) => ({ segment: item.segment, ...item.style!, texts: item.texts }));
-    const result = await generateV6(job.id, { business: request.business, phone: request.phone, history, textProvider: request.textProvider, imageProvider: request.imageProvider }, { phase: (text) => phase(job, text), checkpoint: () => checkpoint(job) });
+    // V6: Claude escreve texto, design e código; o Codex só gera imagens.
+    const result = await generateV6(job.id, { business: request.business, phone: request.phone, history, textProvider: "claude", imageProvider: request.imageProvider }, { phase: (text) => phase(job, text), checkpoint: () => checkpoint(job) });
     job.textEstimatedUsd = result.estimatedUsd;
-    const finished: DemoGenerationJob = { ...job, status: "completed", phase: "Demo pronta para revisão", finishedAt: new Date().toISOString(), result: { site: result.site, message: result.message, textProvider: request.textProvider, imageProvider: request.imageProvider }, error: null };
+    const ready = result.site.qa.status === "needs_review" ? "Demo pronta, com pendências para revisão" : "Demo pronta para revisão";
+    const finished: DemoGenerationJob = { ...job, status: "completed", recoverable: false, phase: ready, finishedAt: new Date().toISOString(), result: { site: result.site, message: result.message, textProvider: "claude", imageProvider: request.imageProvider }, error: null };
     finished.events = [...(job.events ?? []), { at: finished.finishedAt!, phase: finished.phase }];
     await persist(finished);
     Object.assign(job, finished);
   } catch (error) {
     const at = new Date().toISOString();
-    Object.assign(job, { status: "failed", phase: "Geração interrompida", finishedAt: at, events: [...(job.events ?? []), { at, phase: "Geração interrompida" }], result: null, error: error instanceof Error ? error.message : "Não foi possível gerar a demo." });
-    if (error instanceof DemoCancelledError) Object.assign(job, { status: "cancelled", phase: "Geração cancelada", error: null });
+    const recoverable = error instanceof V6GenerationError && error.recoverable;
+    const label = recoverable ? "Geração interrompida (etapas salvas para retomar)" : "Geração interrompida";
+    Object.assign(job, { status: "failed", recoverable, phase: label, finishedAt: at, events: [...(job.events ?? []), { at, phase: label }], result: null, error: error instanceof Error ? error.message : "Não foi possível gerar a demo." });
+    if (error instanceof DemoCancelledError) Object.assign(job, { status: "cancelled", recoverable: false, phase: "Geração cancelada", error: null });
     await persist(job).catch(() => {});
   }
 }
@@ -268,11 +272,21 @@ export function startDemoGeneration(request: GenerationRequest): Promise<DemoGen
     const businessKey = JSON.stringify(request.business);
     if (existing) {
       if (existing.businessKey !== businessKey) throw new Error("Este trabalho pertence a outro cadastro.");
+      // V6 com falha recuperável: o mesmo id retoma do checkpoint (briefing, imagem e código já salvos).
+      if (existing.status === "failed" && existing.recoverable && existing.generator === "v6") {
+        if ([...jobs.values()].some((job) => job.id !== existing.id && job.status === "running")) throw new DemoBusyError("Há uma geração em andamento. O próximo item começará ao terminar.");
+        const saved = generationRequestSchema.parse(JSON.parse(await readFile(requestFile(existing.id), "utf8")));
+        const retry: DemoGenerationJob = { ...existing, status: "running", recoverable: false, phase: "Retomando a partir das etapas salvas", error: null, finishedAt: undefined, events: [...(existing.events ?? []), { at: new Date().toISOString(), phase: "Retomando a partir das etapas salvas" }] };
+        jobs.set(retry.id, retry);
+        await persist(retry);
+        launchExecution(retry, { ...saved, phone: request.phone || saved.phone });
+        return retry;
+      }
       return existing;
     }
     if ([...jobs.values()].some((job) => job.status === "running")) throw new DemoBusyError("Há uma geração em andamento. O próximo item começará ao terminar.");
     if (request.leadId && [...jobs.values()].some((job) => job.leadId === request.leadId && job.status === "paused")) throw new DemoBusyError("Este estabelecimento já tem uma geração pausada. Retome o trabalho existente.");
-    const job: DemoGenerationJob = { id: request.id, businessKey, textProvider: request.textProvider, imageProvider: request.imageProvider, generator: request.generator, leadId: request.leadId, startedAt: new Date().toISOString(), events: [{ at: new Date().toISOString(), phase: "Preparando a geração" }], status: "running", phase: "Preparando a geração", error: null, result: null };
+    const job: DemoGenerationJob = { id: request.id, businessKey, textProvider: request.generator === "v6" ? "claude" : request.textProvider, imageProvider: request.imageProvider, generator: request.generator, leadId: request.leadId, startedAt: new Date().toISOString(), events: [{ at: new Date().toISOString(), phase: "Preparando a geração" }], status: "running", phase: "Preparando a geração", error: null, result: null };
     jobs.set(job.id, job);
     try {
       await mkdir(path.join(demoDataRoot(), "requests"), { recursive: true });

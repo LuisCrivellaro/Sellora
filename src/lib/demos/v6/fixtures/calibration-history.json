@@ -1,0 +1,152 @@
+{
+ "source": "Demos V6 reais de teste (negócios fictícios \"… Teste Sellora\"), briefs gravados em 2026-11-12; só os campos usados na comparação.",
+ "items": [
+  {
+   "site": "f2d9b0ce",
+   "createdAt": "2026-11-12T22:55:50.033Z",
+   "segment": "beleza",
+   "specificSegment": "Barbearia em Campinas (SP), corte de cabelo e barba",
+   "fonts": [
+    "Big Shoulders Display",
+    "Figtree"
+   ],
+   "palette": [
+    "#f1ebe0",
+    "#e4dac7",
+    "#16221c",
+    "#4f5650",
+    "#b3261e",
+    "#fff8ee"
+   ],
+   "sections": [
+    "hero",
+    "apresentacao",
+    "servicos",
+    "faixa",
+    "atendimento",
+    "duvidas",
+    "contato"
+   ],
+   "hero": "Foto de ponta a ponta em 100svh, com painel plano creme no canto inferior esquerdo, sem gradiente: h1 com categoria e cidade, frase curta e dois botões (WhatsApp e ligar).",
+   "imageAspect": "16:9",
+   "imageStyle": "Fotografia editorial de natureza-morta e interiores, sem pessoas: luz quente lateral de fim de tarde, couro, metal escovado, azulejo verde, toalhas dobradas. Profundidade de campo curta, grão leve, cores naturais e sem texto."
+  },
+  {
+   "site": "871275a1",
+   "createdAt": "2026-11-12T23:22:20.133Z",
+   "segment": "restaurantes",
+   "specificSegment": "Restaurante em Ribeirão Preto, SP, sem tipo de cozinha informado",
+   "fonts": [
+    "Young Serif",
+    "Hanken Grotesk"
+   ],
+   "palette": [
+    "#f4ebdc",
+    "#e9dcc6",
+    "#2a1a12",
+    "#5e4a3c",
+    "#a8341c",
+    "#fff6ea"
+   ],
+   "sections": [
+    "inicio",
+    "casa",
+    "mesa",
+    "visita",
+    "duvidas",
+    "contato",
+    "rodape"
+   ],
+   "hero": "Fotografia de ponta a ponta na primeira tela (100svh), h1 grande embaixo à esquerda sobre faixa de cor plana escura, com a cidade e o botão de WhatsApp logo abaixo.",
+   "imageAspect": "16:9",
+   "imageStyle": "Fotografia editorial de luz natural quente e lateral, cores terrosas, pouca profundidade de campo, superfícies de madeira e cerâmica, sem pessoas, sem texto e sem marcas."
+  },
+  {
+   "site": "9469cd61",
+   "createdAt": "2026-11-12T23:51:45.836Z",
+   "segment": "saude",
+   "specificSegment": "Clínica odontológica geral em Sorocaba (SP)",
+   "fonts": [
+    "Young Serif",
+    "Figtree"
+   ],
+   "palette": [
+    "#f6f3ee",
+    "#e9e4da",
+    "#14302f",
+    "#4d5f5c",
+    "#0f5c59",
+    "#f6f3ee"
+   ],
+   "sections": [
+    "inicio",
+    "clinica",
+    "cuidados",
+    "atendimento",
+    "duvidas",
+    "contato",
+    "rodape"
+   ],
+   "hero": "Fotografia de ponta a ponta em 100svh. Um painel plano de cor creme, ancorado embaixo à esquerda no container, leva o h1 com dentista e Sorocaba, uma frase e dois botões.",
+   "imageAspect": "16:9",
+   "imageStyle": "Fotografia editorial de interiores, luz natural suave de janela, tons creme e verde, foco em objetos e ambiente, sem pessoas, sem texto e sem logotipos. Lente 35 a 50 mm, profundidade de campo rasa."
+  },
+  {
+   "site": "fd67a0e7",
+   "createdAt": "2026-11-13T00:19:09.880Z",
+   "segment": "restaurantes",
+   "specificSegment": "Restaurante em Ribeirão Preto (SP), sem especialidade ou tipo de cozinha informados",
+   "fonts": [
+    "Bricolage Grotesque",
+    "Source Serif 4"
+   ],
+   "palette": [
+    "#14201b",
+    "#1e2f27",
+    "#f1ecdf",
+    "#b4bdb0",
+    "#e0a43a",
+    "#14201b"
+   ],
+   "sections": [
+    "topo",
+    "prato",
+    "cozinha",
+    "chegar",
+    "rodape"
+   ],
+   "hero": "[tipografico] Fundo verde chapado. O h1 \"Restaurante Teste Sellora, Ribeirão Preto\" em escala muito grande ocupa a largura do container. Abaixo, faixa larga do salão e o botão \"Ver como chegar\".",
+   "imageAspect": "16:9",
+   "imageStyle": "Fotografia editorial em luz natural baixa e quente, cores fiéis e sem filtro exagerado. Close e planos médios de louça, madeira, panela e salão vazio. Sem pessoas, texto, logotipos ou fachada."
+  },
+  {
+   "site": "562f0fac",
+   "createdAt": "2026-11-13T01:14:05.180Z",
+   "segment": "servicos",
+   "specificSegment": "Oficina mecânica automotiva (inferido do nome e da categoria de serviços)",
+   "fonts": [
+    "Big Shoulders Display",
+    "Figtree"
+   ],
+   "palette": [
+    "#f4f1ea",
+    "#e7e2d6",
+    "#1b1f23",
+    "#565c61",
+    "#c2410c",
+    "#ffffff"
+   ],
+   "sections": [
+    "inicio",
+    "oficina",
+    "servicos",
+    "atendimento",
+    "duvidas",
+    "contato"
+   ],
+   "hero": "[colunas] Fundo claro. À esquerda, h1 \"Oficina mecânica em Sumaré\", uma frase e dois botões. À direita, foto vertical recortada do cofre do motor, sem sobreposição. No celular, texto e depois a foto.",
+   "imageAspect": "4:5",
+   "imageStyle": "Fotografia realista de oficina em luz natural de galpão, cores sóbrias, foco nítido em metal, motor e ferramentas, sem pessoas, sem texto e sem marcas. Ilustrativa, não retrata o local."
+  }
+ ]
+}

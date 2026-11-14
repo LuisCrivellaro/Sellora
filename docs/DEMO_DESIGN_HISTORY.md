@@ -43,3 +43,21 @@ Sites locais em `.sellora-data/sites/<id>` (fora do Git). Textos e código: Clau
 | Restaurante v2 | `fd67a0e7-…` | tipografico (fundo verde, título gigante, foto em faixa) | Bricolage Grotesque + Source Serif 4 | Depois da rotação de arquétipos e da correção do telefone: só "Ver como chegar" |
 
 Achado da comparação: as três primeiras variavam paleta e tipografia, mas repetiam a estrutura do hero. O guia V6 passou a exigir um arquétipo nomeado e o gerador recusa o arquétipo das duas demos mais recentes de qualquer segmento. Fontes já usadas no acervo de teste: Young Serif aparece duas vezes (restaurante e clínica), um ponto a vigiar se a repetição de fontes entre segmentos virar padrão.
+
+## Identidade estruturada e calibração (2026-11-13)
+
+O V6 passou a gravar em cada demo uma identidade visual (`summary.identity`: arquétipo do hero, funções das seções, fontes e categoria, tom, fundo e destaque, proporção da imagem, palavras do estilo fotográfico, título sem nome/cidade, chamadas). A comparação (`src/lib/demos/v6/identity.ts`) pesa hero 22%, seções 20%, tipografia 16%, paleta 12%, título 10%, imagem 8%, fotografia 6% e chamadas 6%. Repetição: ≥ 62% no mesmo segmento, ≥ 72% entre segmentos; "parecida" (nota para revisão): ≥ 45% e ≥ 50%. Estrutura igual com troca de cor é tratada como repetição.
+
+Calibração com os briefs reais das cinco demos de teste acima (fixture `src/lib/demos/v6/fixtures/calibration-history.json`, só campos de comparação):
+
+| Par | Semelhança | Veredito | Por quê |
+| --- | --- | --- | --- |
+| Restaurante v1 × Clínica | 81% | repetição com troca de cor | mesmo hero foto-painel, mesmo esqueleto, Young Serif nas duas |
+| Barbearia × Clínica | 72% | repetida | mesmo hero e esqueleto, paleta creme |
+| Barbearia × Restaurante v1 | 68% | parecida | mesmo hero; fontes diferentes |
+| Oficina × Barbearia | 53% | parecida | hero diferente, mas Big Shoulders + Figtree e o mesmo esqueleto |
+| Restaurante v2 × Restaurante v1 | 26% | distinta | tipográfico, fundo escuro, outras fontes e seções |
+
+Regras de acervo aplicadas além da comparação par a par: hero fora das duas demos mais recentes; fonte de destaque fora das quatro mais recentes e do mesmo segmento; fonte de leitura em no máximo uma das quatro mais recentes; esqueleto de funções de seção em no máximo uma das seis mais recentes. Com essas regras, a oficina e a clínica teriam sido replanejadas antes do código (teste `identity.test.ts`).
+
+Limites: demos gravadas antes de 2026-11-13 só têm hero, fontes, paleta, seções e título — a comparação usa esses eixos e o relatório informa quantas demos tinham identidade parcial. O histórico comparado é o do CRM e o dos trabalhos salvos neste computador; demos de outros computadores não entram. Qualidade estética, adequação da imagem e naturalidade do texto continuam na revisão humana (capturas no relatório).

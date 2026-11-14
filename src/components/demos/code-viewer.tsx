@@ -5,10 +5,11 @@ import { Check, Copy, Download, FileArchive, FileCode2, ImageIcon, RefreshCw } f
 import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { highlightLines, languageOf, type TokenKind } from "@/lib/demos/v6/highlight";
+import { qaGroups, qaStatusLabel, visualLabel, type QaSummary } from "@/lib/demos/v6/qa-label";
 import { cn } from "@/lib/utils";
 
 interface CodeFile { path: string; size: number; sha256: string; kind: "text" | "binary"; content: string | null }
-interface Loaded { files: CodeFile[]; qa: { status: string; browser: string; rounds: number; issues: string[] } | null }
+interface Loaded { files: CodeFile[]; qa: QaSummary | null }
 
 const tone: Record<TokenKind, string> = {
   plain: "text-[#d8d4cc]", comment: "text-[#7d8590] italic", tag: "text-[#e8907a]", attr: "text-[#e5c07b]", string: "text-[#98c379]",
@@ -74,7 +75,7 @@ export function CodeViewer({ siteId, businessName }: { siteId: string; businessN
         </pre>
         : <div className="grid place-items-center gap-3 p-6"><img src={`/sites/${siteId}/${file.path}`} alt={`Arquivo ${file.path}`} className="max-h-[60vh] max-w-full rounded-lg border border-seam object-contain" /><p className="text-[12px] text-ink-faint">Imagem usada pelo site ({formatSize(file.size)}). Ilustrativa; não representa o estabelecimento.</p></div>}
     </div>
-    {data.qa && <details className="border-t border-seam px-3 py-2 text-[12px] text-ink-soft"><summary className="cursor-pointer font-semibold">Verificação automática: {data.qa.status === "passed" ? "sem problemas" : `${data.qa.issues.length} aviso(s)`} · navegador real {data.qa.browser === "executed" ? "executado" : "não executado"} · {data.qa.rounds} rodada(s) de correção</summary>
-      <ul className="mt-2 list-disc space-y-1 pl-4">{data.qa.issues.length ? data.qa.issues.map((issue) => <li key={issue}>{issue}</li>) : <li>Nenhum aviso.</li>}</ul></details>}
+    {data.qa && <details className="border-t border-seam px-3 py-2 text-[12px] text-ink-soft"><summary className="cursor-pointer font-semibold">Verificação automática: {qaStatusLabel(data.qa)} · navegador real {data.qa.browser === "executed" ? `executado${data.qa.viewports?.length ? ` (${data.qa.viewports.join(", ")} px)` : ""}` : "não executado"} · {data.qa.rounds} rodada(s) de correção{data.qa.resolved ? ` · ${data.qa.resolved} problema(s) corrigido(s)` : ""}{visualLabel(data.qa.visual) ? ` · ${visualLabel(data.qa.visual)}` : ""}</summary>
+      {qaGroups(data.qa).length ? qaGroups(data.qa).map((group) => <div key={group.title} className="mt-2"><p className="font-semibold text-ink">{group.title}</p><ul className="mt-1 list-disc space-y-1 pl-4">{group.items.map((issue) => <li key={issue}>{issue}</li>)}</ul></div>) : <p className="mt-2">Nenhum aviso.</p>}</details>}
   </section>;
 }

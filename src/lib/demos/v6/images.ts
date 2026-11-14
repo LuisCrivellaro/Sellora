@@ -1,30 +1,57 @@
 import { sha256 } from "./store";
-import type { SiteBrief } from "./schema";
+import type { ImageSpec, SiteBrief } from "./schema";
 
 export type ImageEngine = "codex" | "fallback";
-export interface SiteAsset { id: string; path: string; data: Buffer; source: ImageEngine; alt: string; error?: string }
+export interface SiteAsset { id: string; path: string; data: Buffer; source: ImageEngine; alt: string; width: number; height: number; error?: string }
 
-const ratio = (aspect: string) => { const [w, h] = aspect.split(":").map(Number); return w / h; };
+export const aspectRatio = (aspect: string) => { const [w, h] = aspect.split(":").map(Number); return w / h; };
+
+/** Dimensões nominais da proporção planejada (lado maior 2000 px no hero, 1600 nas demais). Vão para o prompt do código. */
+export function nominalSize(aspect: string, hero: boolean): { width: number; height: number } {
+  const long = hero ? 2000 : 1600;
+  const ratio = aspectRatio(aspect);
+  return ratio >= 1 ? { width: long, height: Math.round(long / ratio) } : { width: Math.round(long * ratio), height: long };
+}
+
+function pngSize(buffer: Buffer): { width: number; height: number } | null {
+  if (buffer.length < 24 || !buffer.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]))) return null;
+  return { width: buffer.readUInt32BE(16), height: buffer.readUInt32BE(20) };
+}
 
 /**
- * Otimiza para web com sharp (WebP, lado maior até 2000 px no hero e 1600 nas demais).
- * Sem sharp disponível, mantém o PNG original: o site continua correto, só mais pesado.
+ * Otimiza para web com sharp: recorta para a proporção planejada (estratégia "attention", que preserva o assunto),
+ * limita o lado maior (2000 px no hero, 1600 nas demais, sem ampliar) e converte para WebP.
+ * Sem sharp disponível, mantém o PNG original: o site continua correto (object-fit: cover), só mais pesado.
  */
-export async function optimizeForWeb(buffer: Buffer, hero: boolean): Promise<{ data: Buffer; extension: "webp" | "png" }> {
+export async function optimizeForWeb(buffer: Buffer, hero: boolean, aspect?: string): Promise<{ data: Buffer; extension: "webp" | "png"; width: number; height: number; cropped: boolean }> {
   try {
     const { default: sharp } = await import("sharp");
+    const meta = await sharp(buffer).metadata();
+    let pipeline = sharp(buffer).rotate();
+    let cropped = false;
+    if (aspect && meta.width && meta.height) {
+      const target = aspectRatio(aspect);
+      const current = meta.width / meta.height;
+      if (Math.abs(current - target) / target > 0.02) {
+        const width = current > target ? Math.round(meta.height * target) : meta.width;
+        const height = current > target ? meta.height : Math.round(meta.width / target);
+        pipeline = pipeline.resize({ width, height, fit: "cover", position: sharp.strategy.attention });
+        cropped = true;
+      }
+    }
     const size = hero ? 2000 : 1600;
-    const data = await sharp(buffer).rotate().resize({ width: size, height: size, fit: "inside", withoutEnlargement: true }).webp({ quality: 80, effort: 4 }).toBuffer();
-    return { data, extension: "webp" };
+    const { data, info } = await sharp(await pipeline.toBuffer()).resize({ width: size, height: size, fit: "inside", withoutEnlargement: true }).webp({ quality: 80, effort: 4 }).toBuffer({ resolveWithObject: true });
+    return { data, extension: "webp", width: info.width, height: info.height, cropped };
   } catch {
-    return { data: buffer, extension: "png" };
+    const size = pngSize(buffer) ?? { width: 1024, height: 1024 };
+    return { data: buffer, extension: "png", ...size, cropped: false };
   }
 }
 
 /** Composição SVG gratuita com a paleta do briefing: entra quando nenhum gerador de imagem está disponível. */
-export function fallbackArtwork(image: SiteBrief["images"][number], palette: SiteBrief["direction"]["palette"], seedText: string): Buffer {
+export function fallbackArtwork(image: Pick<ImageSpec, "id" | "aspect" | "alt">, palette: SiteBrief["direction"]["palette"], seedText: string): Buffer {
   const width = 1600;
-  const height = Math.round(width / ratio(image.aspect));
+  const height = Math.round(width / aspectRatio(image.aspect));
   let seed = parseInt(sha256(seedText + image.id).slice(0, 8), 16);
   const random = () => { seed = (seed * 1664525 + 1013904223) >>> 0; return seed / 2 ** 32; };
   // Composição nítida em faixas e arcos (estilo cartaz), sem desfoque: lê como peça gráfica, não como foto que falhou.
