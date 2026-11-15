@@ -7,23 +7,24 @@
  * para o protocolo de gateway que o Claw3D já consome (frames `event` "agent" com
  * stream "lifecycle"/"assistant" e "presence"), e responde aos métodos de leitura do Claw3D.
  *
- * Regras: só agentes que o bridge declara (nada fictício); só observação (métodos que
- * criam, alteram ou conversam são recusados); eventos repetidos não geram frames repetidos.
+ * Regras: só agentes declarados pelo bridge; consultas locais de texto não executam tarefas.
+ * Métodos que alteram execuções são recusados; eventos repetidos são deduplicados.
  */
 
 const MAIN_KEY = "main";
+const { randomUUID } = require("node:crypto");
 // Perfil anunciado no handshake: o Claw3D decide as capacidades da interface por ele. "hermes" habilita skills
 // (Kanban/task-manager) e coincide com o perfil configurado pelo launcher (conexão por token).
 const HELLO_ADAPTER_TYPE = process.env.SELLORA_HELLO_ADAPTER || "hermes";
 const READ_ONLY_MESSAGE =
-  "Cloud 3D da Sellora é só observação: execuções começam e terminam no próprio aplicativo Sellora.";
+  "O chat permite consultas locais. Para iniciar ou alterar tarefas, use os controles do aplicativo Sellora.";
 const MUTATING_METHODS = new Set([
-  "chat.send", "chat.abort", "agents.create", "agents.delete",
+  "chat.abort", "agents.create", "agents.delete",
   "config.set", "config.patch", "exec.approvals.set", "exec.approval.resolve", "cron.add", "cron.run",
-  "cron.remove", "sessions.patch", "sessions.reset", "agents.message", "agents.handoff",
+  "cron.remove", "agents.message", "agents.handoff",
 ]);
 const SUPPORTED_METHODS = [
-  "agents.list", "sessions.list", "sessions.preview", "chat.history", "agent.wait", "status", "config.get",
+  "agents.list", "sessions.list", "sessions.preview", "sessions.patch", "sessions.reset", "chat.history", "chat.send", "agent.wait", "status", "config.get",
   "agents.files.get", "agents.files.set", "agents.update", "exec.approvals.get", "skills.status", "models.list", "cron.list", "wake",
 ];
 
@@ -38,6 +39,7 @@ const AGENT_PROFILE = {
   "gerador-de-demos": { emoji: "🎨", request: "Gerar demo V6", done: "Concluído, aguardando revisão humana", completes: false },
   prospeccao: { emoji: "🎯", request: "Pesquisar estabelecimentos", done: "Concluído, aguardando revisão humana", completes: true },
   [COOLIFY_AGENT]: { emoji: "🚀", request: "Publicar demo", done: "Publicação confirmada (conteúdo conferido no endereço)", completes: true },
+  "revisor-de-demos": { emoji: "🔎", request: "Acompanhar QA da demo", done: "QA encerrado; confira as pendências antes de aprovar", completes: false },
 };
 const profileOf = (agentId) => AGENT_PROFILE[agentId] ?? AGENT_PROFILE["gerador-de-demos"];
 /** Texto do balão: no agente do Coolify, a etapa visual (Preparando/Publicando) vem antes da mensagem real. */
@@ -52,6 +54,9 @@ function createState() {
   return {
     /** agentId -> registro vindo do bridge */
     agents: new Map(),
+    chats: new Map(),
+    chatOnly: new Set(),
+    chatRequests: new Map(),
     /** agentId -> { runId, business, task, startedAt } da execução que o escritório mostra como ativa */
     active: new Map(),
     /** runId -> linhas do histórico (fases reais com horário) */
@@ -210,13 +215,14 @@ function applyBridgeEvent(state, eventName, data) {
     agent.status = "running";
     return [...startOrProgress(state, agentId, run, phase), presenceFrame(state)];
   }
-  agent.status = phase === "error" ? "failed" : "waiting_approval";
+  const reviewStatus = agentId === "revisor-de-demos" && ["completed", "waiting_approval", "queued", "paused", "failed", "cancelled"].includes(data.reviewStatus) ? data.reviewStatus : null;
+  agent.status = reviewStatus ?? (phase === "error" ? "failed" : "waiting_approval");
   agent.lastRun = { runId, business: run.business, task: run.text, siteId: data.siteId ?? null, leadId: data.leadId ?? null };
   const startedAt = state.active.get(agentId)?.runId === runId ? state.active.get(agentId).startedAt : null;
   state.finished.set(runId, {
     agentId, run: {
       runId, generator: str(data.generator), business: run.business, task: run.text, error: phase === "error" ? run.text : null,
-      status: phase === "error" ? (/interromp/i.test(run.text) ? "cancelled" : "failed") : profileOf(agentId).completes ? "completed" : "waiting_approval",
+      status: reviewStatus ?? (phase === "error" ? (/interromp/i.test(run.text) ? "cancelled" : "failed") : profileOf(agentId).completes ? "completed" : "waiting_approval"),
       startedAt, updatedAt: run.at, siteId: data.siteId ?? null, leadId: data.leadId ?? null,
       events: (state.history.get(runId) ?? []).map((line) => ({ at: line.at, phase: line.text })),
     },
@@ -240,7 +246,7 @@ function agentList(state, profiles) {
   }));
 }
 
-function messagesFor(state, agentId) {
+function runMessagesFor(state, agentId) {
   const agent = state.agents.get(agentId);
   if (!agent) return [];
   const active = state.active.get(agentId);
@@ -259,6 +265,32 @@ function messagesFor(state, agentId) {
   }))];
 }
 
+function messagesFor(state, agentId) {
+  return [...(state.chatOnly.has(agentId) ? [] : runMessagesFor(state, agentId)), ...(state.chats.get(agentId) ?? [])];
+}
+
+const CHAT_HELP = "Consultas locais, sem IA: status (o que está fazendo), histórico (últimas execuções), onde revisar e ajuda. Para iniciar, pausar, cancelar ou publicar, use os controles da Sellora. Nenhuma ação foi executada por este chat.";
+const STATUS_LABELS = { running: "Em andamento", queued: "Na fila", paused: "Pausada", completed: "Concluída", waiting_approval: "Aguardando revisão", failed: "Falhou", cancelled: "Cancelada", idle: "Disponível", offline: "Desconectado" };
+
+function localReply(state, agentId, message) {
+  const text = message.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9 ]/g, " ").replace(/\s+/g, " ").trim();
+  if (/^(ajuda|help|comandos|oi|ola)$/.test(text)) return CHAT_HELP;
+  if (/^(onde revisar|revisar|ver entrega|entregas)$/.test(text)) return "Abra Cloud 3D → Ver, testar e aprovar. Selecione a demo para testar em computador/celular, aprovar ou registrar ajustes. Para resultados da Prospecção, abra Leads no CRM.";
+  const status = /^(status|situacao|andamento|o?\s*que (voce |vc )?(esta |ta )?fazendo|historico|ultimas execucoes)$/.test(text);
+  if (!status) return CHAT_HELP;
+  if (!state.bridge.connected) return "O bridge está desconectado. Não consigo confirmar o status atual. Aguarde a reconexão; os dados anteriores podem estar desatualizados.";
+  const agent = state.agents.get(agentId);
+  const describe = (run) => `${STATUS_LABELS[run.status] ?? "Estado não informado"} · ${run.business || "Sem estabelecimento informado"} · ${run.task || "Etapa não informada"}${run.error ? ` · Erro: ${run.error}` : ""}`;
+  if (/historico|ultimas execucoes/.test(text)) {
+    const runs = [...new Map([agent.currentRun, agent.lastRun, ...agent.recent].filter(Boolean).map((run) => [run.runId, run])).values()].slice(0, 5);
+    return runs.length ? `Últimas execuções registradas:\n${runs.map(describe).join("\n")}` : "Nenhuma execução registrada para este agente.";
+  }
+  const active = state.active.get(agentId);
+  if (active) return `Em andamento · ${statusText(active.business, active.task)}. Consulta local, sem IA.`;
+  const last = agent.lastRun ?? agent.recent[0];
+  return `Nenhuma tarefa em execução neste momento.${last ? ` Última execução: ${describe(last)}.` : " Nenhuma execução registrada."}`;
+}
+
 const ok = (id, payload) => ({ type: "res", id, ok: true, payload: payload ?? {} });
 const fail = (id, code, message) => ({ type: "res", id, ok: false, error: { code, message } });
 const agentFromSession = (key) => (str(key).startsWith("agent:") ? str(key).split(":")[1] : "");
@@ -273,12 +305,53 @@ function handleMethod(state, method, params, id, options = {}) {
   if (MUTATING_METHODS.has(method)) return fail(id, "read_only", READ_ONLY_MESSAGE);
   const defaultId = state.agents.keys().next().value ?? "";
   switch (method) {
+    case "sessions.patch":
+    case "sessions.reset": {
+      const agentId = agentFromSession(p.key);
+      if (!state.agents.has(agentId) || p.key !== sessionKeyFor(agentId)) return fail(id, "unknown_agent", "Selecione a sessão principal de um agente registrado na Sellora.");
+      if (method === "sessions.reset") {
+        if (Object.keys(p).some((name) => name !== "key")) return fail(id, "invalid_request", "A limpeza aceita apenas a chave da conversa local.");
+        state.chats.delete(agentId);
+        state.chatOnly.add(agentId);
+        for (const key of state.chatRequests.keys()) if (key.startsWith(`${agentId}:`)) state.chatRequests.delete(key);
+        return ok(id, { ok: true, key: p.key });
+      }
+      // Compatibilidade com a preparação automática do Claw3D. Não configura nenhum modelo,
+      // processo ou permissão da Sellora: a conversa continua sendo uma consulta local.
+      const fields = new Set(["key", "model", "thinkingLevel", "execHost", "execSecurity", "execAsk"]);
+      if (Object.entries(p).some(([name, value]) => !fields.has(name) || (value !== null && (typeof value !== "string" || value.length > 200)))) return fail(id, "invalid_request", "Opções de conversa inválidas.");
+      if ((p.execSecurity != null && p.execSecurity !== "deny") || (p.execAsk != null && p.execAsk !== "always")) return fail(id, "read_only", "Consultas locais não permitem liberar execução de comandos.");
+      return ok(id, { ok: true, key: p.key, applied: false, resolved: { modelProvider: "sellora", model: "local-status" }, entry: { thinkingLevel: "off" } });
+    }
+    case "chat.send": {
+      const agentId = agentFromSession(p.sessionKey);
+      if (!state.agents.has(agentId) || p.sessionKey !== sessionKeyFor(agentId)) return fail(id, "unknown_agent", "Selecione a sessão principal de um agente registrado na Sellora.");
+      const message = str(p.message).trim();
+      if (!message || message.length > 2000 || (p.attachments && (!Array.isArray(p.attachments) || p.attachments.length))) return fail(id, "invalid_request", "Envie somente texto, com até 2000 caracteres.");
+      const key = typeof p.idempotencyKey === "string" && p.idempotencyKey.length <= 200 ? `${agentId}:${p.idempotencyKey}` : null;
+      if (key && state.chatRequests.has(key)) {
+        const cached = state.chatRequests.get(key);
+        return ok(id, cached);
+      }
+      const reply = localReply(state, agentId, message);
+      const runId = key ? p.idempotencyKey : randomUUID();
+      const timestamp = Math.max(Date.now(), (state.chats.get(agentId)?.at(-1)?.timestamp ?? 0) + 1);
+      state.chats.set(agentId, [...(state.chats.get(agentId) ?? []), { role: "user", content: message, timestamp, runId }, { role: "assistant", content: reply, timestamp: timestamp + 1, runId }].slice(-40));
+      // A consulta já terminou: o cliente suporta resposta imediata e conclui a conversa
+      // no mesmo fluxo do RPC. Anunciar streaming criaria corrida com o estado otimista da UI.
+      const payload = { status: "completed", runId, text: reply, reply };
+      if (key) {
+        state.chatRequests.set(key, payload);
+        if (state.chatRequests.size > 100) state.chatRequests.delete(state.chatRequests.keys().next().value);
+      }
+      return ok(id, payload);
+    }
     case "agents.list":
       return ok(id, { defaultId, mainKey: MAIN_KEY, agents: agentList(state, profiles) });
     case "sessions.list":
       return ok(id, {
         sessions: [...state.agents.values()].map((agent) => ({
-          key: sessionKeyFor(agent.id), agentId: agent.id, updatedAt: state.active.has(agent.id) ? Date.now() : null,
+          key: sessionKeyFor(agent.id), agentId: agent.id, updatedAt: state.active.has(agent.id) ? Date.now() : state.chats.get(agent.id)?.at(-1)?.timestamp ?? null,
           displayName: "Execuções reais", origin: { label: displayName(agent, profiles), provider: "sellora" }, model: agent.runtime, modelProvider: "sellora",
         })),
       });
@@ -365,8 +438,15 @@ function presenceFrames(state) {
 }
 
 /** Frames que um cliente recém-conectado precisa para mostrar execuções já em andamento. */
-function replayFrames(state) {
+function replayFrames(state, chatBefore = Infinity) {
   const frames = [];
+  for (const [agentId, messages] of state.chats) {
+    const last = messages.at(-1);
+    if (!state.agents.has(agentId) || state.active.has(agentId) || last?.role !== "assistant" || last.timestamp > chatBefore) continue;
+    // O Office não solicita histórico de agentes ociosos ao recarregar. O final de consulta
+    // reidrata a conversa pelo fluxo normal do Claw3D, sem inventar um lifecycle de trabalho.
+    frames.push(frame(state, "chat", { runId: last.runId, sessionKey: sessionKeyFor(agentId), state: "final", stopReason: "end_turn", message: { role: "assistant", content: last.content } }));
+  }
   for (const [agentId, run] of state.active) {
     frames.push(lifecycle(state, agentId, run.runId, "start", run.startedAt));
     frames.push(assistant(state, agentId, run.runId, statusText(run.business, run.task)));
@@ -437,7 +517,7 @@ function runToTask(run, agentId) {
         : "Somente leitura: aprove, recuse ou gere de novo pela Sellora (Leads → Demos).",
   ].filter(Boolean);
   return {
-    id: `${TASK_PREFIX}${str(run.runId)}`, title: prospect ? `Prospecção · ${str(run.business) || "pesquisa"}` : publish ? `Publicação · ${str(run.business) || "demo"}` : `${str(run.business) || "Estabelecimento"} · demo ${str(run.generator) === "v5" ? "v5" : "V6"}`,
+    id: `${TASK_PREFIX}${str(run.runId)}`, title: agentId === "revisor-de-demos" ? `Revisão QA · ${str(run.business) || "demo"}` : prospect ? `Prospecção · ${str(run.business) || "pesquisa"}` : publish ? `Publicação · ${str(run.business) || "demo"}` : `${str(run.business) || "Estabelecimento"} · demo ${str(run.generator) === "v5" ? "v5" : "V6"}`,
     description: lines.join(String.fromCharCode(10)), status, source: "openclaw_event", sourceEventId: str(run.runId) || null,
     assignedAgentId: agentId, createdAt: created, updatedAt: updated, playbookJobId: null, runId: str(run.runId) || null,
     channel: "sellora", externalThreadId: run.leadId ? str(run.leadId) : null, lastActivityAt: updated,

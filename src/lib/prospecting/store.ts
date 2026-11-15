@@ -11,6 +11,7 @@ import type { JobView, ProspectParams, ProspectResult } from "./types";
  */
 
 export interface ProspectSearch {
+  demoMode?: "manual" | "automatic" | "prepare";
   generateDemos?: boolean;
   demoSummary?: { generated: number; reused: number; ignored: number; invalid: number } | null;
   demoError?: string | null;
@@ -107,8 +108,9 @@ export function useProspects(): ProspectState {
   );
 }
 
-export function startSearch(job: JobView, generateDemos = false): ProspectSearch {
+export function startSearch(job: JobView, generateDemos = false, demoMode: "manual" | "automatic" | "prepare" = "manual"): ProspectSearch {
   const search: ProspectSearch = {
+    demoMode,
     generateDemos,
     id: job.id,
     jobId: job.id,

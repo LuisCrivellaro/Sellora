@@ -108,7 +108,7 @@ export function ProspectForm({ disabled, busy, onSubmit }: { disabled: boolean; 
       <Field label="Tipo de oportunidade" error={errors.opportunity} hint={opportunityMeta[values.opportunity].hint}>
         {(p) => <Select<OpportunityType> {...p} value={values.opportunity} onValueChange={(v) => set("opportunity", v)} options={OPPORTUNITY_TYPES.map((o) => ({ value: o, label: opportunityMeta[o].label }))} />}
       </Field>
-      <p className="rounded-xl border border-seam p-3 text-[12.5px] text-ink-soft">A busca seleciona até 10 leads qualificados por pontuação na região escolhida. Revise o diagnóstico e os contatos antes de gerar a prospecção com demo.</p>
+      <p className="rounded-xl border border-seam p-3 text-[12.5px] text-ink-soft">A busca seleciona até 10 leads qualificados por pontuação na região escolhida. Revise os contatos e o diagnóstico antes de importar ao CRM ou enviar ao gerador.</p>
       <div className="flex flex-wrap items-center gap-3 pt-1">
         <Button type="submit" variant="primary" loading={busy} disabled={disabled || !mun}>
           {!busy && <Search aria-hidden />} Buscar os 10 melhores leads

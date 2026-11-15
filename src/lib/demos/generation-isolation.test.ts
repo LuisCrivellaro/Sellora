@@ -39,6 +39,26 @@ it("um clique individual inicia somente o lead escolhido, mantendo os demais pau
   expect(queue().filter((item) => item.status === "paused").map((item) => item.leadId)).toEqual(leads.slice(1));
 });
 
+it("envio manual prepara apenas os leads escolhidos sem começar nem alterar demos existentes", async () => {
+  client.enqueueDemoGeneration([leads[0], leads[0]], { start: false });
+  expect(posts).toHaveLength(0);
+  expect(queue().filter((item) => item.status === "paused")).toHaveLength(3);
+  client.resumeDemoGeneration([leads[0]]);
+  await expect.poll(() => posts.length).toBe(1);
+  expect(posts[0].leadId).toBe(leads[0]);
+});
+
+it("preparar manualmente uma falha recuperável mantém o id das etapas salvas", async () => {
+  const saved = JSON.parse(memory.get("sellora-demo-generator-v1")!);
+  saved[0] = { ...saved[0], status: "failed", recoverable: true, error: "Limite temporário" };
+  memory.set("sellora-demo-generator-v1", JSON.stringify(saved));
+  client.enqueueDemoGeneration([leads[0]], { start: false });
+  expect(posts).toHaveLength(0);
+  client.resumeDemoGeneration([leads[0]]);
+  await expect.poll(() => posts.length).toBe(1);
+  expect(posts[0].id).toBe(saved[0].id);
+});
+
 it("retomar pela ficha individual mantém outros estabelecimentos pausados", async () => {
   // initialize() é acionado pela entrada normal da fila.
   client.enqueueDemoGeneration([]);

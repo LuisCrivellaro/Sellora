@@ -9,6 +9,7 @@ import { creationSignature, storedImageProviderSchema, demoTextProviderSchema, t
 import { demoCreativeContent, withoutBusinessFields } from "./creative-review";
 import { approvedConcepts } from "./concepts";
 import { demoDesigns } from "./designs";
+import { prepareDemoForSend } from "./send-preparation-client";
 
 const queueItemSchema = z.object({
   leadId: z.string(), id: z.uuid(), status: z.enum(["queued", "running", "paused", "cancelled", "completed", "failed"]),
@@ -20,6 +21,10 @@ const queueItemSchema = z.object({
   imageProvider: storedImageProviderSchema.optional(),
   /** V6: a falha deixou etapas salvas; "Tentar novamente" reusa o mesmo id e retoma do checkpoint. */
   recoverable: z.boolean().optional(),
+  prepareForSend: z.boolean().optional(),
+  preparationSiteId: z.uuid().optional(),
+  preparationRevision: z.string().optional(),
+  preparationStatus: z.enum(["ready", "needs_review", "awaiting_publication"]).optional(),
 });
 export type DemoQueueItem = z.infer<typeof queueItemSchema>;
 interface GeneratorState { connection: DemoGenerationStatus | null; items: DemoQueueItem[]; textProvider: DemoTextProvider; imageProvider: DemoImageProvider; pausingIds: string[] }
@@ -84,6 +89,7 @@ function historyReferences(): CreativeReference[] {
 async function run(item: DemoQueueItem) {
   const lead = getDb().leads.find((lead) => lead.id === item.leadId);
   if (!lead) throw new Error("O lead foi removido da fila.");
+  if (item.preparationRevision) return finishPreparation(item);
   let job: DemoGenerationJob;
   if (item.status === "running") {
     const resumed = await fetch(`/api/demos/jobs/${item.id}`, { method: "PATCH" });
@@ -143,9 +149,31 @@ async function run(item: DemoQueueItem) {
   }
   const latest = getDb().leads.find((lead) => lead.id === item.leadId);
   if (!latest || JSON.stringify(latest.demo?.business ?? demoBusinessSchema.parse(latest)) !== item.expectedBusiness) throw new Error("Os dados do negócio mudaram durante a geração. Gere novamente com o cadastro atual.");
-  applyGeneratedLeadDemo(item.leadId, job.result, item.expectedRevision);
+  const demo = applyGeneratedLeadDemo(item.leadId, job.result, item.expectedRevision);
+  if (item.prepareForSend) {
+    item = { ...item, preparationSiteId: demo.site?.id, preparationRevision: demoRevision(demo)! };
+    update(item.id, { preparationSiteId: item.preparationSiteId, preparationRevision: item.preparationRevision });
+    return finishPreparation(item);
+  }
   update(item.id, { status: "completed", phase: "Demo pronta para revisão", error: null });
   return true;
+}
+
+async function finishPreparation(item: DemoQueueItem) {
+  update(item.id, { status: "running", phase: "Revisando demo e mensagem" });
+  const outcome = await prepareDemoForSend(item.leadId, item.preparationRevision!, { stopped: () => isStopped(item.id), phase: (phase) => update(item.id, { phase }), checkpoint: (preparationRevision) => update(item.id, { preparationRevision }) });
+  if (!outcome || isStopped(item.id)) return false;
+  update(item.id, { status: "completed", preparationStatus: outcome.status, phase: outcome.status === "ready" ? "Revisão e publicação concluídas" : outcome.message, error: null });
+  return true;
+}
+
+/** Retoma só a preparação da demo salva; nunca dispara uma nova geração. */
+export function retryDemoPreparation(leadId: string) {
+  initialize();
+  const item = state.items.find((item) => item.leadId === leadId && item.prepareForSend && item.preparationRevision && ["completed", "failed", "cancelled"].includes(item.status));
+  if (!item || state.pausingIds.includes(item.id)) return;
+  update(item.id, { status: "running", phase: "Retomando preparação da demo salva", error: null });
+  void pump();
 }
 
 async function pump() {
@@ -158,7 +186,7 @@ async function pump() {
       processing = { id: item.id, done: operation };
       try { await operation; }
       catch (error) {
-        if (!isStopped(item.id)) update(item.id, { status: "failed", phase: "Geração pendente", error: error instanceof Error ? error.message : "Falha na geração." });
+        if (!isStopped(item.id)) update(item.id, { status: "failed", phase: item.preparationRevision ? "Preparação pendente; demo preservada" : "Geração pendente", error: error instanceof Error ? error.message : "Falha na geração." });
       }
       finally { processing = undefined; }
       item = state.items.find((item) => item.status === "queued" || item.status === "running");
@@ -166,26 +194,37 @@ async function pump() {
   } finally { pumping = false; }
 }
 
-export function enqueueDemoGeneration(leadIds: string[]) {
+export function enqueueDemoGeneration(leadIds: string[], options: { start?: boolean; prepareForSend?: boolean } = {}) {
   initialize();
+  if (options.start === false) {
+    const valid = new Set(getDb().leads.filter((lead) => lead.stage !== "ganho" && lead.stage !== "perdido" && lead.demo?.status !== "rejected").map((lead) => lead.id));
+    const ids = [...new Set(leadIds)].filter((id) => valid.has(id) && !state.items.some((item) => item.leadId === id && ["queued", "running", "paused"].includes(item.status)));
+    const additions: DemoQueueItem[] = ids.map((leadId) => {
+      const saved = state.items.find((item) => item.leadId === leadId && item.status === "failed" && item.recoverable);
+      return saved ? { ...saved, prepareForSend: options.prepareForSend ?? saved.prepareForSend, status: "paused", resumeStatus: "queued", phase: "Etapas salvas; aguardando início manual", error: null }
+        : { leadId, id: crypto.randomUUID(), status: "paused", resumeStatus: "queued", phase: "Aguardando início manual", error: null, expectedRevision: null, textProvider: state.textProvider, imageProvider: state.imageProvider, prepareForSend: options.prepareForSend };
+    });
+    set({ ...state, items: [...state.items.filter((item) => !ids.includes(item.leadId)), ...additions] });
+    return;
+  }
   const stoppingLeads = new Set(state.items.filter((item) => state.pausingIds.includes(item.id)).map((item) => item.leadId));
   const ids = [...new Set(leadIds)].filter((id) => !stoppingLeads.has(id));
   const pending = state.items.filter((item) => !ids.includes(item.leadId) || item.status === "queued" || item.status === "running");
   const active = new Set(pending.filter((item) => item.status === "queued" || item.status === "running").map((item) => item.leadId));
   const additions: DemoQueueItem[] = ids.filter((id) => !active.has(id)).map((leadId) => {
     const paused = state.items.find((item) => item.leadId === leadId && item.status === "paused");
-    if (paused) return { ...paused, id: paused.resumeStatus === "running" ? paused.id : crypto.randomUUID(), status: paused.resumeStatus ?? "queued", phase: "Retomando geração solicitada", error: null };
+    if (paused) return { ...paused, prepareForSend: options.prepareForSend ?? paused.prepareForSend, id: paused.resumeStatus === "running" || paused.recoverable ? paused.id : crypto.randomUUID(), status: paused.recoverable ? "queued" : paused.resumeStatus ?? "queued", phase: "Retomando geração solicitada", error: null };
     // Falha recuperável do V6: o mesmo id retoma do checkpoint no servidor (não refaz briefing, código nem imagem).
     const failed = state.items.find((item) => item.leadId === leadId && item.status === "failed" && item.recoverable);
-    return failed ? { ...failed, status: "queued" as const, phase: "Retomando das etapas salvas", error: null, recoverable: false }
-      : { leadId, id: crypto.randomUUID(), status: "queued", phase: "Na fila de geração", error: null, expectedRevision: null, textProvider: state.textProvider, imageProvider: state.imageProvider };
+    return failed ? { ...failed, prepareForSend: options.prepareForSend ?? failed.prepareForSend, status: "queued" as const, phase: "Retomando das etapas salvas", error: null, recoverable: false }
+      : { leadId, id: crypto.randomUUID(), status: "queued", phase: "Na fila de geração", error: null, expectedRevision: null, textProvider: state.textProvider, imageProvider: state.imageProvider, prepareForSend: options.prepareForSend };
   });
   set({ ...state, items: [...pending, ...additions] });
   void pump();
 }
 
 function isCancelled(id: string) { return state.items.find((item) => item.id === id)?.status === "cancelled"; }
-function isStopped(id: string) { const item = state.items.find((item) => item.id === id); return item?.status === "paused" || item?.status === "cancelled"; }
+function isStopped(id: string) { const item = state.items.find((item) => item.id === id); return !item || item.status === "paused" || item.status === "cancelled"; }
 
 export async function pauseDemoGeneration(leadIds?: string[]) {
   const active = state.items.filter((item) => (!leadIds || leadIds.includes(item.leadId)) && !state.pausingIds.includes(item.id) && (item.status === "queued" || item.status === "running" || (item.status === "paused" && item.error)));
@@ -194,6 +233,7 @@ export async function pauseDemoGeneration(leadIds?: string[]) {
     ? { ...item, status: "paused", resumeStatus: "queued", phase: "Geração pausada", error: null } : item) });
   try {
     await Promise.all(active.map(async (item) => {
+      if (item.preparationRevision) { update(item.id, { resumeStatus: "running" }); return; }
       const response = await fetch(`/api/demos/jobs/${item.id}`, { method: "DELETE" });
       if (!response.ok) throw new Error("Não foi possível confirmar a pausa. Tente pausar novamente.");
       const data = await response.json();
@@ -215,6 +255,7 @@ export async function cancelDemoGeneration(leadIds?: string[]) {
   const items = state.items.filter((item) => item.status === "paused" && (!leadIds || leadIds.includes(item.leadId)));
   for (const item of items) {
     try {
+      if (item.preparationRevision) { update(item.id, { status: "cancelled", phase: "Preparação cancelada; demo preservada", error: null }); continue; }
       const response = await fetch(`/api/demos/jobs/${item.id}?action=cancel`, { method: "DELETE" });
       if (!response.ok) throw new Error("Não foi possível cancelar esta geração.");
       update(item.id, { status: "cancelled", phase: "Geração cancelada", error: null });

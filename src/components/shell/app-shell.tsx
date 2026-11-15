@@ -16,6 +16,7 @@ import { findActiveItem, NAV_SECTIONS } from "./nav-config";
 import { Sidebar, SidebarTrigger } from "./sidebar";
 import { SyncStatus } from "./sync-status";
 import { APP_LABEL } from "@/lib/version";
+import { ProspectJobProvider } from "@/components/prospecting/use-prospect-job";
 
 function MotionSync() {
   const { db } = useStore();
@@ -82,7 +83,7 @@ function PanelShell({ children }: { children: ReactNode }) {
         : "Dados digitados gravados apenas neste navegador. Sem login, sem integrações conectadas.";
 
   return (
-    <MotionConfig reducedMotion={pref === "reduced" ? "always" : pref === "full" ? "never" : "user"}>
+    <ProspectJobProvider><MotionConfig reducedMotion={pref === "reduced" ? "always" : pref === "full" ? "never" : "user"}>
       <TooltipProvider>
         <ToastProvider>
           <MotionSync />
@@ -163,6 +164,6 @@ function PanelShell({ children }: { children: ReactNode }) {
           <GlobalSearch open={searchOpen} onOpenChange={setSearchOpen} />
         </ToastProvider>
       </TooltipProvider>
-    </MotionConfig>
+    </MotionConfig></ProspectJobProvider>
   );
 }

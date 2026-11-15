@@ -48,7 +48,10 @@ node integrations/claw3d/launcher.mjs       # escritório em http://127.0.0.1:31
 - Adaptador, Claw3D e proxy escutam só em loopback; o adaptador recusa conexões de fora do loopback e `SELLORA_BRIDGE_URL` precisa ser local.
 - Token aleatório por sessão (24 bytes) exigido no `connect` do adaptador. Fica só no `settings.json` privado do Claw3D (`~/.sellora/claw3d/state/claw3d/`); o proxy do Claw3D o injeta do lado do servidor e o `/api/studio` não o devolve ao navegador.
 - O Claw3D roda com `UPSTREAM_ALLOWLIST=127.0.0.1,localhost` e sem chaves de API no ambiente (o launcher remove `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `GEMINI_API_KEY`).
-- Somente observação: o adaptador recusa `chat.send`, `agents.create/update/delete`, `config.set/patch`, `cron.*`, `sessions.patch/reset`, `exec.approvals.set` e `agents.message/handoff` (`read_only`). Nada inicia, altera ou cancela execuções da Sellora.
+- Consultas locais: `chat.send` aceita texto para **status**, **histórico**, **ajuda** e **onde revisar**, sem chamar modelos ou executar tarefas. Aceita também “o que você está fazendo?” e “oque voce esta fazendo?”. Se o bridge estiver desconectado, não afirma um status atual. Outros pedidos recebem ajuda e não são executados. Anexos não são aceitos. O histórico de consultas fica em memória (até 40 mensagens por agente); reiniciar limpa as conversas. As execuções reais permanecem intactas. O adaptador recusa `agents.create/delete`, `config.set/patch`, `cron.*`, `exec.approvals.set` e `agents.message/handoff` (`read_only`). `agents.update` só aceita nome de exibição.
+
+- **Sessão de conversa:** `sessions.patch` aceita apenas os campos de preparação enviados pelo Claw3D e retorna `applied: false`: não troca modelo, raciocínio ou permissões da Sellora. Pedidos para liberar execução são recusados. `sessions.reset { key }` limpa apenas consultas e deduplicação daquele agente, sem alterar históricos de execução, tarefas ou filas. O Office reidrata consultas ociosas após recarregar por um evento final de conversa, sem lifecycle de trabalho. Sessões precisam pertencer a agentes registrados.
+- **Verificação real:** `node integrations/claw3d/verify-chat.mjs --app-dir <Claw3D-preparado>` usa o Office compilado com bridge e estado temporários. Para incluir na validação do portátil, defina `SELLORA_CHAT_QA_APP_DIR` ao executar `npm run release -- --id <id>`. Não usa a conta de IA nem o perfil principal.
 - O proxy de enquadramento só troca `frame-ancestors` (origens `localhost`/`127.0.0.1` nas portas 3100, 3102 e 3187), remove `X-Frame-Options` e `upgrade-insecure-requests` (página http local). Conteúdo e demais cabeçalhos passam intactos.
 
 ## Mapeamento de estados
@@ -103,16 +106,21 @@ O Agent Editor do Claw3D tem as abas Identity, Avatar, Soul, Agents, User, Tools
 - **Não é um workspace OpenClaw.** O gateway é o adaptador da Sellora; nenhum serviço (gerador, prospecção, publicação) lê esses arquivos. São documentação exibida no escritório: editar não inicia, altera nem configura execuções, e não muda prompts, modelos, limites ou regras.
 - **Padrão versionado:** `integrations/claw3d/agent-profiles/<agentId>/{IDENTITY,SOUL,AGENTS,TOOLS,MEMORY,HEARTBEAT}.md` e `agent-profiles/_shared/USER.md` (um único contexto do administrador para os três). O launcher e o `setup.mjs` copiam a pasta para `server/sellora-agent-profiles/` do checkout (recriada a cada início). O `CLAUDE.md`/`AGENTS.md` da raiz da Sellora não são usados nem alterados.
 - **Edições feitas no Claw3D:** `<estado>/claw3d/agent-profiles/<agentId>/<arquivo>` (dev: `~/.sellora/claw3d/state`; app Windows: `%APPDATA%/sellora/claw3d/state`), fora do Git, gravação atômica e até 5 cópias `*.bak` com data antes de cada gravação. Salvar um texto igual ao padrão apaga a edição local (o backup fica). O editor grava as 7 abas a cada "Save"; arquivos sem mudança não são regravados.
-- **Recusas (mensagem aparece no editor):** agente que o bridge não declarou, arquivo fora das 7 abas, mais de 64 KB, conteúdo com padrão de credencial (chaves `sk-`, `ghp_`, `github_pat_`, token do Coolify, JWT, chave privada, `api_key=`/`token=`/`senha=` com valor longo) e IDENTITY.md sem nome (ou com mais de 60 caracteres). Criar e apagar agentes, chat, config, cron e handoff continuam `read_only` (o botão "Delete Agent" do Claw3D não tem efeito); `agents.update` só aceita o nome (ver abaixo).
+- **Recusas (mensagem aparece no editor):** agente que o bridge não declarou, arquivo fora das 7 abas, mais de 64 KB, conteúdo com padrão de credencial (chaves `sk-`, `ghp_`, `github_pat_`, token do Coolify, JWT, chave privada, `api_key=`/`token=`/`senha=` com valor longo) e IDENTITY.md sem nome (ou com mais de 60 caracteres). Criar e apagar agentes, config, cron e handoff continuam `read_only` (o botão "Delete Agent" do Claw3D não tem efeito); o chat aceita só consultas locais e `agents.update` só aceita o nome (ver abaixo).
 - **Identity:** só os campos que o Claw3D serializa (Name, Creature/Role, Vibe, Emoji, Avatar). Avatar fica vazio de propósito: a aparência é a da aba Avatar. O emoji do `agents.list` vem do IDENTITY.md; o escritório não o desenha.
 
-### Nomes de exibição (2026-11-13)
+### Personagens e nomes de exibição
 
 | id (não muda) | Serviço (nome interno no bridge) | Nome padrão no escritório |
 | --- | --- | --- |
-| `gerador-de-demos` | Gerador de Demos | 🎨 Website Designer |
-| `prospeccao` | Prospecção | 🎯 Lead Generation Specialist |
+| `gerador-de-demos` | Agente Gerador de Demos | 🎨 Agente Gerador de Demos |
+| `prospeccao` | Agente de Prospecção | 🎯 Agente de Prospecção |
 | `coolify-deploy` | Coolify Deploy Agent | 🚀 Deployment Manager |
+| `revisor-de-demos` | Revisor de Demos | 🔎 Revisor de Demos |
+
+O Revisor é a representação do QA já existente no pipeline V6: etapas 7–10b e relatório anexado ao site. Antes do QA não existe execução de revisão. Durante o QA real, fica ativo; enquanto aguarda a gravação, fica na fila; no final mostra sucesso técnico ou pendências, sem aprovar a demo. Seu runId é `<jobId>:review`, para não sobrescrever histórico nem cartões do gerador. Não há nova conta, processo ou chamada de IA. Os cartões da Cloud 3D abrem Prospecção, Geração, Publicação e Revisão separadamente; revisão e publicação usam os painéis existentes de Demos.
+
+Os nomes padrão antigos `Lead Generation Specialist` e `Website Designer` são atualizados automaticamente quando os padrões novos são instalados. A migração usa o editor de perfis, preserva os demais campos e mantém backup; nomes diferentes desses padrões antigos não são alterados.
 
 - **Fonte única do nome no escritório:** o `Name` do IDENTITY.md efetivo (edição local, se houver; senão o padrão versionado). O adaptador usa esse nome em `agents.list`, no handshake (`hello-ok`) e em `sessions.list`. O nome do bridge (`src/lib/agents/bridge.ts`) é o rótulo interno do serviço e só aparece se o perfil não existir. Ids, pastas, avatar (chaveado pelo id), Kanban e execuções não dependem do nome.
 - **Renomear pelo Claw3D:** Identity → Name → Save. O Claw3D grava o IDENTITY.md (`agents.files.set`) e chama `agents.update { agentId, name }`; o adaptador aceita só esse formato (qualquer outro campo, como modelo ou workspace, continua `read_only`), troca a linha `- Name:` preservando os demais campos e envia `presence` para os outros clientes conectados recarregarem a lista. A interface atualiza na hora.

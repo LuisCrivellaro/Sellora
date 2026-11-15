@@ -1,5 +1,15 @@
 # Sellora
 
+## Agentes independentes
+
+- **Leads → Prospecção:** pesquisa por cidade/segmento/oportunidade, análise de presença de site, qualificação, histórico e importação deduplicada ao CRM. Não exige Claude ou Codex para pesquisar. O acompanhamento fica no shell e continua ao trocar de área.
+- **Leads → Geração de Demos:** seleção individual ou em lote dos leads do CRM, fila própria, etapa por estabelecimento e controles individuais de iniciar/retomar, pausar e cancelar. O envio à fila é manual por padrão e não inicia IA. O site anterior só é substituído quando uma nova geração conclui e passa pela conferência de revisão.
+- **Automação opcional:** a caixa da próxima pesquisa importa os novos leads HOT/WARM e os envia ao gerador automaticamente. A intenção é gravada por pesquisa (`demoMode`); flags antigas não ativam automação. Demos existentes, leads ganhos/perdidos e resultados descartados são preservados. O gerador usa as contas de IA configuradas e continua restrito ao aplicativo local.
+
+Os dois módulos compartilham o CRM e a autenticação existentes, mas usam endpoints, registros de jobs, controles de cancelamento e históricos separados. Uma falha na geração não muda o resultado da pesquisa. `src/lib/agents/lead-demo-workflow.ts` coordena apenas o envio explícito entre eles. `completeProspectSearch` permanece exclusivamente responsável por salvar resultados; a opção antiga de `importProspects` foi preservada para compatibilidade, sem uso no novo fluxo. Não há migração destrutiva nem cópia de leads/demos para outro banco.
+
+O gerador mantém execução serial de demos para respeitar recursos locais e comparar a identidade visual com os sites recém-concluídos; a pesquisa continua em paralelo. Pausar/cancelar uma demo aguarda a etapa atual, sem interromper outras tarefas. A automação de uma pesquisa é acompanhada enquanto a Sellora está aberta; ao reiniciar, pesquisas ainda disponíveis são consultadas e a fila de demos aguarda retomada manual. Não é um agendador externo. Os testes de integração usam fontes e IA simuladas, sem gastar contas nem alterar o perfil principal.
+
 ## Versão do aplicativo
 
 ### Convenção obrigatória para colaboradores e agentes
@@ -140,8 +150,16 @@ Validação em 2026-11-11: testes unitários de geração/idempotência, qualifi
 
 Demos V6 podem ser publicadas na ficha do lead (**Publicação da demo**): os arquivos vão para um repositório GitHub só de demos e o Coolify hospeda cada lead em seu próprio subdomínio. O estado vem do Coolify, e a demo só é marcada como **Publicado** depois que a página servida confere com o arquivo gerado. Há publicação, republicação, nova tentativa, verificação, cópia do link e histórico. Nada é enviado ao lead. Desligada até configurar as variáveis de `docs/COOLIFY_INTEGRATION.md`; ainda não testada contra um Coolify real.
 
+### Preparar a abordagem automaticamente (opcional)
+
+Em **Leads → Geração de Demos**, selecione os leads e use **Gerar e preparar envio**. O fluxo reaproveita geração, correções e revisão visual do V6; depois confere QA e originalidade, publica no Coolify configurado e libera a mensagem com o link confirmado desta versão. A revisão fica atribuída à automação, sem registrar aprovação humana, contato ou envio. Confira a prévia e use **Copiar mensagem com demo** ou **Abrir no WhatsApp** para enviar manualmente.
+
+O método manual continua disponível em **Adicionar à fila**, com aprovação e publicação manuais. Para automatizar desde a pesquisa, marque a geração automática e a opção adicional de revisar/publicar/preparar mensagem na Prospecção. Pesquisas antigas não ativam esse fluxo.
+
+Sem Coolify, com falha na publicação, QA pendente, imagem substituta, revisão visual indisponível ou mensagem editada, a demo permanece salva e a pendência aparece na fila. **Tentar preparar envio** reutiliza a demo e não gera outra. Os dois avisos informativos de categoria/telefone ausente são mantidos no relatório; a ausência de telefone aparece antes de abrir o WhatsApp. Mantenha o Sellora aberto; após reabrir, use **Retomar**. Pausa/cancelamento afetam somente a preparação escolhida e preservam a demo; publicação já iniciada no Coolify pode terminar e não é desfeita.
+
 ## Qualidade e segurança
-Aplicação autenticada; dados reais somente no backend; RLS; validação de formulários; sem chaves no Git; sem scraping agressivo; sem envios em massa; sem publicações ou cobranças automáticas. E2E nos fluxos essenciais, lint, typecheck e build antes da entrega.
+Aplicação autenticada; dados reais somente no backend; RLS; validação de formulários; sem chaves no Git; sem scraping agressivo; sem envios em massa ou cobranças automáticas. Publicação automática exige a opção de preparação e Coolify configurado. E2E nos fluxos essenciais, lint, typecheck e build antes da entrega.
 
 ## Modernização de sites locais
 

@@ -12,7 +12,8 @@ import { listPublications } from "../publishing/store";
 
 /**
  * Sellora Agent Bridge (lado Sellora). Lê só execuções reais e descreve o que está acontecendo, sem agentes fictícios:
- * - Gerador de Demos: jobs gravados em <dados>/jobs/*.json (um por vez; etapas internas não são agentes separados);
+ * - Gerador de Demos: jobs gravados em <dados>/jobs/*.json (um por vez);
+ * - Revisor: acompanha as etapas de QA desses mesmos jobs, sem processo ou cobrança duplicada;
  * - Prospecção: pesquisas OpenStreetMap + verificação HTTP + regras (sem IA generativa), resumidas em
  *   <dados>/prospect-runs/*.json e na fila em memória do servidor.
  */
@@ -27,7 +28,7 @@ const jobSchema = z.object({
 }).loose();
 export type BridgeJob = z.infer<typeof jobSchema>;
 
-export type AgentId = "gerador-de-demos" | "prospeccao" | "coolify-deploy";
+export type AgentId = "gerador-de-demos" | "prospeccao" | "coolify-deploy" | "revisor-de-demos";
 
 export interface AgentRun {
   agentId: AgentId; runId: string; status: AgentStatus; task: string; business: string; runtime: string; generator: string;
@@ -37,6 +38,7 @@ export interface AgentRun {
   stage?: "working" | "deploying";
   /** Endereço público confirmado (só publicações verificadas). */
   url?: string | null;
+  review?: { status: string; issues: string[] };
 }
 /** Estado visual derivado só de execuções reais: success dura alguns minutos após a conclusão; error fica até a próxima execução. */
 export type AgentVisualState = "idle" | "working" | "deploying" | "success" | "error";
@@ -48,7 +50,7 @@ export interface AgentRecord {
 const businessName = (key: string) => { try { return String(JSON.parse(key).name ?? "Estabelecimento"); } catch { return "Estabelecimento"; } };
 
 /** Jobs gravados, do mais recente ao mais antigo. Um job "running" de um processo que já morreu não aparece como ativo. */
-export async function readJobs(limit = 40, liveIds: Set<string> = new Set()): Promise<AgentRun[]> {
+export async function readJobs(limit = 40, liveIds: Set<string> = new Set(), includeReviews = false): Promise<AgentRun[]> {
   const dir = path.join(demoDataRoot(), "jobs");
   const runs: AgentRun[] = [];
   for (const file of await readdir(dir).catch(() => [])) {
@@ -65,9 +67,33 @@ export async function readJobs(limit = 40, liveIds: Set<string> = new Set()): Pr
         generator: job.generator ?? "v5", startedAt: job.startedAt ?? events[0]?.at ?? null, updatedAt: events.at(-1)?.at ?? job.finishedAt ?? null,
         finishedAt: job.finishedAt ?? null, error: job.error ?? null, events, siteId: job.result?.site?.id ?? null, leadId: job.leadId ?? null,
       });
+      if (includeReviews) {
+        const review = reviewRunFor(job, runs.at(-1)!);
+        if (review) runs.push(review);
+      }
     } catch { /* arquivo de outra versão: não é evidência de execução */ }
   }
-  return runs.sort((a, b) => (b.updatedAt ?? "").localeCompare(a.updatedAt ?? "")).slice(0, limit);
+  return runs.sort((a, b) => (b.updatedAt ?? "").localeCompare(a.updatedAt ?? "")).slice(0, limit * (includeReviews ? 2 : 1));
+}
+
+const isReviewPhase = (phase: string) => /^Etapa (?:7|8|9|10)(?:b)?\s*:/i.test(phase);
+const qaReportSchema = z.object({ status: z.string(), issues: z.array(z.string()).default([]) }).loose();
+
+/** Projeção do QA que já existe no job V6, sem novo processo ou nova chamada de IA. */
+function reviewRunFor(job: BridgeJob, source: AgentRun): AgentRun | null {
+  if (job.generator !== "v6") return null;
+  const reviewEvents = (job.events ?? []).filter((event) => isReviewPhase(event.phase));
+  const report = qaReportSchema.safeParse(job.result?.site?.qa);
+  if (!reviewEvents.length && !isReviewPhase(job.phase) && !report.success) return null;
+  const inReview = source.status === "running" && isReviewPhase(job.phase);
+  const status: AgentStatus = source.status === "running" ? inReview ? "running" : "queued"
+    : source.status === "waiting_approval" && report.success && report.data.status === "passed" ? "completed" : source.status;
+  const task = inReview ? job.phase : status === "waiting_approval" || status === "completed"
+    ? report.success ? `QA ${report.data.status === "passed" ? "concluído" : "com pendências"}: ${report.data.issues.length} pendência(s). Confira a demo e a aprovação na Sellora.` : "QA encerrado; confira o relatório antes de aprovar."
+    : status === "queued" ? "Aguardando a geração entregar o relatório de QA" : source.task;
+  return { ...source, agentId: "revisor-de-demos", runId: `${job.id}:review`, runtime: "sellora-qa", status, task,
+    startedAt: reviewEvents[0]?.at ?? source.finishedAt, events: reviewEvents.slice(-20),
+    ...(report.success ? { review: { status: report.data.status, issues: report.data.issues } } : {}) };
 }
 
 /** Ids dos jobs ativos neste processo (o mapa em memória do gerador). */
@@ -123,15 +149,16 @@ export async function readPublicationAgentRuns(limit = 40, liveIds: Set<string> 
 /** Todas as execuções reais (gerador + prospecção + publicações), da mais recente à mais antiga. */
 export async function readAllRuns(limit = 40): Promise<AgentRun[]> {
   const [demos, prospects, publications] = await Promise.all([
-    readJobs(limit, liveJobIds()), readProspectAgentRuns(limit, liveProspectJobIds()), readPublicationAgentRuns(limit, liveOperationIds()),
+    readJobs(limit, liveJobIds(), true), readProspectAgentRuns(limit, liveProspectJobIds()), readPublicationAgentRuns(limit, liveOperationIds()),
   ]);
-  return [...demos, ...prospects, ...publications].sort((a, b) => (b.updatedAt ?? "").localeCompare(a.updatedAt ?? "")).slice(0, limit * 3);
+  return [...demos, ...prospects, ...publications].sort((a, b) => (b.updatedAt ?? "").localeCompare(a.updatedAt ?? "")).slice(0, limit * 4);
 }
 
 const AGENTS: { id: AgentId; name: string; role: string; runtime: string }[] = [
-  { id: "gerador-de-demos", name: "Gerador de Demos", role: "Cria sites demonstrativos V6: briefing, código, imagens, verificação e gravação para revisão humana", runtime: "claude-code" },
-  { id: "prospeccao", name: "Prospecção", role: "Encontra estabelecimentos no OpenStreetMap, verifica sites por HTTP e classifica por regras (Local Client Prospector), sem IA generativa", runtime: "openstreetmap" },
+  { id: "gerador-de-demos", name: "Agente Gerador de Demos", role: "Cria sites demonstrativos V6 para os leads selecionados, com fila e controles próprios", runtime: "claude-code" },
+  { id: "prospeccao", name: "Agente de Prospecção", role: "Busca, analisa e qualifica leads; não cria demos. Usa OpenStreetMap, HTTP e regras explicáveis, sem IA generativa", runtime: "openstreetmap" },
   { id: "coolify-deploy", name: "Coolify Deploy Agent", role: "Deployment & Hosting: publica e gerencia as demos no Coolify (GitHub como complemento). Representa o serviço real; só age quando o administrador publica", runtime: "coolify" },
+  { id: "revisor-de-demos", name: "Revisor de Demos", role: "Acompanha o QA real, as capturas e as pendências. A aprovação final continua sendo sua", runtime: "sellora-qa" },
 ];
 
 /** Por quanto tempo uma conclusão aparece como "success" antes de o agente voltar a ficar disponível. */
@@ -155,7 +182,7 @@ export async function agentRegistry(): Promise<AgentRecord[]> {
     return {
       id: agent.id, name: agent.name, type: "worker" as const, role: agent.role,
       runtime: current?.runtime ?? last?.runtime ?? agent.runtime, visual: visualState(current, last),
-      status: current ? "running" as const : "idle" as const, currentRun: current, lastRun: last, recent: own.slice(0, 10),
+      status: current ? "running" as const : agent.id === "revisor-de-demos" && last ? last.status : "idle" as const, currentRun: current, lastRun: last, recent: own.slice(0, 10),
     };
   });
 }
@@ -178,13 +205,14 @@ export function claw3dRegistry() {
 
 /** Diferença entre dois retratos: vira eventos de ciclo de vida no formato `agent` do Claw3D (start, etapa, fim, erro). */
 export function lifecycleEvents(previous: Map<string, AgentRun>, runs: AgentRun[]) {
-  const events: { agentId: AgentId; runId: string; phase: "start" | "progress" | "end" | "error"; text: string; at: string; business: string; siteId: string | null; leadId: string | null; generator: string; stage?: "working" | "deploying" }[] = [];
+  const events: { agentId: AgentId; runId: string; phase: "start" | "progress" | "end" | "error"; text: string; at: string; business: string; siteId: string | null; leadId: string | null; generator: string; stage?: "working" | "deploying"; reviewStatus?: AgentStatus }[] = [];
   for (const run of runs) {
     const before = previous.get(run.runId);
-    const base = { agentId: run.agentId, runId: run.runId, at: run.updatedAt ?? new Date().toISOString(), business: run.business, siteId: run.siteId, leadId: run.leadId, generator: run.generator, ...(run.stage ? { stage: run.stage } : {}) };
-    if (run.status === "running" && !before) events.push({ ...base, phase: "start", text: run.task });
+    const base = { agentId: run.agentId, runId: run.runId, at: run.updatedAt ?? new Date().toISOString(), business: run.business, siteId: run.siteId, leadId: run.leadId, generator: run.generator, ...(run.stage ? { stage: run.stage } : {}), ...(run.agentId === "revisor-de-demos" ? { reviewStatus: run.status } : {}) };
+    if (run.status === "running" && before?.status !== "running") events.push({ ...base, phase: "start", text: run.task });
     else if (run.status === "running" && before && before.task !== run.task) events.push({ ...base, phase: "progress", text: run.task });
     else if (before?.status === "running" && run.status !== "running") events.push({ ...base, phase: run.status === "failed" || run.status === "cancelled" ? "error" : "end", text: run.error ?? run.task });
+    else if (run.agentId === "revisor-de-demos" && before && (before.status !== run.status || before.task !== run.task)) events.push({ ...base, phase: run.status === "failed" || run.status === "cancelled" ? "error" : "end", text: run.error ?? run.task });
   }
   return events;
 }

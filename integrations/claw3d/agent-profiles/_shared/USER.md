@@ -4,7 +4,7 @@
 - What to call them: Lipe
 - Pronouns:
 - Timezone: America/Sao_Paulo
-- Notes: Administrador e fundador da Sellora. Um único contexto de usuário, compartilhado pelos três agentes.
+- Notes: Administrador e fundador da Sellora. Um único contexto de usuário, compartilhado pelos agentes.
 
 ## Context
 

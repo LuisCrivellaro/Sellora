@@ -173,7 +173,22 @@ function createProfileStore({ defaultsDir, overridesDir = null, agentName = () =
     } catch { return ""; }
   }
 
-  return { get, set, rename, nameOf, emojiOf };
+  /** Atualiza os antigos nomes distribuídos pela Sellora, sem sobrescrever nomes do usuário. */
+  function migrateLegacyNames() {
+    if (!overridesDir) return 0;
+    const legacy = { prospeccao: "Lead Generation Specialist", "gerador-de-demos": "Website Designer" };
+    let changed = 0;
+    for (const [agentId, oldName] of Object.entries(legacy)) {
+      if (!agentName(agentId)) continue;
+      const nextName = identityField(defaultContent(agentId, "IDENTITY.md") ?? "", "name");
+      if (nextName && nextName !== oldName && nameOf(agentId) === oldName) {
+        if (rename(agentId, nextName).changed) changed++;
+      }
+    }
+    return changed;
+  }
+
+  return { get, set, rename, nameOf, emojiOf, migrateLegacyNames };
 }
 
 module.exports = { FILE_NAMES, SHARED_FILES, MAX_BYTES, MAX_NAME, createProfileStore, identityField, looksSecret, validDisplayName };

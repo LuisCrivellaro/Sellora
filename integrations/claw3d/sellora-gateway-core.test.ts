@@ -82,7 +82,7 @@ describe("Sellora gateway adapter (núcleo)", () => {
 
   it("recusa métodos que criariam, alterariam ou conversariam (somente observação)", () => {
     const state = core.createState();
-    for (const method of ["chat.send", "agents.create", "agents.delete", "config.set", "cron.add", "agents.handoff"]) {
+    for (const method of ["agents.create", "agents.delete", "config.set", "cron.add", "agents.handoff"]) {
       const response = core.handleMethod(state, method, {}, "x") as Frame;
       expect(response.ok).toBe(false);
       expect(response.error?.code).toBe("read_only");
@@ -99,7 +99,100 @@ describe("Sellora gateway adapter (núcleo)", () => {
   });
 });
 
+describe("chat local sem IA", () => {
+  it("prepara a sessão, consulta, limpa a conversa e consulta novamente sem alterar o trabalho real", () => {
+    const state = core.createState();
+    core.applyBridgeEvent(state, "presence", { agents: [agent()] });
+    core.applyBridgeEvent(state, "agent", { agentId: "gerador-de-demos", runId: "real", phase: "start", text: "Gerando imagens", business: "Clínica" });
+    state.bridge.connected = true;
+    const key = "agent:gerador-de-demos:main";
+    const patch = core.handleMethod(state, "sessions.patch", { key, model: null, thinkingLevel: null, execHost: null, execSecurity: null, execAsk: null }, "p");
+    expect(patch.ok).toBe(true);
+    expect(patch.payload).toMatchObject({ ok: true, key, applied: false });
+    const ask = () => core.handleMethod(state, "chat.send", { sessionKey: key, message: "status", idempotencyKey: "same-key" }, "s");
+    ask();
+    const before = [...state.history.entries()];
+    expect(core.handleMethod(state, "sessions.reset", { key }, "r").ok).toBe(true);
+    expect(core.handleMethod(state, "chat.history", { sessionKey: key }, "h").payload.messages).toEqual([]);
+    expect([...state.history.entries()]).toEqual(before);
+    expect(state.active.get("gerador-de-demos").runId).toBe("real");
+    ask();
+    expect(core.handleMethod(state, "chat.history", { sessionKey: key }, "h").payload.messages).toHaveLength(2);
+  });
+  it("não prepara sessões de agentes desconhecidos nem aceita alterações de segurança", () => {
+    const state = core.createState();
+    core.applyBridgeEvent(state, "presence", { agents: [agent()] });
+    const key = "agent:gerador-de-demos:main";
+    for (const params of [{ key, execSecurity: "full" }, { key, execAsk: "off" }, { key, tools: ["shell"] }, { key: "agent:inventado:main" }]) {
+      expect(core.handleMethod(state, "sessions.patch", params, "p").ok).toBe(false);
+    }
+    expect(core.handleMethod(state, "sessions.reset", { key: "agent:inventado:main" }, "r").ok).toBe(false);
+  });
+  it("reidrata consultas de agente ocioso sem gerar lifecycle de trabalho, e reset remove o replay", () => {
+    const state = core.createState();
+    core.applyBridgeEvent(state, "presence", { agents: [agent()] });
+    const sessionKey = "agent:gerador-de-demos:main";
+    core.handleMethod(state, "chat.send", { sessionKey, message: "ajuda" }, "s");
+    const sessions = core.handleMethod(state, "sessions.list", {}, "l");
+    expect(sessions.payload.sessions[0].updatedAt).toBeGreaterThan(0);
+    const presence = core.presenceFrames(state).find((frame: Frame) => frame.event === "presence");
+    expect(presence.payload.sessions.recent).toEqual([]);
+    expect(core.replayFrames(state).filter((frame: Frame) => frame.event === "chat")).toHaveLength(1);
+    expect(core.replayFrames(state, 0).filter((frame: Frame) => frame.event === "chat")).toHaveLength(0);
+    expect(lifecycle(core.replayFrames(state))).toEqual([]);
+    core.applyBridgeEvent(state, "agent", { agentId: "gerador-de-demos", runId: "real", phase: "start", text: "Criando site", business: "Clínica" });
+    expect(core.replayFrames(state).filter((frame: Frame) => frame.event === "chat")).toHaveLength(0);
+    core.handleMethod(state, "sessions.reset", { key: sessionKey }, "r");
+    expect(core.replayFrames(state).filter((frame: Frame) => frame.event === "chat")).toHaveLength(0);
+    expect(state.active.get("gerador-de-demos").runId).toBe("real");
+  });
+  it("responde com a etapa real, mantém a execução e deduplica o envio", () => {
+    const state = core.createState();
+    core.applyBridgeEvent(state, "presence", { agents: [agent()] });
+    core.applyBridgeEvent(state, "agent", { agentId: "gerador-de-demos", runId: "real", phase: "start", text: "Gerando imagem 2 de 3", business: "Clínica" });
+    state.bridge.connected = true;
+    const frames: Frame[] = [];
+    const params = { sessionKey: "agent:gerador-de-demos:main", message: "oque voce esta fazendo?", idempotencyKey: "consulta-1" };
+    const response = core.handleMethod(state, "chat.send", params, "c", { sendChatFrame: (frame: Frame) => frames.push(frame) });
+    expect(response.ok).toBe(true);
+    expect(response.payload.runId).toBe(params.idempotencyKey);
+    expect(response.payload.status).toBe("completed");
+    expect(response.payload.text).toContain("Gerando imagem 2 de 3");
+    expect(response.payload.text).toContain("Clínica");
+    expect(frames).toEqual([]);
+    expect(state.active.get("gerador-de-demos").runId).toBe("real");
+    core.handleMethod(state, "chat.send", params, "retry");
+    const history = core.handleMethod(state, "chat.history", params, "h");
+    expect(history.payload.messages.filter((m: { content: string }) => m.content === params.message)).toHaveLength(1);
+  });
+  it("informa indisponibilidade, ajuda e limites sem inventar atividade nem executar ordens", () => {
+    const state = core.createState();
+    core.applyBridgeEvent(state, "presence", { agents: [agent()] });
+    const ask = (message: string, sessionKey = "agent:gerador-de-demos:main") => core.handleMethod(state, "chat.send", { message, sessionKey }, "x");
+    expect(ask("status").payload.reply).toContain("desconectado");
+    state.bridge.connected = true;
+    expect(ask("status").payload.reply).toContain("Nenhuma tarefa");
+    expect(ask("histórico").payload.reply).toContain("Nenhuma execução");
+    expect(ask("gere e publique um site").payload.reply).toContain("Nenhuma ação foi executada");
+    expect(ask("ajuda").payload.reply).toContain("sem IA");
+    expect(ask("status", "agent:inventado:main").ok).toBe(false);
+    expect(ask("x".repeat(2001)).ok).toBe(false);
+    expect(state.active.size).toBe(0);
+  });
+});
+
 describe("Kanban (skill task-manager) com execuções reais", () => {
+  it("QA tem cartão próprio e conserva o desfecho técnico recebido do bridge", () => {
+    const state = core.createState();
+    core.applyBridgeEvent(state, "presence", { agents: [{ ...agent(), id: "revisor-de-demos", name: "Revisor de Demos" }] });
+    const base = { agentId: "revisor-de-demos", runId: "real:review", business: "Clínica", generator: "v6" };
+    core.applyBridgeEvent(state, "agent", { ...base, phase: "start", text: "Etapa 8: QA real" });
+    core.applyBridgeEvent(state, "agent", { ...base, phase: "end", text: "Aguardando relatório", reviewStatus: "queued" });
+    core.applyBridgeEvent(state, "agent", { ...base, phase: "end", text: "QA concluído", reviewStatus: "completed" });
+    const tasks = core.taskBoardStore(state, null).tasks;
+    expect(tasks).toHaveLength(1);
+    expect(tasks[0]).toMatchObject({ title: "Revisão QA · Clínica", assignedAgentId: "revisor-de-demos", status: "done" });
+  });
   it("relata a skill task-manager pronta com todos os campos que o Claw3D lê", () => {
     const report = core.skillsReport();
     expect(report.workspaceDir).toBeTruthy();

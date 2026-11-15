@@ -3,6 +3,7 @@
 import { Eye, FileUp, Kanban, MoreHorizontal, Pencil, Plus, Radar, Rows3, Trash2, X, Monitor } from "lucide-react";
 import { DemoQueue } from "@/components/demos/demo-queue";
 import { ProspectingTab } from "@/components/prospecting/prospecting-tab";
+import { enqueueDemoGeneration } from "@/lib/demos/generation-client";
 import { useMemo, useRef, useState } from "react";
 import { CapsuleBarChart } from "@/components/charts/bar-charts";
 import { DonutChart } from "@/components/charts/donut";
@@ -174,7 +175,7 @@ export function LeadsView() {
     <>
       <PageHeader
         title="Leads"
-        description={tab === "prospeccao" ? "Prospecção IA: encontre estabelecimentos sem presença digital adequada e leve ao CRM." : tab === "demos" ? "Revise cada demo e aprove as mensagens antes do contato manual." : "CRM de estabelecimentos: pesquise, qualifique e mova no funil."}
+        description={tab === "prospeccao" ? "Agente de Prospecção: busque, analise e qualifique leads sem depender do gerador." : tab === "demos" ? "Agente Gerador de Demos: selecione leads, controle a fila e revise os sites." : "CRM de estabelecimentos: pesquise, qualifique e mova no funil."}
         actions={
           <>
             <input ref={fileRef} type="file" accept=".csv,text/csv" className="sr-only" tabIndex={-1} aria-hidden onChange={importFile} />
@@ -195,8 +196,8 @@ export function LeadsView() {
         onChange={(v) => setParams({ aba: v === "crm" ? null : v })}
         options={[
           { value: "crm", label: <><Rows3 className="size-4" aria-hidden /> CRM</> },
-          { value: "prospeccao", label: <><Radar className="size-4" aria-hidden /> Prospecção IA</> },
-          { value: "demos", label: <><Monitor className="size-4" aria-hidden /> Demos</> },
+          { value: "prospeccao", label: <><Radar className="size-4" aria-hidden /> Prospecção</> },
+          { value: "demos", label: <><Monitor className="size-4" aria-hidden /> Geração de Demos</> },
         ]}
       />
       {tab === "prospeccao" ? (
@@ -292,6 +293,12 @@ export function LeadsView() {
             {selected.size > 0 && view === "tabela" && (
               <div className="ml-auto flex flex-wrap items-center gap-2 rounded-full border border-seam-strong bg-selected py-1 pr-1 pl-3.5">
                 <span className="tnum text-[12.5px] font-semibold text-ink">{selected.size} selecionados</span>
+                <Button size="sm" variant="secondary" onClick={() => {
+                  enqueueDemoGeneration([...selected], { start: false });
+                  setSelected(new Set());
+                  setParams({ aba: "demos" });
+                  notify({ kind: "success", title: "Leads enviados ao gerador", description: "A fila aguarda início manual." });
+                }}>Enviar ao gerador de demos</Button>
                 <div className="w-[190px]">
                   <Select<LeadStage | "">
                     size="sm"

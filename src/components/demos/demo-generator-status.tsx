@@ -1,7 +1,7 @@
 "use client";
 
 import { Button } from "@/components/ui/button";
-import { canGenerateDemos, cancelDemoGeneration, enqueueDemoGeneration, pauseDemoGeneration, resumeDemoGeneration, refreshDemoGenerator, useDemoGenerator } from "@/lib/demos/generation-client";
+import { canGenerateDemos, cancelDemoGeneration, enqueueDemoGeneration, pauseDemoGeneration, resumeDemoGeneration, retryDemoPreparation, refreshDemoGenerator, useDemoGenerator } from "@/lib/demos/generation-client";
 import type { DemoTextProvider, StoredImageProvider } from "@/lib/demos/creation";
 
 export const textProviderLabel: Record<DemoTextProvider, string> = { codex: "Codex", claude: "Claude" };
@@ -38,10 +38,13 @@ export function DemoGeneratorStatus({ leadId }: { leadId?: string }) {
     {connection && !ready && <Button size="sm" variant="secondary" onClick={() => void refreshDemoGenerator()}>Verificar conexão</Button>}
     {active.length > 0 && <p role="status">{running?.phase ?? "Na fila de geração"}{running ? " · textos e código: Claude · imagem: Codex" : ""} · {active.length} pendente(s)</p>}
     {(active.length > 0 || pausing || paused.some((item) => item.error)) && <Button size="sm" variant="secondary" disabled={pausing} onClick={() => void pauseDemoGeneration(scope)}>{pausing ? "Pausando…" : "Pausar geração"}</Button>}
-    {paused.length > 0 && <Button size="sm" variant="secondary" disabled={!ready || pausing || paused.some((item) => !!item.error)} onClick={() => resumeDemoGeneration(scope)}>Retomar geração</Button>}
+    {paused.length > 0 && <Button size="sm" variant="secondary" disabled={(!ready && paused.some((item) => !item.preparationRevision)) || pausing || paused.some((item) => !!item.error)} onClick={() => resumeDemoGeneration(scope)}>Retomar geração</Button>}
     {(active.length > 0 || paused.length > 0) && <Button size="sm" variant="ghost" disabled={pausing} onClick={() => void cancelDemoGeneration(scope)}>Cancelar geração</Button>}
     {paused.some((item) => item.error) && <p role="alert" className="text-warn">{paused.find((item) => item.error)?.error}</p>}
     {paused.length > 0 && !pausing && <p>{paused.length} geração(ões) pausada(s). Use Retomar geração para continuar.</p>}
-    {failed.length > 0 && <div role="status"><p className="text-warn">{failed.length} geração(ões) pendente(s). {failed[0].error}{failed.some((item) => item.recoverable) ? " Tentar novamente retoma das etapas salvas, sem refazer o que já foi feito." : ""}</p><Button size="sm" className="mt-2" variant="secondary" disabled={!ready} onClick={() => enqueueDemoGeneration(failed.map((item) => item.leadId))}>Tentar novamente</Button></div>}
+    {failed.length > 0 && <div role="status"><p className="text-warn">{failed.length} geração(ões) pendente(s). {failed[0].error}{failed.some((item) => item.recoverable || item.preparationRevision) ? " Tentar novamente retoma das etapas salvas, sem refazer o que já foi feito." : ""}</p><Button size="sm" className="mt-2" variant="secondary" disabled={!ready && failed.some((item) => !item.preparationRevision)} onClick={() => {
+      for (const item of failed.filter((item) => item.preparationRevision)) retryDemoPreparation(item.leadId);
+      enqueueDemoGeneration(failed.filter((item) => !item.preparationRevision).map((item) => item.leadId));
+    }}>Tentar novamente</Button></div>}
   </div>;
 }

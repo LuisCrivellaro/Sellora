@@ -50,7 +50,7 @@ it("copia adaptador e perfis dos agentes para server/ do Claw3D, sem sobrar perf
   writeFileSync(path.join(stale, "SOUL.md"), "removido do repositório");
   installAdapterFiles(path.dirname(fileURLToPath(import.meta.url)), appDir);
   for (const file of ADAPTER_FILES) expect(existsSync(path.join(appDir, "server", file))).toBe(true);
-  for (const agent of ["gerador-de-demos", "prospeccao", "coolify-deploy"]) {
+  for (const agent of ["gerador-de-demos", "prospeccao", "coolify-deploy", "revisor-de-demos"]) {
     expect(existsSync(path.join(appDir, "server", "sellora-agent-profiles", agent, "IDENTITY.md"))).toBe(true);
   }
   expect(existsSync(path.join(appDir, "server", "sellora-agent-profiles", "_shared", "USER.md"))).toBe(true);

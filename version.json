@@ -1,4 +1,8 @@
 {
   "major": 1,
-  "minor": 0
+  "minor": 6,
+  "lastRelease": {
+    "id": "preparacao-envio-automatico-20261114",
+    "fingerprint": "8d76fc331b10639f222be2d05228ee15172a29d704977a6a72c7c2a8ec94bc5d"
+  }
 }

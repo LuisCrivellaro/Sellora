@@ -71,7 +71,7 @@ export const leadDemoSchema = z.object({
 export type LeadDemo = z.infer<typeof leadDemoSchema>;
 
 export function demoRevision(demo: LeadDemo | null | undefined): string | null {
-  return demo ? JSON.stringify([demo.id, demo.updatedAt, demo.message, demo.status, demo.creation?.id, demo.lastManualSend?.at]) : null;
+  return demo ? JSON.stringify([demo.id, demo.updatedAt, demo.message, demo.status, demo.creation?.id, demo.site?.id, demo.lastManualSend?.at]) : null;
 }
 
 function validPresentation(doc: { version: number; business: DemoBusiness; design?: z.infer<typeof demoPersonalizationSchema>; conceptId?: ApprovedConceptId; creation?: GeneratedCreation; site?: SiteRef }): boolean {

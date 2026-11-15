@@ -3,6 +3,7 @@
 import { Maximize2, Minimize2, RefreshCw } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { OfficeDeliveries } from "@/components/agents/office-deliveries";
 import type { Claw3dSceneStatus } from "@/lib/agents/bridge";
 
 /**
@@ -37,7 +38,7 @@ export function Cloud3dView() {
     <header className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
       <div className="min-w-0">
         <h1 className="text-[19px] font-semibold tracking-tight text-ink">Cloud 3D</h1>
-        <p className="text-[12.5px] text-ink-faint">Agentes reais da Sellora no escritório 3D. Somente observação.</p>
+        <p className="text-[12.5px] text-ink-faint">Acompanhe o escritório e revise as entregas dos agentes.</p>
       </div>
       <div className="flex flex-wrap items-center gap-2 text-[12px]">
         <StatusPill ok={sceneOk} label={!scene ? "Escritório: verificando" : sceneOk ? "Escritório conectado" : scene.available ? "Escritório reconectando" : "Escritório desligado"} title={scene?.message} />
@@ -45,6 +46,7 @@ export function Cloud3dView() {
         <Button size="sm" variant="secondary" onClick={reload}><RefreshCw aria-hidden /> Recarregar</Button>
       </div>
     </header>
+    <OfficeDeliveries />
     <OfficeScene scene={scene} frameKey={frameKey} />
   </div>;
 }

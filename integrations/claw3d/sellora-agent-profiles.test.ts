@@ -13,7 +13,21 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 const defaultsDir = path.join(here, "agent-profiles");
 /** Nomes internos dos serviços (bridge) e nomes de exibição padrão do escritório (IDENTITY.md). */
 const AGENTS = { "gerador-de-demos": "Gerador de Demos", prospeccao: "Prospecção", "coolify-deploy": "Coolify Deploy Agent" } as const;
-const DISPLAY = { "gerador-de-demos": "Website Designer", prospeccao: "Lead Generation Specialist", "coolify-deploy": "Deployment Manager" } as const;
+const DISPLAY = { "gerador-de-demos": "Agente Gerador de Demos", prospeccao: "Agente de Prospecção", "coolify-deploy": "Deployment Manager" } as const;
+
+it("atualiza apenas nomes padrão antigos, preservando campos e nomes personalizados com backup", () => {
+  const overrides = tempDir();
+  const profiles = store(overrides);
+  const original = profiles.get("prospeccao", "IDENTITY.md").content;
+  profiles.set("prospeccao", "IDENTITY.md", original.replace(/- Name: .*/, "- Name: Lead Generation Specialist").replace("- Avatar:", "- Avatar: avatar-local"));
+  profiles.rename("gerador-de-demos", "Meu Designer");
+  expect(profiles.migrateLegacyNames()).toBe(1);
+  expect(profiles.nameOf("prospeccao")).toBe("Agente de Prospecção");
+  expect(profiles.get("prospeccao", "IDENTITY.md").content).toContain("Avatar: avatar-local");
+  expect(profiles.nameOf("gerador-de-demos")).toBe("Meu Designer");
+  expect(profiles.migrateLegacyNames()).toBe(0);
+  expect(readdirSync(path.join(overrides, "prospeccao")).some((name) => name.endsWith(".bak"))).toBe(true);
+});
 type Frame = { ok: boolean; payload?: Record<string, unknown>; error?: { code: string; message: string } };
 
 const temps: string[] = [];
@@ -24,6 +38,16 @@ const store = (overridesDir: string | null = tempDir()) => profilesModule.create
 });
 
 describe("perfis versionados dos agentes", () => {
+  it("revisor tem perfil completo, usuário compartilhado e não guarda credenciais", () => {
+    const profiles = profilesModule.createProfileStore({ defaultsDir, agentName: () => "Revisor de Demos" });
+    for (const file of profilesModule.FILE_NAMES) {
+      const value = profiles.get("revisor-de-demos", file);
+      expect(value.missing).toBe(false);
+      expect(profilesModule.looksSecret(value.content)).toBe(false);
+    }
+    expect(profiles.nameOf("revisor-de-demos")).toBe("Revisor de Demos");
+    expect(profiles.emojiOf("revisor-de-demos")).toBe("🔎");
+  });
   it("cada agente tem as sete abas, com nome e emoji esperados e USER.md compartilhado", () => {
     const profiles = store(null);
     const emoji = { "gerador-de-demos": "🎨", prospeccao: "🎯", "coolify-deploy": "🚀" };
@@ -99,7 +123,7 @@ describe("gravação pelo Agent Editor", () => {
     const code = (fn: () => unknown) => { try { fn(); return "ok"; } catch (error) { return (error as { code: string }).code; } };
     expect(code(() => profiles.set("coolify-deploy", "TOOLS.md", `${tools}\nCOOLIFY_API_TOKEN=12|abcdefghijklmnopqrstuvwxyz0123456789ABCD`))).toBe("secret_detected");
     expect(code(() => profiles.set("coolify-deploy", "TOOLS.md", `${tools}\n${"ghp_"}${"a".repeat(36)}`))).toBe("secret_detected");
-    expect(code(() => profiles.set("gerador-de-demos", "IDENTITY.md", identity.replace("Name: Website Designer", "Name:")))).toBe("invalid_name");
+    expect(code(() => profiles.set("gerador-de-demos", "IDENTITY.md", identity.replace("Name: Agente Gerador de Demos", "Name:")))).toBe("invalid_name");
     expect(code(() => profiles.rename("gerador-de-demos", "   "))).toBe("invalid_name");
     expect(code(() => profiles.rename("gerador-de-demos", "x".repeat(profilesModule.MAX_NAME + 1)))).toBe("invalid_name");
     expect(code(() => profiles.set("inventado", "SOUL.md", "x"))).toBe("unknown_agent");
@@ -159,14 +183,14 @@ describe("gateway: abas do Agent Editor", () => {
     const list = core.handleMethod(state, "agents.list", {}, "1", { profiles: store(null) }) as Frame;
     const agents = (list.payload as { agents: { id: string; name: string; identity: { emoji: string } }[] }).agents;
     expect(agents.map((agent) => [agent.id, agent.name, agent.identity.emoji])).toEqual([
-      ["gerador-de-demos", "Website Designer", "🎨"], ["prospeccao", "Lead Generation Specialist", "🎯"], ["coolify-deploy", "Deployment Manager", "🚀"],
+      ["gerador-de-demos", "Agente Gerador de Demos", "🎨"], ["prospeccao", "Agente de Prospecção", "🎯"], ["coolify-deploy", "Deployment Manager", "🚀"],
     ]);
   });
 
   it("os métodos de escrita que mudariam agentes ou execuções continuam recusados com store", () => {
     const state = core.createState();
     core.applyBridgeEvent(state, "presence", presence);
-    for (const method of ["agents.create", "agents.delete", "config.set", "cron.add", "chat.send"]) {
+    for (const method of ["agents.create", "agents.delete", "config.set", "cron.add"]) {
       expect((core.handleMethod(state, method, { agentId: "prospeccao", name: "Outro" }, "x", { profiles: store() }) as Frame).error?.code).toBe("read_only");
     }
   });
@@ -192,14 +216,14 @@ describe("renomear pelo Agent Editor (nome de exibição)", () => {
     const profiles = store(overrides);
     const before = profiles.get("prospeccao", "IDENTITY.md").content;
     // Mesmo fluxo do Claw3D: grava o IDENTITY.md serializado pelo editor e depois chama agents.update.
-    const edited = before.replace("- Name: Lead Generation Specialist", "- Name: Caçador de Leads").replace("- Avatar:", "- Avatar: ");
+    const edited = before.replace("- Name: Agente de Prospecção", "- Name: Caçador de Leads").replace("- Avatar:", "- Avatar: ");
     expect((core.handleMethod(state, "agents.files.set", { agentId: "prospeccao", name: "IDENTITY.md", content: edited }, "1", { profiles }) as Frame).ok).toBe(true);
     const renamed = core.handleMethod(state, "agents.update", { agentId: "prospeccao", name: "  Caçador de Leads " }, "2", { profiles }) as Frame;
     expect(renamed).toMatchObject({ ok: true, payload: { agentId: "prospeccao", name: "Caçador de Leads" } });
     // Novo processo (reinício do app): o nome salvo vence o padrão versionado; ids e ordem iguais, sem duplicar.
     const restarted = core.createState();
     core.applyBridgeEvent(restarted, "presence", presence);
-    expect(names(restarted, store(overrides))).toEqual([["gerador-de-demos", "Website Designer"], ["prospeccao", "Caçador de Leads"], ["coolify-deploy", "Deployment Manager"]]);
+    expect(names(restarted, store(overrides))).toEqual([["gerador-de-demos", "Agente Gerador de Demos"], ["prospeccao", "Caçador de Leads"], ["coolify-deploy", "Deployment Manager"]]);
     const after = store(overrides).get("prospeccao", "IDENTITY.md").content;
     for (const field of ["creature", "vibe", "emoji"]) expect(profilesModule.identityField(after, field)).toBe(profilesModule.identityField(before, field));
     // O bridge (serviço) continua com o nome interno; nada de execução foi criado.
@@ -216,7 +240,7 @@ describe("renomear pelo Agent Editor (nome de exibição)", () => {
     expect((core.handleMethod(state, "agents.update", { agentId: "prospeccao", workspace: "/tmp" }, "3", { profiles }) as Frame).error?.code).toBe("read_only");
     expect((core.handleMethod(state, "agents.update", { agentId: "inventado", name: "X" }, "4", { profiles }) as Frame).error?.code).toBe("unknown_agent");
     expect((core.handleMethod(state, "agents.update", { agentId: "prospeccao", name: "" }, "5", { profiles }) as Frame).error?.code).toBe("invalid_name");
-    expect(names(state, profiles).map(([, name]) => name)).toEqual(["Website Designer", "Lead Generation Specialist", "Deployment Manager"]);
+    expect(names(state, profiles).map(([, name]) => name)).toEqual(["Agente Gerador de Demos", "Agente de Prospecção", "Deployment Manager"]);
   });
 
   it("voltar ao nome padrão remove a edição local; sem perfil o nome do bridge é o fallback", () => {
@@ -231,6 +255,6 @@ describe("renomear pelo Agent Editor (nome de exibição)", () => {
     const empty = profilesModule.createProfileStore({ defaultsDir: tempDir(), overridesDir: null, agentName: () => null });
     expect(names(state, empty).map(([, name]) => name)).toEqual(["Gerador de Demos", "Prospecção", "Coolify Deploy Agent"]);
     const hello = core.helloPayload(state, { profiles });
-    expect(hello.snapshot.health.agents.map((a: { name: string }) => a.name)).toEqual(["Website Designer", "Lead Generation Specialist", "Deployment Manager"]);
+    expect(hello.snapshot.health.agents.map((a: { name: string }) => a.name)).toEqual(["Agente Gerador de Demos", "Agente de Prospecção", "Deployment Manager"]);
   });
 });

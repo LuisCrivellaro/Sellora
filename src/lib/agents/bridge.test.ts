@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { afterEach, beforeEach, expect, it } from "vitest";
-import { agentRegistry, claw3dState, lifecycleEvents, readJobs, SUCCESS_VISIBLE_MS, visualState } from "./bridge";
+import { agentRegistry, claw3dState, lifecycleEvents, readJobs, readAllRuns, SUCCESS_VISIBLE_MS, visualState } from "./bridge";
 
 const job = (overrides: Record<string, unknown>) => ({ id: randomUUID(), businessKey: JSON.stringify({ name: "Barbearia Teste Sellora", city: "Campinas", uf: "SP", segment: "beleza" }), status: "running", phase: "Etapa 4: escrevendo o código", error: null, textProvider: "claude", generator: "v6", leadId: "lead-1", startedAt: "2026-11-12T20:00:00.000Z", events: [{ at: "2026-11-12T20:00:00.000Z", phase: "Preparando a geração" }, { at: "2026-11-12T20:01:00.000Z", phase: "Etapa 4: escrevendo o código" }], result: null, ...overrides });
 
@@ -15,13 +15,39 @@ async function save(...jobs: Record<string, unknown>[]) {
   for (const item of jobs) await writeFile(path.join(dir, `${item.id}.json`), JSON.stringify(item));
 }
 
-it("sem execuções, os três agentes reais aparecem parados (nada simulado)", async () => {
+it("sem execuções, os quatro agentes reais aparecem parados (nada simulado)", async () => {
   const agents = await agentRegistry();
-  expect(agents.map((agent) => agent.id)).toEqual(["gerador-de-demos", "prospeccao", "coolify-deploy"]);
+  expect(agents.map((agent) => agent.id)).toEqual(["gerador-de-demos", "prospeccao", "coolify-deploy", "revisor-de-demos"]);
   for (const agent of agents) expect(agent).toMatchObject({ status: "idle", visual: "idle", currentRun: null, lastRun: null, recent: [] });
   expect(agents[1].role).toContain("sem IA generativa");
   expect(agents[2]).toMatchObject({ name: "Coolify Deploy Agent", runtime: "coolify" });
-  expect(Object.keys((await claw3dState()).active)).toEqual(["gerador-de-demos", "prospeccao", "coolify-deploy"]);
+  expect(Object.keys((await claw3dState()).active)).toEqual(["gerador-de-demos", "prospeccao", "coolify-deploy", "revisor-de-demos"]);
+});
+
+it("revisor só acompanha QA real, preserva pendências e nunca aprova por conta própria", async () => {
+  const input = job({ phase: "Etapa 6: escrevendo o site" });
+  await save(input);
+  const live = globalThis as { selloraDemoJobs?: Map<string, { status: string }> };
+  live.selloraDemoJobs = new Map([[input.id, { status: "running" }]]);
+  expect((await readAllRuns()).filter((run) => run.agentId === "revisor-de-demos")).toHaveLength(0);
+  const qaPhase = "Etapa 8: QA em navegador real";
+  await save({ ...input, phase: qaPhase, events: [{ at: new Date().toISOString(), phase: qaPhase }] });
+  let reviewer = (await agentRegistry()).find((agent) => agent.id === "revisor-de-demos")!;
+  expect(reviewer.currentRun).toMatchObject({ runId: `${input.id}:review`, leadId: "lead-1", task: qaPhase });
+  expect(reviewer.status).toBe("running");
+  await save({ ...input, phase: "Etapa 11: salvando relatório", events: [{ at: new Date().toISOString(), phase: qaPhase }] });
+  const waitingReport = (await agentRegistry()).find((agent) => agent.id === "revisor-de-demos")!.lastRun!;
+  expect(waitingReport.status).toBe("queued");
+  await save({ ...input, status: "completed", phase: "Demo pronta", result: { site: { id: "site-real", qa: { status: "needs_review", issues: ["Texto cortado no celular"] } } } });
+  reviewer = (await agentRegistry()).find((agent) => agent.id === "revisor-de-demos")!;
+  expect(reviewer.currentRun).toBeNull();
+  expect(reviewer.lastRun).toMatchObject({ status: "waiting_approval", siteId: "site-real", review: { status: "needs_review", issues: ["Texto cortado no celular"] } });
+  expect(reviewer.lastRun?.task).toContain("pendência");
+  expect(lifecycleEvents(new Map([[waitingReport.runId, waitingReport]]), [reviewer.lastRun!])[0]).toMatchObject({ phase: "end", reviewStatus: "waiting_approval" });
+  expect((await readAllRuns()).filter((run) => run.runId === input.id)).toHaveLength(1);
+  await save({ ...input, status: "completed", phase: "Demo pronta", result: { site: { id: "site-real", qa: { status: "passed", issues: [] } } } });
+  reviewer = (await agentRegistry()).find((agent) => agent.id === "revisor-de-demos")!;
+  expect(reviewer.lastRun).toMatchObject({ status: "completed", review: { status: "passed" } });
 });
 
 it("Coolify Deploy Agent: estados vêm só das publicações reais (preparando, publicando, sucesso, erro)", async () => {

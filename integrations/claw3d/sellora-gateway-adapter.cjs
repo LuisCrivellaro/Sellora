@@ -10,7 +10,7 @@
  * - Só escuta em 127.0.0.1.
  * - Exige o token de sessão (SELLORA_ADAPTER_TOKEN) no `connect`; o proxy do Claw3D o injeta
  *   do lado do servidor, sem expor ao navegador.
- * - Só observação: não inicia nem altera execuções.
+ * - Observação e consultas locais de texto: não inicia nem altera execuções.
  * - Reconecta ao bridge com espera crescente e reaplica o retrato completo (`presence`).
  *
  * Fica em integrations/claw3d/ no repositório da Sellora e é copiado para server/ do Claw3D
@@ -92,7 +92,12 @@ async function followBridge() {
       state.bridge.lastError = null;
       retryMs = 1000;
       console.info(`[sellora-gateway] conectado ao bridge ${BRIDGE_URL}`);
-      const parse = core.createSseParser((event, data) => { broadcast(core.applyBridgeEvent(state, event, data)); if (event !== "heartbeat") syncTaskBoard(); });
+      const parse = core.createSseParser((event, data) => {
+        const frames = core.applyBridgeEvent(state, event, data);
+        if (event === "presence") profiles.migrateLegacyNames();
+        broadcast(frames);
+        if (event !== "heartbeat") syncTaskBoard();
+      });
       const decoder = new TextDecoder();
       for await (const chunk of response.body) parse(decoder.decode(chunk, { stream: true }));
       throw new Error("bridge encerrou o stream");
@@ -131,6 +136,7 @@ const servers = ["127.0.0.1", "::1"].map((host) => {
 });
 
 wss.on("connection", (ws) => {
+  const connectedAt = Date.now();
   let authorized = false;
   let replayed = false;
   // O Claw3D confere a sequência de eventos por conexão e trata saltos como perda (reconcilia e reseta estados):
@@ -170,7 +176,7 @@ wss.on("connection", (ws) => {
     // depois que o cliente pede a lista de agentes (conexão nova ou recarga da página).
     if (message.method === "agents.list" && !replayed) {
       replayed = true;
-      const timer = setTimeout(() => { for (const frame of core.replayFrames(state)) send(frame); }, 1500);
+      const timer = setTimeout(() => { for (const frame of core.replayFrames(state, connectedAt)) send(frame); }, 1500);
       timer.unref();
     }
   });

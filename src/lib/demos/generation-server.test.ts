@@ -3,6 +3,10 @@ import { beforeEach, expect, it, vi } from "vitest";
 import { generatedFixture } from "./generation-fixtures";
 import { creationDraftSchema, creationSignature } from "./creation";
 import { draftIssues, generationRequestSchema, getDemoGenerationJob, startDemoGeneration, pauseDemoGeneration, resumeDemoGeneration, cancelDemoGeneration } from "./generation-server";
+import { startJob, cancelJob, getJob } from "../prospecting/jobs";
+
+const prospect = vi.hoisted(() => ({ run: vi.fn() }));
+vi.mock("../prospecting/executor", () => ({ runOsmProspecting: prospect.run }));
 
 const client = vi.hoisted(() => ({
   status: vi.fn(), startThread: vi.fn(), draft: vi.fn(), image: vi.fn(), close: vi.fn(),
@@ -75,6 +79,53 @@ it("cancelar uma demo pausada permite concluir outro estabelecimento independent
   await expect.poll(async () => (await getDemoGenerationJob(first.id))?.status).toBe("cancelled");
   await expect.poll(async () => (await getDemoGenerationJob(second.id))?.status).toBe("completed");
   expect((await getDemoGenerationJob(first.id))?.result).toBeNull();
+});
+
+it("prospecção e demos coexistem: cancelamentos e erros não atravessam os módulos", async () => {
+  let completeSearch!: (value: { results: never[]; attribution: string }) => void;
+  prospect.run.mockImplementationOnce(() => new Promise((resolve) => { completeSearch = resolve; }));
+  const owner = randomUUID();
+  const search = startJob(owner, { city: "Campinas", uf: "SP", segment: "beleza", radiusKm: 10, maxResults: 10, opportunity: "todas" }, "osm");
+  const first = request();
+  let finishImage!: (image: typeof generatedFixture.image) => void;
+  client.image.mockImplementationOnce(() => new Promise((resolve) => { finishImage = resolve; }));
+  await startDemoGeneration(first);
+  await expect.poll(() => client.image.mock.calls.length).toBe(1);
+  expect(getJob(search.id, owner)?.status).toBe("running");
+  expect(getJob(search.id, "outra-conta")).toBeNull();
+  const cancel = cancelDemoGeneration(first.id);
+  finishImage(generatedFixture.image);
+  await cancel;
+  expect((await getDemoGenerationJob(first.id))?.status).toBe("cancelled");
+  expect(getJob(search.id, owner)?.status).toBe("running");
+  const second = request();
+  client.image.mockImplementationOnce(() => new Promise((resolve) => { finishImage = resolve; }));
+  await startDemoGeneration(second);
+  await expect.poll(() => client.image.mock.calls.length).toBe(2);
+  cancelJob(search.id, owner);
+  completeSearch({ results: [], attribution: "Teste" });
+  expect((await getDemoGenerationJob(second.id))?.status).toBe("running");
+  finishImage(generatedFixture.image);
+  await expect.poll(async () => (await getDemoGenerationJob(second.id))?.status).toBe("completed");
+  expect(getJob(search.id, owner)?.status).toBe("cancelled");
+});
+
+it("falha da pesquisa não altera o processo da demo em andamento", async () => {
+  let finishImage!: (image: typeof generatedFixture.image) => void;
+  client.image.mockImplementationOnce(() => new Promise((resolve) => { finishImage = resolve; }));
+  const input = request();
+  await startDemoGeneration(input);
+  await expect.poll(() => client.image.mock.calls.length).toBe(1);
+  const log = vi.spyOn(console, "error").mockImplementation(() => {});
+  try {
+    prospect.run.mockRejectedValueOnce(new Error("Falha controlada na fonte"));
+    const owner = randomUUID();
+    const search = startJob(owner, { city: "Campinas", uf: "SP", segment: "beleza", radiusKm: 10, maxResults: 10, opportunity: "todas" }, "osm");
+    await expect.poll(() => getJob(search.id, owner)?.status).toBe("failed");
+    expect((await getDemoGenerationJob(input.id))?.status).toBe("running");
+    finishImage(generatedFixture.image);
+    await expect.poll(async () => (await getDemoGenerationJob(input.id))?.status).toBe("completed");
+  } finally { log.mockRestore(); }
 });
 
 it("v5 sem Codex disponível falha antes de gastar a cota do Claude", async () => {

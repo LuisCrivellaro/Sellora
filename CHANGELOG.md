@@ -1,6 +1,45 @@
 # Histórico de atualizações do Sellora
 
-## Próxima atualização
+## 1.6 — 2026-11-14
+
+- Preparação automática opcional: gerar demo V6, conferir QA técnico/visual e originalidade, publicar no Coolify configurado e preparar mensagem com o link confirmado. O envio continua manual.
+- Mantidos os controles e padrões manuais. A Prospecção oferece opção separada para encaminhar os qualificados ao fluxo completo, sem ativar pesquisas antigas.
+- Pendências de QA, imagens substitutas, revisão visual ausente e mensagens editadas impedem a liberação automática. Os avisos informativos de categoria ou telefone ausente continuam visíveis.
+- Retomar a preparação reutiliza a demo salva e a publicação existente. Pausa e cancelamento preservam outras demos e não desfazem publicações já iniciadas no Coolify.
+- Revisão automática identificada no histórico, sem registrar contato ou envio. Testes de integração, edição concorrente, publicação, cancelamento, regressão manual e interface em perfil desktop isolado.
+
+## 1.5 — 2026-11-14
+
+- Escritório com quatro personagens: Agente de Prospecção, Agente Gerador de Demos, Publicação e Revisor de Demos. Papéis e atalhos separados nas áreas da Sellora.
+- Revisor acompanha as etapas reais do QA V6 e mostra as pendências do relatório, sem duplicar geração, chamadas de IA ou aprovação humana.
+- Nomes padrão antigos do 3D atualizados com preservação dos campos, avatares e nomes personalizados; alterações locais recebem backup.
+- Testes ampliados para quatro personagens, troca de chat, perfis, atalhos, estados de QA e cartões independentes no Kanban.
+
+## 1.4 — 2026-11-14
+
+- Corrigida a preparação da sessão de chat do Claw3D: sincronizar opções de conversa não altera modelos, permissões ou tarefas reais da Sellora.
+- New session limpa apenas a conversa local e sua deduplicação. Histórico de trabalho, leads, demos e tarefas em execução permanecem preservados.
+- Consultas de agentes ociosos reaparecem ao recarregar o escritório, sem simular execução de tarefas.
+- Acrescentado teste na interface real do Claw3D com bridge e perfil isolados, cobrindo primeiro envio, resposta, nova sessão e recuperação após recarregar.
+
+## 1.3 — 2026-11-14
+
+- Separadas as áreas Prospecção e Geração de Demos, com controles e progresso independentes; o acompanhamento da pesquisa continua ao navegar pelo aplicativo.
+- Leads do CRM ou resultados selecionados podem entrar na fila de demos sem iniciar IA. A automação é opcional por pesquisa, deduplicada e preserva demos existentes.
+- Integração entre módulos centralizada sem mudar banco, autenticação ou identificadores históricos; falha do gerador não invalida a pesquisa.
+- Acrescentados testes de concorrência, cancelamento entre módulos, retomada de etapas salvas, deduplicação e regressão, além de verificação de interface no desktop e celular em perfis isolados.
+
+- Chat do escritório responde status, histórico, ajuda e onde revisar, usando os registros reais da Sellora e sem chamadas de IA.
+- Mensagens livres recebem orientação sobre os comandos disponíveis; o chat não inicia, cancela ou publica tarefas. Consultas indicam quando o bridge está desconectado.
+- Histórico de consultas em memória, limitado e com deduplicação de envios; reiniciar o aplicativo limpa essas conversas sem alterar o histórico de execuções.
+
+## 1.2 — 2026-11-14
+
+- Cloud 3D agora mostra o status real dos agentes e permite abrir as demos para testar em computador ou celular e aprovar usando os controles existentes.
+- Pedidos de ajuste ficam registrados no histórico do CRM e removem a aprovação anterior, preservando o site. A correção automática não é iniciada.
+- Verificação do desktop ampliada para testar a abertura da entrega no escritório, a prévia móvel e o registro do ajuste em perfil isolado.
+
+## 1.1 — 2026-11-14
 
 - Corrigido o alcance dos controles na ficha individual. Pausar, retomar e cancelar afetam o estabelecimento exibido. A tela do lote mantém os controles globais.
 - A geração individual mantém as demais demos pausadas e cada pedido usa o identificador do lead escolhido. Cliques repetidos são deduplicados.

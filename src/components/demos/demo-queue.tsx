@@ -20,7 +20,7 @@ import { DemoCover } from "./demo-cover";
 import { DemoReview } from "./demo-review";
 import { findApprovedConcept } from "@/lib/demos/concepts";
 import { canGenerateDemos, enqueueDemoGeneration, useDemoGenerator } from "@/lib/demos/generation-client";
-import { DemoGeneratorStatus } from "./demo-generator-status";
+import { DemoGenerationWorkspace } from "./demo-generation-workspace";
 
 const stageMeta = { pending: { label: "Aguardando aprovação", icon: MessageSquareText, color: "text-warn" }, approved: { label: "Aprovada · envio manual", icon: CheckCheck, color: "text-mint" }, sent: { label: "Envio registrado", icon: Send, color: "text-ink-soft" }, rejected: { label: "Recusada", icon: Ban, color: "text-[#e3a1a1]" } };
 
@@ -61,15 +61,15 @@ export function DemoQueue({ onOpenLead }: { onOpenLead: (id: string) => void }) 
     }
   };
   return <>
+    <DemoGenerationWorkspace onReview={setReviewId} />
     <DashboardCard index={7} className="col-span-12" title="Demos e mensagens" description="Um negócio por cartão. Abra, confira a demo e prepare sua próxima conversa." actions={<span className="rounded-full border border-seam-strong bg-selected px-3 py-1.5 text-[12px] text-ink-soft"><span className="tnum font-semibold text-ink">{sentToday}/10</span> contatos registrados hoje</span>}>
       <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
-        <Segmented label="Filtrar mensagens" value={filter} onChange={setFilter} options={[{ value: "pending", label: `Para aprovar (${pending.length})` }, { value: "approved", label: `Aprovadas (${approved.length})` }, { value: "sent", label: `Envios (${sent.length})` }, { value: "all", label: "Todas" }, { value: "rejected", label: `Recusadas (${rejected.length})` }]} />
+        <Segmented className="[&>button]:shrink-0" label="Filtrar mensagens" value={filter} onChange={setFilter} options={[{ value: "pending", label: `Para aprovar (${pending.length})` }, { value: "approved", label: `Aprovadas (${approved.length})` }, { value: "sent", label: `Envios (${sent.length})` }, { value: "all", label: "Todas" }, { value: "rejected", label: `Recusadas (${rejected.length})` }]} />
         <SearchInput label="Buscar demos" value={query} onChange={setQuery} placeholder="Nome, cidade ou telefone…" className="w-full sm:w-64" />
         {aiLeads.length > 0 && <Button size="sm" disabled={blocked || !canGenerateDemos(generator)} onClick={() => enqueueDemoGeneration(aiLeads.map((lead) => lead.id))}>Gerar demos exclusivas com IA ({aiLeads.length})</Button>}
         {legacyLeads.length > 0 && <Button size="sm" variant="secondary" disabled={blocked} onClick={() => setConfirmUpgrade(true)}>Personalizar demos antigas ({legacyLeads.length})</Button>}
         {conceptLeads.length > 0 && <Button size="sm" disabled={blocked} onClick={() => setConfirmConcepts(true)}>Aplicar conceitos aprovados ({conceptLeads.length})</Button>}
       </div>
-      <DemoGeneratorStatus />
       {filtered.length ? <ul className="grid grid-cols-1 gap-4 md:grid-cols-2 2xl:grid-cols-3" aria-label="Fila de revisão de mensagens">
         {filtered.map((lead) => {
           const demo = lead.demo!;
@@ -91,7 +91,7 @@ export function DemoQueue({ onOpenLead }: { onOpenLead: (id: string) => void }) 
             </div>
           </li>;
         })}
-      </ul> : <EmptyState icon={<MessageSquareText size={20} aria-hidden />} title={leads.length ? "Nenhuma demo neste filtro" : "Sua próxima abordagem começa com uma demo"} description={leads.length ? "Ajuste a busca ou alterne entre pendentes, aprovadas e envios registrados." : "Revise os resultados da Prospecção IA e use Gerar prospecção com demo, ou gere pela ficha de um lead. Os cartões aparecerão aqui para revisão."} />}
+      </ul> : <EmptyState icon={<MessageSquareText size={20} aria-hidden />} title={leads.length ? "Nenhuma demo neste filtro" : "Sua próxima abordagem começa com uma demo"} description={leads.length ? "Ajuste a busca ou alterne entre pendentes, aprovadas e envios registrados." : "Selecione leads no Gerador de Demos acima e inicie a fila. As demos prontas aparecerão aqui para revisão."} />}
       <p className="mt-4 text-[11.5px] text-ink-faint">A meta de 10 é uma referência diária. Os registros são manuais; abrir o WhatsApp não confirma envio ou entrega.</p>
     </DashboardCard>
     <DemoReview lead={reviewLead} onClose={() => setReviewId(null)} onOpenLead={onOpenLead} />

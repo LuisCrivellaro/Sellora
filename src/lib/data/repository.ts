@@ -48,6 +48,7 @@ import { createDemoPersonalization } from "../demos/personalization";
 import { approvedConcepts, findApprovedConcept } from "../demos/concepts";
 import { demoCreativeIssues } from "../demos/creative-review";
 import { generationResultSchema, type GenerationResult } from "../demos/creation";
+import { AUTOMATIC_DEMO_REVIEWER, automaticReviewIssues } from "../demos/send-preparation";
 import { isCurrentDemoSent, normalizeWhatsappPhone, MANUAL_DEMO_ACTIVITY } from "../demos/whatsapp";
 
 /**
@@ -363,6 +364,21 @@ export function approveLeadDemo(leadId: ID) {
   });
 }
 
+/** Revisão técnica opcional, sem registrar aprovação humana nem contato com o cliente. */
+export function approveLeadDemoAutomatically(leadId: ID, expectedRevision: string) {
+  commit((db) => {
+    const lead = db.leads.find((item) => item.id === leadId);
+    if (!lead?.demo || demoRevision(lead.demo) !== expectedRevision) throw new Error("A demo foi alterada durante a preparação; revise a versão atual manualmente.");
+    const issues = [...automaticReviewIssues(lead.demo), ...demoCreativeIssues(lead.demo, db.leads.flatMap((item) => item.demo ? [item.demo] : []))];
+    if (issues.length) throw new Error(issues.join(" "));
+    if (lead.demo.status === "approved") return db;
+    const t = nowIso();
+    const demo = leadDemoSchema.parse({ ...lead.demo, status: "approved", approvedAt: t, approvedBy: AUTOMATIC_DEMO_REVIEWER, updatedAt: t });
+    const activity: Activity = { id: uid("act"), leadId, clientId: null, projectId: null, type: "nota", description: `${AUTOMATIC_DEMO_REVIEWER}: demo e mensagem preparadas. Nenhuma mensagem foi enviada. Confira a prévia antes do envio manual.`, dueAt: null, completedAt: t, createdAt: t };
+    return { ...db, leads: db.leads.map((item) => item.id === leadId ? { ...item, demo, updatedAt: t } : item), activities: [activity, ...db.activities] };
+  });
+}
+
 /**
  * Recusa só a demo deste lead: o lead, a mensagem, o envio declarado e o histórico ficam.
  * Remove a aprovação (nada recusado pode ser enviado) e registra uma nota no CRM.
@@ -396,6 +412,21 @@ export function revokeDemoApproval(leadId: ID) {
   updateLeadDemo(leadId, (demo) => {
     if (demo.status === "rejected") throw new Error(REJECTED_DEMO);
     return { ...demo, status: "pending", approvedAt: null, approvedBy: null, updatedAt: nowIso() };
+  });
+}
+
+/** Registra uma solicitação humana; não dispara IA nem envia mensagens. */
+export function requestDemoChanges(leadId: ID, feedback: string) {
+  const note = activityInputSchema.parse({ type: "nota", description: `Ajuste da demo: ${feedback.trim()}`, dueAt: null, completed: true });
+  if (feedback.trim().length < 3) throw new Error("Descreva o ajuste em pelo menos 3 caracteres.");
+  commit((db) => {
+    const lead = db.leads.find((item) => item.id === leadId);
+    if (!lead?.demo) throw new Error("Este lead não tem demo.");
+    if (lead.demo.status === "rejected") throw new Error(REJECTED_DEMO);
+    const t = nowIso();
+    const demo = leadDemoSchema.parse({ ...lead.demo, status: "pending", approvedAt: null, approvedBy: null, updatedAt: t });
+    const activity: Activity = { id: uid("act"), leadId, clientId: null, projectId: null, type: "nota", description: note.description, dueAt: null, completedAt: t, createdAt: t };
+    return { ...db, leads: db.leads.map((item) => item.id === leadId ? { ...item, demo, updatedAt: t } : item), activities: [activity, ...db.activities] };
   });
 }
 

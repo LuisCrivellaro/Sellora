@@ -1,8 +1,9 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
-import { clearActiveJob, failSearch, startSearch, useProspects } from "@/lib/prospecting/store";
-import { completeProspectSearch } from "@/lib/prospecting/complete-search";
+import { createContext, createElement, useContext, useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import { clearActiveJob, failSearch, startSearch, useProspects, loadProspects } from "@/lib/prospecting/store";
+import { completeProspectingWorkflow } from "@/lib/agents/lead-demo-workflow";
+import { useStore } from "@/lib/data/store";
 import type { ExecutorStatus, JobView, ProspectParams } from "@/lib/prospecting/types";
 
 /**
@@ -40,7 +41,7 @@ async function requestStatus(): Promise<StatusState> {
   }
 }
 
-export function useProspectJob() {
+function useProspectController() {
   const { activeJobId, ready } = useProspects();
   const [status, setStatus] = useState<StatusState>({ state: "loading" });
   const [job, setJob] = useState<JobView | null>(null);
@@ -96,7 +97,7 @@ export function useProspectJob() {
         if (view.status === "running" || view.status === "queued") timer.current = window.setTimeout(tick, POLL_MS);
         else {
           pollingId.current = null;
-          completeProspectSearch(view);
+          completeProspectingWorkflow(view);
         }
       } catch {
         // Falha de rede momentânea: tenta de novo com intervalo maior.
@@ -114,7 +115,7 @@ export function useProspectJob() {
   useEffect(() => stopPolling, []);
 
   const start = useCallback(
-    async (params: ProspectParams) => {
+    async (params: ProspectParams, demoMode: "manual" | "automatic" | "prepare" = "manual") => {
       setStarting(true);
       setRequestError(null);
       try {
@@ -127,7 +128,7 @@ export function useProspectJob() {
         }
         const view = body.job as JobView;
         setJob(view);
-        startSearch(view);
+        startSearch(view, false, demoMode);
         poll(view.id);
         return true;
       } catch {
@@ -152,7 +153,7 @@ export function useProspectJob() {
       stopPolling();
       const view = body.job as JobView;
       setJob(view);
-      completeProspectSearch(view);
+      completeProspectingWorkflow(view);
     } catch {
       setRequestError("Sem resposta do servidor ao cancelar.");
     }
@@ -165,4 +166,26 @@ export function useProspectJob() {
 
   const running = !!job && (job.status === "running" || job.status === "queued");
   return { status, reloadStatus: loadStatus, job, running, starting, requestError, start, cancel, dismiss };
+}
+
+const ProspectContext = createContext<ReturnType<typeof useProspectController> | null>(null);
+
+function ProspectRuntime({ scope, children }: { scope: string; children?: ReactNode }) {
+  const runtime = useProspectController();
+  useEffect(() => { loadProspects(scope); }, [scope]);
+  return createElement(ProspectContext.Provider, { value: runtime }, children);
+}
+
+/** Montado no shell: trocar de área não interrompe o acompanhamento da pesquisa. */
+export function ProspectJobProvider({ children }: { children: ReactNode }) {
+  const { db, mode, account } = useStore();
+  if (!db || (mode === "supabase" && !account)) return children;
+  const scope = mode === "supabase" ? `conta:${account!.email}` : "local";
+  return createElement(ProspectRuntime, { key: scope, scope }, children);
+}
+
+export function useProspectJob() {
+  const runtime = useContext(ProspectContext);
+  if (!runtime) throw new Error("Prospecção deve ser usada dentro do ProspectJobProvider.");
+  return runtime;
 }

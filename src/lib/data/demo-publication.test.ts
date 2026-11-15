@@ -1,7 +1,7 @@
 import { beforeAll, beforeEach, expect, it, vi } from "vitest";
 import { createEmptyDatabase } from "./seed";
 import { getDb, replaceDatabase } from "./store";
-import { applyDemoPublication, applyGeneratedLeadDemo, approveLeadDemo, createLead, generateLeadDemo } from "./repository";
+import { applyDemoPublication, applyGeneratedLeadDemo, approveLeadDemo, createLead, generateLeadDemo, requestDemoChanges } from "./repository";
 import { demoMessageForCopy, demoRevision, publishedDemoUrl } from "../demos/model";
 import { leadFromRow, leadToRow } from "./mappers";
 
@@ -10,6 +10,21 @@ beforeAll(() => {
   vi.stubGlobal("window", { localStorage: { getItem: (k: string) => mem.get(k) ?? null, setItem: (k: string, v: string) => mem.set(k, v) } });
 });
 beforeEach(() => replaceDatabase(createEmptyDatabase()));
+
+it("pedido de ajuste preserva a demo, revoga aprovação e registra a revisão sem contatar o lead", () => {
+  const lead = createLead(input);
+  generateLeadDemo(lead.id);
+  const before = getDb().leads[0];
+  expect(() => requestDemoChanges(lead.id, " ")).toThrow();
+  expect(getDb().activities).toHaveLength(0);
+  requestDemoChanges(lead.id, "Aumentar o título no celular");
+  const after = getDb().leads[0];
+  expect(after.demo?.id).toBe(before.demo?.id);
+  expect(after.demo?.status).toBe("pending");
+  expect(after.demo?.approvedAt).toBeNull();
+  expect(after.lastContactAt).toBe(before.lastContactAt);
+  expect(getDb().activities[0].description).toContain("Aumentar o título no celular");
+});
 
 const input = { name: "Café São João", city: "Campinas", uf: "SP", segment: "restaurantes" as const, source: "manual" as const, website: "", websiteSituation: "sem_site" as const, stage: "novo" as const, priority: "alta" as const, phone: "(19) 99999-1234", email: "", instagram: "", potentialValue: 590, nextAction: "", nextActionAt: null, notes: "" };
 const site = (id: string) => ({
