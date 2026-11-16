@@ -8,7 +8,7 @@
     "start": "next start",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run",
+    "test": "node scripts/run-vitest.mjs run",
     "desktop:build": "node desktop/build.mjs",
     "desktop:start": "electron desktop/main.mjs",
     "desktop:verify": "node desktop/verify.mjs",

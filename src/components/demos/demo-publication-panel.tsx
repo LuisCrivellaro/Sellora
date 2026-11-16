@@ -1,11 +1,14 @@
 "use client";
 
-import { ChevronDown, CloudUpload, Copy, ExternalLink, RefreshCw, RotateCcw } from "lucide-react";
+import { ChevronDown, CloudUpload, Copy, ExternalLink, FileArchive, Link2, RefreshCw, RotateCcw, Unlink } from "lucide-react";
 import { useState } from "react";
+import { Field, TextInput } from "@/components/ui/field";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/overlay";
 import { useToast } from "@/components/ui/toast";
-import type { LeadDemo } from "@/lib/demos/model";
+import { setManualDemoPublication } from "@/lib/data/repository";
+import { publishedDemoUrl, type LeadDemo } from "@/lib/demos/model";
+import { parseManualDemoUrl } from "@/lib/publishing/manual";
 import { usePublication } from "@/lib/publishing/client";
 import { publicationStatusLabel, type PublicationStatus, type PublicationView } from "@/lib/publishing/types";
 import type { Lead } from "@/lib/types";
@@ -35,7 +38,8 @@ export function DemoPublicationPanel({ lead, demo }: { lead: Lead; demo: LeadDem
   const [confirm, setConfirm] = useState<"publish" | "republish" | null>(null);
   if (!siteId) return null;
 
-  const status: PublicationStatus = publication?.status ?? "awaiting";
+  const manual = !publication && demo.publication && !demo.publication.coolifyAppUuid ? demo.publication : null;
+  const status: PublicationStatus = publication?.status ?? (manual && publishedDemoUrl(demo) ? "published" : "awaiting");
   const outdated = !!publication?.publishedSiteId && publication.publishedSiteId !== siteId;
   const url = publication?.status === "published" || publication?.status === "suspended" || publication?.status === "failed" ? publication.url : null;
   const act = async (action: "publish" | "republish" | "retry" | "verify") => {
@@ -63,12 +67,17 @@ export function DemoPublicationPanel({ lead, demo }: { lead: Lead; demo: LeadDem
 
     {config === null && <p className="text-[12px] text-warn">Não foi possível consultar a configuração de publicação.</p>}
     {config && !config.configured && <div className="rounded-xl border border-seam p-3 text-[12px] text-ink-soft">
-      <p className="font-semibold text-ink">Publicação não configurada neste computador</p>
+      <p className="font-semibold text-ink">Publicação automática (Coolify) não configurada</p>
       <p className="mt-1">A demo continua pronta para revisão. Para publicar, defina no servidor (arquivo .env.local) as variáveis abaixo e reinicie o app. Passo a passo em docs/COOLIFY_INTEGRATION.md.</p>
       <p className="mt-2 font-mono text-[11.5px] break-words text-ink-faint">{[...config.missing, ...config.invalid.map((name) => `${name} (inválida)`)].join(" · ")}</p>
       <p className="mt-2">No aplicativo Windows, a configuração fica em %APPDATA%\sellora\sellora.env (criado na primeira abertura).</p>
     </div>}
-    {config && <ConnectionTest />}
+    {config && config.configured && <ConnectionTest />}
+    {!publication && config !== undefined && !config?.configured && <ManualPublication lead={lead} demo={demo} siteId={siteId} />}
+    {config && !config.configured && <details className="group text-[12px]">
+      <summary className="cursor-pointer list-none font-semibold text-ink-soft hover:text-ink [&::-webkit-details-marker]:hidden">Testar conexão com o Coolify</summary>
+      <div className="mt-2"><ConnectionTest /></div>
+    </details>}
 
     {url && <div className="flex flex-wrap items-center gap-2 rounded-xl bg-selected p-3">
       <a href={url} target="_blank" rel="noopener noreferrer" className="min-w-0 flex-1 truncate text-[12.5px] font-semibold text-ink underline-offset-2 hover:underline" title={url}>{url}</a>
@@ -109,6 +118,59 @@ export function DemoPublicationPanel({ lead, demo }: { lead: Lead; demo: LeadDem
       description={`Os arquivos da demo de ${demo.business.name} serão enviados ao repositório ${config?.repository ?? "configurado"} e publicados pelo Coolify em ${publication?.domain ?? (config?.baseDomain ? `um subdomínio de ${config.baseDomain}` : "um endereço gerado pelo Coolify")}. O endereço fica acessível a quem tiver o link. Nenhuma mensagem é enviada ao lead.`}
       confirmLabel={confirm === "republish" ? "Republicar" : "Publicar"} onConfirm={() => { const action = confirm; setConfirm(null); if (action) void act(action); }} />
   </section>;
+}
+
+/**
+ * Publicação manual: sem Coolify, o administrador baixa o ZIP, publica num host estático (ex.: Netlify) e
+ * registra o endereço. A mensagem copiada e o WhatsApp passam a usar esse link; nada é enviado ao lead.
+ */
+function ManualPublication({ lead, demo, siteId }: { lead: Lead; demo: LeadDemo; siteId: string }) {
+  const { notify } = useToast();
+  const current = demo.publication && !demo.publication.coolifyAppUuid ? demo.publication : null;
+  const valid = current ? publishedDemoUrl(demo) : null;
+  const [value, setValue] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const save = () => {
+    const parsed = parseManualDemoUrl(value);
+    if (!parsed.ok) { setError(parsed.error); return; }
+    try {
+      setManualDemoPublication(lead.id, parsed.url);
+      setValue(""); setError(null);
+      notify({ kind: "success", title: "Link registrado", description: "A mensagem copiada e o WhatsApp passam a usar este endereço." });
+    } catch (failure) { setError(failure instanceof Error ? failure.message : "Não foi possível registrar o link."); }
+  };
+  const remove = () => {
+    try { setManualDemoPublication(lead.id, null); notify({ kind: "success", title: "Link removido" }); }
+    catch (failure) { notify({ kind: "error", title: "Não foi possível remover", description: failure instanceof Error ? failure.message : undefined }); }
+  };
+  const copy = async (url: string) => {
+    try { await navigator.clipboard.writeText(url); notify({ kind: "success", title: "Link copiado", description: "Envie manualmente pelo canal que preferir." }); }
+    catch { notify({ kind: "error", title: "Não foi possível copiar", description: "Permita acesso à área de transferência e tente novamente." }); }
+  };
+
+  return <div className="flex flex-col gap-3 rounded-xl border border-seam p-3 text-[12px] text-ink-soft">
+    <p className="font-semibold text-ink">Publicação manual</p>
+    {valid && <div className="flex flex-wrap items-center gap-2 rounded-xl bg-selected p-3">
+      <a href={valid} target="_blank" rel="noopener noreferrer" className="min-w-0 flex-1 truncate text-[12.5px] font-semibold text-ink underline-offset-2 hover:underline" title={valid}>{valid}</a>
+      <Button size="sm" variant="secondary" onClick={() => void copy(valid)}><Copy aria-hidden /> Copiar link</Button>
+      <Button size="sm" variant="ghost" asChild><a href={valid} target="_blank" rel="noopener noreferrer"><ExternalLink aria-hidden /> Abrir demo</a></Button>
+      <Button size="sm" variant="ghost" onClick={remove}><Unlink aria-hidden /> Remover link</Button>
+    </div>}
+    {current && !valid && <p role="status" className="text-warn">O link registrado ({current.url}) é de uma versão anterior desta demo. Publique a versão atual e registre o novo endereço.</p>}
+    {!valid && <>
+      <ol className="flex list-decimal flex-col gap-1.5 pl-4">
+        <li>Baixe o código da demo: <a className="font-semibold text-ink underline underline-offset-2" href={`/api/demos/sites/${siteId}/zip`} download><FileArchive aria-hidden className="inline size-3.5 align-[-2px]" /> Baixar ZIP</a></li>
+        <li>Entre (conta gratuita) em <a className="font-semibold text-ink underline underline-offset-2" href="https://app.netlify.com/drop" target="_blank" rel="noopener noreferrer">app.netlify.com/drop</a>, extraia o ZIP e arraste a pasta. Sem login, o Netlify apaga o site em pouco tempo.</li>
+        <li>Abra o endereço gerado, confira a demo no celular e cole o link abaixo.</li>
+      </ol>
+      <Field label="Link público da demo" error={error ?? undefined} hint="Somente https://. Links locais (127.0.0.1, localhost) não abrem para o lead.">
+        {(p) => <TextInput {...p} type="url" inputMode="url" value={value} placeholder="https://nome-da-demo.netlify.app"
+          onChange={(event) => { setValue(event.target.value); if (error) setError(null); }}
+          onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); save(); } }} />}
+      </Field>
+      <Button size="sm" className="self-start" disabled={!value.trim()} onClick={save}><Link2 aria-hidden /> Registrar link publicado</Button>
+    </>}
+  </div>;
 }
 
 type CheckResult = { ok: boolean | null; error?: string; version?: string; repo?: string; private?: boolean; branch?: string };

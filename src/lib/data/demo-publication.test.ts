@@ -1,7 +1,7 @@
 import { beforeAll, beforeEach, expect, it, vi } from "vitest";
 import { createEmptyDatabase } from "./seed";
 import { getDb, replaceDatabase } from "./store";
-import { applyDemoPublication, applyGeneratedLeadDemo, approveLeadDemo, createLead, generateLeadDemo, requestDemoChanges } from "./repository";
+import { applyDemoPublication, applyGeneratedLeadDemo, approveLeadDemo, createLead, generateLeadDemo, requestDemoChanges, setManualDemoPublication } from "./repository";
 import { demoMessageForCopy, demoRevision, publishedDemoUrl } from "../demos/model";
 import { leadFromRow, leadToRow } from "./mappers";
 
@@ -69,4 +69,36 @@ it("versão nova ainda não publicada não reaproveita o link da anterior", () =
   expect(publishedDemoUrl(demo)).toBeNull();
   approveLeadDemo(lead.id);
   expect(demoMessageForCopy(getDb().leads[0].demo!, "http://127.0.0.1:3187")).toContain(`/sites/${SITE_B}/index.html`);
+});
+
+it("publicação manual: aceita só link público HTTPS da versão atual, preserva a aprovação e pode ser removida", () => {
+  const lead = createLead(input);
+  const before = generateLeadDemo(lead.id);
+  expect(() => setManualDemoPublication(lead.id, "https://cafe.netlify.app")).toThrow(/V6/);
+  applyGeneratedLeadDemo(lead.id, { site: site(SITE_A), message: "Olá! Preparei uma demonstração não oficial de site para o café. Posso enviar o link?" }, demoRevision(before));
+  approveLeadDemo(lead.id);
+  const revision = demoRevision(getDb().leads[0].demo);
+  for (const local of ["http://127.0.0.1:3187/sites/x/index.html", "https://localhost:3000", "https://192.168.0.10/demo", "http://cafe.netlify.app", "https://user:pw@cafe.netlify.app", "intranet"]) {
+    expect(() => setManualDemoPublication(lead.id, local)).toThrow();
+  }
+  expect(setManualDemoPublication(lead.id, " cafe-sao-joao.netlify.app ")?.url).toBe("https://cafe-sao-joao.netlify.app/");
+  const demo = getDb().leads[0].demo!;
+  expect(demo.status).toBe("approved");
+  expect(demoRevision(demo)).toBe(revision);
+  expect(publishedDemoUrl(demo)).toBe("https://cafe-sao-joao.netlify.app/");
+  expect(demoMessageForCopy(demo, "http://127.0.0.1:3187")).toContain("https://cafe-sao-joao.netlify.app/");
+  expect(leadFromRow(leadToRow(getDb().leads[0])).demo?.publication).toEqual(demo.publication);
+  // Nova versão da demo: o link manual anterior deixa de valer para a mensagem.
+  applyGeneratedLeadDemo(lead.id, { site: site(SITE_B), message: "Olá! Preparei uma demonstração não oficial de site para o café. Posso enviar o link?" }, demoRevision(getDb().leads[0].demo));
+  expect(publishedDemoUrl(getDb().leads[0].demo!)).toBeNull();
+  setManualDemoPublication(lead.id, null);
+  expect(getDb().leads[0].demo?.publication).toBeUndefined();
+});
+
+it("publicação manual não substitui uma publicação do Coolify", () => {
+  const lead = createLead(input);
+  const before = generateLeadDemo(lead.id);
+  applyGeneratedLeadDemo(lead.id, { site: site(SITE_A), message: "Olá! Preparei uma demonstração não oficial de site para o café. Posso enviar o link?" }, demoRevision(before));
+  applyDemoPublication(lead.id, publication(SITE_A, SITE_A));
+  expect(() => setManualDemoPublication(lead.id, "https://cafe.netlify.app")).toThrow(/Coolify/);
 });

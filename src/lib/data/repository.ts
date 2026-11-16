@@ -50,6 +50,7 @@ import { demoCreativeIssues } from "../demos/creative-review";
 import { generationResultSchema, type GenerationResult } from "../demos/creation";
 import { AUTOMATIC_DEMO_REVIEWER, automaticReviewIssues } from "../demos/send-preparation";
 import { isCurrentDemoSent, normalizeWhatsappPhone, MANUAL_DEMO_ACTIVITY } from "../demos/whatsapp";
+import { parseManualDemoUrl } from "../publishing/manual";
 
 /**
  * Operações de escrita. Toda entrada passa pelo schema Zod antes de gravar —
@@ -330,6 +331,33 @@ export function applyDemoPublication(leadId: ID, publication: DemoPublication): 
     return { ...db, leads: db.leads.map((item) => item.id === leadId ? { ...item, demo, updatedAt: nowIso() } : item) };
   });
   return changed;
+}
+
+/**
+ * Registra (ou remove, com `url` nulo) o link de uma publicação manual da versão atual da demo V6.
+ * Usado quando o Coolify não está configurado: o administrador publica o ZIP por conta própria.
+ * Uma publicação do Coolify existente não é substituída.
+ */
+export function setManualDemoPublication(leadId: ID, url: string | null): DemoPublication | null {
+  let saved: DemoPublication | null = null;
+  commit((db) => {
+    const lead = db.leads.find((item) => item.id === leadId);
+    const demo = lead?.demo;
+    if (!lead || !demo || demo.version !== 6 || !demo.site) throw new Error("Só demos V6 geradas podem receber link publicado.");
+    if (demo.publication?.coolifyAppUuid) throw new Error("Esta demo já é publicada pelo Coolify. Use os controles de publicação.");
+    let publication: DemoPublication | undefined;
+    if (url) {
+      const parsed = parseManualDemoUrl(url);
+      if (!parsed.ok) throw new Error(parsed.error);
+      const at = nowIso();
+      publication = demoPublicationSchema.parse({ status: "published", siteId: demo.site.id, publishedSiteId: demo.site.id, url: parsed.url,
+        domain: parsed.domain, coolifyAppUuid: null, lastDeployAt: at, syncedAt: at });
+      saved = publication;
+    }
+    const next = leadDemoSchema.parse({ ...demo, publication });
+    return { ...db, leads: db.leads.map((item) => item.id === leadId ? { ...item, demo: next, updatedAt: nowIso() } : item) };
+  });
+  return saved;
 }
 
 function updateLeadDemo(leadId: ID, update: (demo: LeadDemo, db: Database) => LeadDemo) {

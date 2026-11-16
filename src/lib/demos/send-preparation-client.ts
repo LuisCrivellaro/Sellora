@@ -60,7 +60,7 @@ export async function prepareDemoForSend(leadId: string, revision: string, contr
     await persisted();
     const config = await request("/api/publications");
     if (controls.stopped()) return null;
-    if (!(config?.status as { configured?: boolean } | undefined)?.configured) return { status: "awaiting_publication", message: "Demo e mensagem salvas. Configure a publicação no Coolify e tente preparar o envio novamente." };
+    if (!(config?.status as { configured?: boolean } | undefined)?.configured) return { status: "awaiting_publication", message: "Demo e mensagem salvas. Configure o Coolify ou, na ficha do lead, use Publicação manual, registre o link e aprove a demo." };
     const existing = await request(`${endpoint}?refresh=1`);
     if (controls.stopped()) return null;
     // Uma versão anterior publicada pode ser atualizada; uma operação ativa de outra versão exige revisão.
