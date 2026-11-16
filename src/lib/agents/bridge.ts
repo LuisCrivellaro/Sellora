@@ -156,7 +156,7 @@ export async function readAllRuns(limit = 40): Promise<AgentRun[]> {
 
 const AGENTS: { id: AgentId; name: string; role: string; runtime: string }[] = [
   { id: "gerador-de-demos", name: "Agente Gerador de Demos", role: "Cria sites demonstrativos V6 para os leads selecionados, com fila e controles próprios", runtime: "claude-code" },
-  { id: "prospeccao", name: "Agente de Prospecção", role: "Busca, analisa e qualifica leads; não cria demos. Usa OpenStreetMap, HTTP e regras explicáveis, sem IA generativa", runtime: "openstreetmap" },
+  { id: "prospeccao", name: "Agente de Prospecção", role: "Busca, analisa e qualifica leads e monta rascunhos de abordagem (primeiro contato sem link, respostas por situação); não cria demos nem envia mensagens. Usa OpenStreetMap, HTTP e regras explicáveis, sem IA generativa", runtime: "openstreetmap" },
   { id: "coolify-deploy", name: "Coolify Deploy Agent", role: "Deployment & Hosting: publica e gerencia as demos no Coolify (GitHub como complemento). Representa o serviço real; só age quando o administrador publica", runtime: "coolify" },
   { id: "revisor-de-demos", name: "Revisor de Demos", role: "Acompanha o QA real, as capturas e as pendências. A aprovação final continua sendo sua", runtime: "sellora-qa" },
 ];

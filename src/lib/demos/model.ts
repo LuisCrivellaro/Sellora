@@ -23,6 +23,17 @@ export const demoPublicationSchema = z.object({
 });
 export type DemoPublication = z.infer<typeof demoPublicationSchema>;
 
+/** Pedido de ajuste do administrador. Pendente até a próxima geração, que o recebe como prioridade. */
+export const demoAdjustmentSchema = z.object({
+  id: z.string().min(1).max(64),
+  at: z.iso.datetime({ offset: true }),
+  text: z.string().trim().min(3).max(480),
+  /** Versão (site V6) que o administrador estava vendo ao pedir o ajuste. */
+  siteId: z.uuid().nullable(),
+});
+export type DemoAdjustment = z.infer<typeof demoAdjustmentSchema>;
+export const MAX_DEMO_ADJUSTMENTS = 10;
+
 // Lista explícita: observações, e-mail, score e dados do CRM nunca entram na prévia.
 export const demoBusinessSchema = z.object({
   name: z.string().trim().min(2).max(120),
@@ -48,6 +59,10 @@ export const leadDemoSchema = z.object({
   site: siteRefSchema.optional(),
   /** Publicação no Coolify (etapa independente da geração; não altera aprovação nem revisão). */
   publication: demoPublicationSchema.optional(),
+  /** Pedidos de ajuste ainda não aplicados: a próxima geração os lê antes de planejar a nova versão. */
+  adjustments: z.array(demoAdjustmentSchema).max(MAX_DEMO_ADJUSTMENTS).optional(),
+  /** Pedidos que a geração desta versão recebeu (histórico do que foi pedido para chegar aqui). */
+  appliedAdjustments: z.array(demoAdjustmentSchema).max(MAX_DEMO_ADJUSTMENTS).optional(),
   /** Uso interno do CRM (comparação Codex × Claude). Não entra no link público. */
   textProvider: demoTextProviderSchema.optional(),
   imageProvider: storedImageProviderSchema.optional(),
@@ -138,5 +153,5 @@ export function demoMessageForCopy(demo: LeadDemo, origin: string): string {
   const valid = leadDemoSchema.parse(demo);
   if (valid.status === "rejected") throw new Error("Esta demo foi recusada. Restaure e aprove antes de enviar.");
   if (valid.status !== "approved") throw new Error("A mensagem precisa de aprovação antes de ser copiada para envio.");
-  return `${valid.message}\n\nDemonstração não oficial: ${publishedDemoUrl(valid) ?? demoPreviewUrl(valid, origin)}`;
+  return `${valid.message}\n\nDemonstração não oficial: ${publishedDemoUrl(valid) ?? demoPreviewUrl(valid, origin)}\nAs imagens são ilustrativas e as informações precisam ser confirmadas por vocês.`;
 }

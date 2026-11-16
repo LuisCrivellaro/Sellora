@@ -213,3 +213,25 @@ it("Codex atinge o limite na segunda de três imagens: as restantes viram compos
   expect(html).toContain("assets/preparo.svg");
   expect(result.site.qa).toMatchObject({ status: "needs_review", imageFallback: true });
 });
+
+it("pedidos de ajuste chegam ao planejamento, ao código e à revisão visual, com o resumo da versão anterior", async () => {
+  writer.structured.mockResolvedValueOnce(briefFor()).mockResolvedValueOnce(goodSite());
+  const previous = { headline: "Massa fresca no centro", hero: "foto-painel", fonts: ["Fraunces", "Inter"], palette: ["#f4efe6"], sections: ["inicio", "cardapio", "contato"] };
+  const phases: string[] = [];
+  await generateV6(randomUUID(), { ...request(), adjustments: ["Aumentar o título no celular", "Trocar o verde por azul-marinho"], previous }, { phase: (text) => phases.push(text) });
+  const [brief, code] = writer.structured.mock.calls.map((call) => String(call[0]));
+  for (const prompt of [brief, code]) {
+    expect(prompt).toContain("PEDIDOS DE AJUSTE DO ADMINISTRADOR — PRIORIDADE MÁXIMA");
+    expect(prompt).toContain("1. Aumentar o título no celular 2. Trocar o verde por azul-marinho");
+  }
+  expect(brief).toContain('"headline":"Massa fresca no centro"');
+  expect(brief).toContain("comece dizendo como cada pedido de ajuste foi atendido");
+  expect(String(writer.structuredWithImages.mock.calls[0][0])).toContain("Confira nas capturas se cada pedido foi atendido");
+  expect(phases).toContain("Etapa 1: 2 pedidos de ajuste serão aplicados nesta versão");
+});
+
+it("sem pedidos de ajuste, nenhum bloco de ajuste entra nos prompts", async () => {
+  writer.structured.mockResolvedValueOnce(briefFor()).mockResolvedValueOnce(goodSite());
+  await run();
+  for (const call of [...writer.structured.mock.calls, ...writer.structuredWithImages.mock.calls]) expect(String(call[0])).not.toContain("PEDIDOS DE AJUSTE");
+});

@@ -143,6 +143,15 @@ describe("OpenStreetMap", () => {
     expect(c.distanceKm).toBeCloseTo(1.1, 1);
     expect(toCandidate({ type: "node", id: 2, lat: 0, lon: 0, tags: { shop: "beauty" } }, { city: "X", uf: "SP" }, { lat: 0, lon: 0, label: "" })).toBeNull();
   });
+
+  it("prefere WhatsApp e celular ao fixo no telefone do lead", () => {
+    const at = (tags: Record<string, string>) => toCandidate({ type: "node", id: 3, lat: 0, lon: 0, tags: { name: "Bar Z", amenity: "bar", ...tags } }, { city: "X", uf: "SP" }, { lat: 0, lon: 0, label: "" })!.phone;
+    expect(at({ phone: "+55 11 3887-7198", "contact:mobile": "+55 11 97755-8491" })).toBe("+55 11 97755-8491");
+    expect(at({ phone: "+55 11 3887-7198;+55 11 97755-8491" })).toBe("+55 11 97755-8491");
+    expect(at({ phone: "+55 11 97755-8491", "contact:whatsapp": "+55 11 98888-1111" })).toBe("+55 11 98888-1111");
+    expect(at({ phone: "+55 11 3887-7198" })).toBe("+55 11 3887-7198");
+    expect(at({})).toBe("");
+  });
 });
 
 describe("parâmetros e exportação", () => {

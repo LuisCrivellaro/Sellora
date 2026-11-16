@@ -3,6 +3,7 @@ import { instagramHandle, normalizeName, type Candidate } from "./classify";
 import { findMunicipio } from "./municipios";
 import { USER_AGENT } from "./site-check";
 import type { ProspectParams } from "./types";
+import { isBrazilianLandline, normalizeWhatsappPhone } from "../demos/whatsapp";
 
 /**
  * Cliente do OpenStreetMap (somente servidor): Nominatim para localizar a
@@ -161,6 +162,18 @@ export function haversineKm(a: { lat: number; lon: number }, b: { lat: number; l
 }
 
 const first = (v: string | undefined) => (v ?? "").split(";")[0].trim();
+const all = (v: string | undefined) => (v ?? "").split(";").map((item) => item.trim()).filter(Boolean);
+
+/**
+ * Telefone de contato para o CRM: prefere WhatsApp e celular (o envio da demo é pelo WhatsApp);
+ * o fixo só entra quando o OSM não tem outro número.
+ */
+function contactPhone(t: Record<string, string>): string {
+  const whatsapp = all(t["contact:whatsapp"] ?? t.whatsapp);
+  const listed = [...all(t["contact:mobile"]), ...all(t.mobile), ...all(t.phone), ...all(t["contact:phone"])];
+  const mobile = listed.find((value) => !isBrazilianLandline(value) && normalizeWhatsappPhone(value));
+  return whatsapp[0] ?? mobile ?? listed[0] ?? "";
+}
 
 function socialUrl(value: string, base: string): string {
   const v = value.trim();
@@ -177,8 +190,8 @@ export function toCandidate(el: OsmElement, params: Pick<ProspectParams, "city" 
   const lon = el.lon ?? el.center?.lon;
   if (!name || lat === undefined || lon === undefined) return null;
   const { segment, category } = crmSegmentFromTags(t);
-  const phone = first(t.phone ?? t["contact:phone"] ?? t["contact:mobile"] ?? t.mobile);
   const whatsapp = first(t["contact:whatsapp"] ?? t.whatsapp);
+  const phone = contactPhone(t);
   const website = first(t.website ?? t["contact:website"] ?? t.url);
   const instagramRaw = first(t["contact:instagram"] ?? t.instagram);
   const facebook = first(t["contact:facebook"] ?? t.facebook);
@@ -201,7 +214,7 @@ export function toCandidate(el: OsmElement, params: Pick<ProspectParams, "city" 
     address,
     addressComplete: Boolean(street && number),
     distanceKm: Math.round(haversineKm(center, { lat, lon }) * 10) / 10,
-    phone: phone || (whatsapp ? whatsapp : ""),
+    phone,
     email,
     website: website && !/^(no|none|não)$/i.test(website) ? website : "",
     instagram: instagramHandle(instagramRaw),

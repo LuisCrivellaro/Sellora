@@ -38,7 +38,7 @@ export async function verifyAutomaticPreparation(browser, origin) {
   await expect(page.getByRole('button',{name:'Adicionar à fila (1)',exact:true})).toBeVisible();
   await page.getByRole('button',{name:'Gerar e preparar envio (1)',exact:true}).click();
   const row=page.getByRole('list',{name:'Fila de geração de demos'}).getByRole('listitem').first();
-  await expect(row).toContainText('Configure a publicação no Coolify');
+  await expect(row).toContainText('Configure o Coolify');
   if(generations!==1 || publishes!==0)throw new Error('Sem configuração deve preservar a geração, sem publicar');
   configured=true;
   await row.getByRole('button',{name:'Tentar preparar envio',exact:true}).click();

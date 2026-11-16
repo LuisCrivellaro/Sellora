@@ -20,6 +20,7 @@ import type { Lead } from "@/lib/types";
 import { Money } from "@/components/ui/money";
 import { dashboardTone as tone } from "@/lib/visualization";
 import { LeadDemoPanel } from "@/components/demos/lead-demo-panel";
+import { OutreachPanel } from "@/components/outreach/outreach-panel";
 
 function Info({ label, children }: { label: string; children: React.ReactNode }) {
   return (
@@ -153,6 +154,7 @@ export function LeadDetail({ lead, open, onOpenChange, onEdit }: { lead: Lead | 
             </div>
           )}
 
+          {lead.stage !== "ganho" && <OutreachPanel key={lead.id} lead={lead} />}
           <LeadDemoPanel key={`${lead.id}:${lead.demo?.id ?? "empty"}:${lead.demo?.updatedAt ?? ""}`} lead={lead} />
           <ActivityPanel target={{ leadId: lead.id }} activities={activities} />
         </div>

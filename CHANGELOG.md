@@ -1,5 +1,12 @@
 # Histórico de atualizações do Sellora
 
+## 1.7 — 2026-11-16
+
+- Abordagem comercial: novo painel na ficha do lead e na revisão da demo, com rascunhos editáveis sem IA. O primeiro contato é curto, personalizado, sem link e termina com pergunta. Há respostas para lead interessado (com a demo aprovada e o aviso de conceito não oficial com imagens ilustrativas), indeciso e que recusou. As mensagens nunca afirmam que o negócio não tem site, só citam problemas do site verificados pela Prospecção IA e variam entre leads, inclusive do mesmo segmento. "Já enviei" registra o contato no CRM e conta na meta diária.
+- Pedidos de ajuste da demo passam a orientar a próxima geração: o gerador recebe os pedidos e o resumo da versão anterior, e a revisão visual confere cada um. Os pedidos ficam pendentes até a geração, podem ser removidos e depois aparecem como aplicados.
+- Publicação manual da demo (ZIP + host estático + link registrado) sem depender do Coolify.
+- WhatsApp: a Prospecção prefere o celular ou WhatsApp do estabelecimento, e a ficha avisa quando o número é fixo.
+
 ## 1.6 — 2026-11-14
 
 - Preparação automática opcional: gerar demo V6, conferir QA técnico/visual e originalidade, publicar no Coolify configurado e preparar mensagem com o link confirmado. O envio continua manual.

@@ -43,13 +43,14 @@ import { findCrmDuplicate, prospectToLeadInput, type CrmMatch } from "../prospec
 import type { ProspectResult } from "../prospecting/types";
 import { createEmptyDatabase, createSeed } from "./seed";
 import { commit, getDb, getMode, getStoreState } from "./store";
-import { createLeadDemo, defaultDemoMessage, demoMessageForCopy, demoMessageSchema, demoPublicationSchema, demoRevision, leadDemoSchema, type DemoPublication, type LeadDemo } from "../demos/model";
+import { createLeadDemo, defaultDemoMessage, demoMessageForCopy, demoMessageSchema, demoPublicationSchema, demoRevision, leadDemoSchema, MAX_DEMO_ADJUSTMENTS, type DemoAdjustment, type DemoPublication, type LeadDemo } from "../demos/model";
 import { createDemoPersonalization } from "../demos/personalization";
 import { approvedConcepts, findApprovedConcept } from "../demos/concepts";
 import { demoCreativeIssues } from "../demos/creative-review";
 import { generationResultSchema, type GenerationResult } from "../demos/creation";
 import { AUTOMATIC_DEMO_REVIEWER, automaticReviewIssues } from "../demos/send-preparation";
 import { isCurrentDemoSent, normalizeWhatsappPhone, MANUAL_DEMO_ACTIVITY } from "../demos/whatsapp";
+import { outreachActivityDescription, type OutreachKind } from "../outreach/messages";
 import { parseManualDemoUrl } from "../publishing/manual";
 
 /**
@@ -306,7 +307,9 @@ export function applyGeneratedLeadDemo(leadId: ID, result: GenerationResult, exp
     const presentation = generated.site ? { version: 6, creation: undefined, site: generated.site } : { version: 5, creation: generated.creation, site: undefined };
     saved = leadDemoSchema.parse({ ...base, design: undefined, conceptId: undefined, ...presentation, textProvider: generated.textProvider ?? "codex", imageProvider: generated.imageProvider ?? "codex",
       message: messageWasEdited ? previous.message : generated.message, generatedMessage: generated.message,
-      status: "pending", approvedAt: null, approvedBy: null, updatedAt: nowIso() });
+      status: "pending", approvedAt: null, approvedBy: null, updatedAt: nowIso(),
+      // A revisão esperada garante que os ajustes pendentes são exatamente os que a geração recebeu.
+      adjustments: undefined, appliedAdjustments: previous?.adjustments?.length ? previous.adjustments : undefined });
     const issues = demoCreativeIssues({ ...saved, message: generated.message }, db.leads.flatMap((item) => item.demo ? [item.demo] : []));
     if (issues.length) throw new Error(`A criação ainda contém repetições. ${issues.join(" ")}`);
     return { ...db, leads: db.leads.map((item) => item.id === leadId ? { ...item, demo: saved, updatedAt: nowIso() } : item) };
@@ -452,9 +455,22 @@ export function requestDemoChanges(leadId: ID, feedback: string) {
     if (!lead?.demo) throw new Error("Este lead não tem demo.");
     if (lead.demo.status === "rejected") throw new Error(REJECTED_DEMO);
     const t = nowIso();
-    const demo = leadDemoSchema.parse({ ...lead.demo, status: "pending", approvedAt: null, approvedBy: null, updatedAt: t });
+    const adjustment: DemoAdjustment = { id: uid("adj"), at: t, text: feedback.trim(), siteId: lead.demo.site?.id ?? null };
+    const adjustments = [...(lead.demo.adjustments ?? []), adjustment].slice(-MAX_DEMO_ADJUSTMENTS);
+    const demo = leadDemoSchema.parse({ ...lead.demo, adjustments, status: "pending", approvedAt: null, approvedBy: null, updatedAt: t });
     const activity: Activity = { id: uid("act"), leadId, clientId: null, projectId: null, type: "nota", description: note.description, dueAt: null, completedAt: t, createdAt: t };
     return { ...db, leads: db.leads.map((item) => item.id === leadId ? { ...item, demo, updatedAt: t } : item), activities: [activity, ...db.activities] };
+  });
+}
+
+/** Remove um pedido de ajuste ainda não aplicado (registrado por engano). A nota no histórico do CRM é mantida. */
+export function removeDemoAdjustment(leadId: ID, adjustmentId: string) {
+  commit((db) => {
+    const lead = db.leads.find((item) => item.id === leadId);
+    if (!lead?.demo?.adjustments?.some((item) => item.id === adjustmentId)) return db;
+    const adjustments = lead.demo.adjustments.filter((item) => item.id !== adjustmentId);
+    const demo = leadDemoSchema.parse({ ...lead.demo, adjustments: adjustments.length ? adjustments : undefined, updatedAt: nowIso() });
+    return { ...db, leads: db.leads.map((item) => item.id === leadId ? { ...item, demo, updatedAt: nowIso() } : item) };
   });
 }
 
@@ -496,6 +512,26 @@ export function markDemoManuallySent(leadId: ID, origin: string) {
     const demo = leadDemoSchema.parse({ ...lead.demo, updatedAt: t, lastManualSend: { at: t, by, phone, body: lead.demo.message, text, designVersion: lead.demo.version } });
     const activity: Activity = { id: uid(), leadId, clientId: null, projectId: null, type: "whatsapp", description: MANUAL_DEMO_ACTIVITY, dueAt: null, completedAt: t, createdAt: t };
     return { ...db, leads: db.leads.map((l) => l.id === leadId ? { ...l, demo, lastContactAt: t, stage: l.stage === "novo" || l.stage === "qualificado" ? "contatado" : l.stage, updatedAt: t } : l), activities: [activity, ...db.activities] };
+  });
+}
+
+/**
+ * Registra uma mensagem de abordagem que o operador declarou ter enviado manualmente (WhatsApp).
+ * Nada é enviado pelo Sellora. O primeiro contato move Novo/Qualificado → Contatado.
+ */
+export function markOutreachManuallySent(leadId: ID, kind: OutreachKind, text: string) {
+  commit((db) => {
+    const lead = db.leads.find((l) => l.id === leadId);
+    if (!lead) throw new Error("Lead não encontrado.");
+    if (text.trim().length < 10) throw new Error("Escreva a mensagem antes de registrar o envio.");
+    if (!normalizeWhatsappPhone(lead.phone)) throw new Error("Confirme um telefone válido antes de registrar o envio.");
+    const description = outreachActivityDescription(kind, text);
+    // Clique repetido no mesmo texto não duplica a atividade.
+    if (db.activities.some((a) => a.leadId === leadId && a.description === description)) return db;
+    const t = nowIso();
+    const activity: Activity = { id: uid("act"), leadId, clientId: null, projectId: null, type: "whatsapp", description, dueAt: null, completedAt: t, createdAt: t };
+    const stage = kind === "first_contact" && (lead.stage === "novo" || lead.stage === "qualificado") ? "contatado" : lead.stage;
+    return { ...db, leads: db.leads.map((l) => l.id === leadId ? { ...l, lastContactAt: t, stage, updatedAt: t } : l), activities: [activity, ...db.activities] };
   });
 }
 

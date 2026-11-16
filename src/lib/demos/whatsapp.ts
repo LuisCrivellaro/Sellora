@@ -1,11 +1,13 @@
 import { demoMessageForCopy, type LeadDemo } from "./model";
 import type { Activity } from "../types";
+import { outreachActivityKind } from "../outreach/messages";
 
 export const MANUAL_DEMO_ACTIVITY = "Envio manual da mensagem com demo declarado pelo operador. Entrega não verificada pelo Sellora.";
 const localDay = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo", year: "numeric", month: "2-digit", day: "2-digit" });
+/** Contatos distintos declarados no dia: envio da demo ou primeiro contato manual. */
 export function manualDemoContactsOnDay(activities: Activity[], now: string): number {
   const today = localDay.format(new Date(now));
-  return new Set(activities.filter((a) => a.type === "whatsapp" && a.leadId && a.completedAt && a.description === MANUAL_DEMO_ACTIVITY && localDay.format(new Date(a.completedAt)) === today).map((a) => a.leadId)).size;
+  return new Set(activities.filter((a) => a.type === "whatsapp" && a.leadId && a.completedAt && (a.description === MANUAL_DEMO_ACTIVITY || outreachActivityKind(a) === "first_contact") && localDay.format(new Date(a.completedAt)) === today).map((a) => a.leadId)).size;
 }
 
 /** Números brasileiros sem DDI recebem 55; outros países exigem DDI explícito. */
@@ -17,6 +19,15 @@ export function normalizeWhatsappPhone(input: string): string | null {
   if (/^55[1-9]\d[2-9]\d{7,8}$/.test(digits)) return digits;
   if (/^[1-9]\d[2-9]\d{7,8}$/.test(digits)) return `55${digits}`;
   return null;
+}
+
+/**
+ * Telefone fixo brasileiro (8 dígitos após o DDD, começando de 2 a 5). Quase nunca tem WhatsApp;
+ * a prospecção pelo OpenStreetMap costuma trazer esse número.
+ */
+export function isBrazilianLandline(input: string): boolean {
+  const number = normalizeWhatsappPhone(input);
+  return !!number && /^55[1-9]\d[2-5]\d{7}$/.test(number);
 }
 
 export function whatsappDraftUrl(demo: LeadDemo, phone: string, origin: string): string {

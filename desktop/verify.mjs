@@ -73,7 +73,8 @@ try {
   await expect(page.getByTitle(`Demo de ${baseline.leads[0].name}`)).toHaveAttribute("width", "390");
   await page.getByLabel("Pedir ajustes", { exact: true }).fill("Aumentar título no celular");
   await page.getByRole("button", { name: "Registrar pedido de ajuste", exact: true }).click();
-  await expect(page.getByText("Último pedido:", { exact: false })).toContainText("Aumentar título no celular");
+  // O pedido fica pendente na demo até a próxima geração, que o aplica.
+  await expect(page.getByRole("status").filter({ hasText: "ajuste pendente" })).toContainText("Aumentar título no celular");
   const reviewed = await page.evaluate(() => JSON.parse(localStorage.getItem("sellora.db.v1")));
   assert.equal(reviewed.leads[0].demo.status, "pending");
   assert.equal(reviewed.leads[0].demo.approvedAt, null);

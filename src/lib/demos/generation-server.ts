@@ -21,6 +21,13 @@ export const generationRequestSchema = z.object({
   phone: z.string().max(80).default(""),
   /** Id do lead no CRM, para a observabilidade (Cloud 3D) abrir o registro certo. Não vai ao modelo. */
   leadId: z.string().max(100).optional(),
+  /** Pedidos de ajuste do administrador sobre a versão anterior. Entram no prompt como prioridade da nova versão. */
+  adjustments: z.array(z.string().trim().min(3).max(480)).max(10).optional(),
+  /** Resumo da versão anterior (sem dados do lead), base sobre a qual os ajustes foram pedidos. */
+  previous: z.object({
+    headline: z.string().max(200), hero: z.string().max(200), fonts: z.array(z.string().max(40)).max(2),
+    palette: z.array(z.string().max(9)).max(6), sections: z.array(z.string().max(40)).max(9), pages: z.array(z.string().max(40)).max(2).optional(),
+  }).strict().nullable().optional(),
 }).strict();
 type GenerationRequest = z.infer<typeof generationRequestSchema>;
 
@@ -138,6 +145,9 @@ export function draftIssues(draft: CreationDraft, request: GenerationRequest): s
   return [...new Set(issues)];
 }
 
+const businessKey = (business: { name: string; city: string; uf: string }) => normalizeCreativeText(`${business.name} ${business.city} ${business.uf}`);
+const sameBusiness = (a: { name: string; city: string; uf: string }, b: { name: string; city: string; uf: string }) => businessKey(a) === businessKey(b);
+
 async function withSavedHistory(request: GenerationRequest): Promise<GenerationRequest> {
   const history = [...request.history];
   // Demos V6 entram da mais nova para a mais antiga: o gerador confere o hero das mais recentes de qualquer segmento.
@@ -150,6 +160,8 @@ async function withSavedHistory(request: GenerationRequest): Promise<GenerationR
       if (saved.status !== "completed") continue;
       const result = generationResultSchema.parse(saved.result);
       const business = demoBusinessSchema.parse({ ...JSON.parse(saved.businessKey), phone: "" });
+      // Com pedidos de ajuste, as versões anteriores do mesmo negócio são a base a ajustar, não repetição a evitar.
+      if (request.adjustments?.length && sameBusiness(business, request.business)) continue;
       if (result.site) {
         const s = result.site.summary;
         sites.push({ at: String(saved.finishedAt ?? result.site.createdAt ?? ""), reference: { segment: business.segment, signature: s.signature, photoOrigin: result.site.images[0]?.sha256 ?? null, imageDescription: result.site.images[0]?.alt,
@@ -181,7 +193,7 @@ async function executeV6(job: DemoGenerationJob, request: GenerationRequest) {
     request = await withSavedHistory(request);
     const history = request.history.filter((item) => item.style).map((item) => ({ segment: item.segment, ...item.style!, texts: item.texts }));
     // V6: Claude escreve texto, design e código; o Codex só gera imagens.
-    const result = await generateV6(job.id, { business: request.business, phone: request.phone, history, textProvider: "claude", imageProvider: request.imageProvider }, { phase: (text) => phase(job, text), checkpoint: () => checkpoint(job) });
+    const result = await generateV6(job.id, { business: request.business, phone: request.phone, history, textProvider: "claude", imageProvider: request.imageProvider, adjustments: request.adjustments, previous: request.previous }, { phase: (text) => phase(job, text), checkpoint: () => checkpoint(job) });
     job.textEstimatedUsd = result.estimatedUsd;
     const ready = result.site.qa.status === "needs_review" ? "Demo pronta, com pendências para revisão" : "Demo pronta para revisão";
     const finished: DemoGenerationJob = { ...job, status: "completed", recoverable: false, phase: ready, finishedAt: new Date().toISOString(), result: { site: result.site, message: result.message, textProvider: "claude", imageProvider: request.imageProvider }, error: null };

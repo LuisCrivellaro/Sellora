@@ -11,7 +11,7 @@ import { fallbackArtwork, nominalSize, optimizeForWeb, type ImageEngine, type Si
 import { heroArchetype as inferHeroArchetype, identityFromBrief, originalityReport, type OriginalityReport } from "./identity";
 import { postprocessSite, type ProcessedSite } from "./postprocess";
 import { normalizeWhatsappPhone } from "../whatsapp";
-import { briefPrompt, codePrompt, correctBriefPrompt, fixPrompt, imagePrompt, loadV6Guide, segmentProfile, v6SystemPrompt, visualFixPrompt, visualReviewPrompt, type V6Business, type V6Guide, type V6HistoryItem } from "./prompts";
+import { briefPrompt, codePrompt, correctBriefPrompt, fixPrompt, imagePrompt, loadV6Guide, segmentProfile, v6SystemPrompt, visualFixPrompt, visualReviewPrompt, NO_ADJUSTMENTS, type Adjustments, type PreviousVersion, type V6Business, type V6Guide, type V6HistoryItem } from "./prompts";
 import { browserQa, QA_VIEWPORTS } from "./qa-browser";
 import { contrast, headlineOf, INVENTED_FACTS, STOCK_PHRASES, staticQa, visibleText } from "./qa-static";
 import { HERO_ARCHETYPES, normalizeCode, siteBriefSchema, siteBriefSchemaFor, siteCodeSchema, siteRefSchema, siteSignature, type SiteBrief, type SiteCode, type SiteRef, type VisualQa } from "./schema";
@@ -38,6 +38,10 @@ export interface V6Request {
   /** Mantido por compatibilidade: no V6, textos, design e código são sempre do Claude. */
   textProvider?: DemoTextProvider;
   imageProvider: DemoImageProvider;
+  /** Pedidos de ajuste do administrador (prioridade nesta geração). */
+  adjustments?: string[];
+  /** Resumo da versão anterior desta demo, sobre a qual os ajustes foram pedidos. */
+  previous?: PreviousVersion | null;
 }
 export interface V6Progress { phase: (text: string) => void; checkpoint?: () => Promise<void> }
 export interface V6Result { site: SiteRef; message: string; estimatedUsd: number | null; imageEngine: ImageEngine }
@@ -292,7 +296,9 @@ export async function generateV6(jobId: string, request: V6Request, progress: V6
     writer = await timed("conexoes", () => openWriter(workspace, v6SystemPrompt(guide), budget));
 
     // ETAPAS 2 a 5 — análise comercial, direção de arte, originalidade e planejamento (revalidados após cada revisão).
-    const firstPrompt = briefPrompt(business, contact, request.history, guide, { maxImages });
+    const adjust: Adjustments = request.adjustments?.length ? { requests: request.adjustments, previous: request.previous ?? null } : NO_ADJUSTMENTS;
+    if (adjust.requests.length) progress.phase(`Etapa 1: ${adjust.requests.length === 1 ? "1 pedido de ajuste será aplicado" : `${adjust.requests.length} pedidos de ajuste serão aplicados`} nesta versão`);
+    const firstPrompt = briefPrompt(business, contact, request.history, guide, { maxImages }, adjust);
     let brief = saved.brief;
     if (!brief) {
       progress.phase("Etapas 2–5: análise comercial, direção de arte e planejamento");
@@ -323,7 +329,7 @@ export async function generateV6(jobId: string, request: V6Request, progress: V6
     progress.phase(`Etapa 6: Claude escreve o código${finalBrief.pages.count === 2 ? " das duas páginas" : ""}; Codex gera ${finalBrief.images.length} imagem(ns)`);
     const imageJob = (saved.assets ? Promise.resolve(saved.assets) : timed("imagens", () => produceImages(finalBrief, request, images!, progress, maxImages)))
       .then(async (result) => { saved.assets = result; await save(); return result; });
-    const codeJob = (saved.code ? Promise.resolve(saved.code) : timed("codigo", () => writer!.structured(codePrompt(business, finalBrief, contact, guide, nominal), siteCodeSchema, "high")))
+    const codeJob = (saved.code ? Promise.resolve(saved.code) : timed("codigo", () => writer!.structured(codePrompt(business, finalBrief, contact, guide, nominal, adjust), siteCodeSchema, "high")))
       .then(async (result) => { saved.code = result; await save(); return result; });
     // Espera os dois: se o código falhar, a imagem pronta continua salva para a retomada (e vice-versa).
     const [codeResult, imageResult] = await Promise.allSettled([codeJob, imageJob]);
@@ -354,7 +360,7 @@ export async function generateV6(jobId: string, request: V6Request, progress: V6
       // Bloqueantes primeiro: são os que comprometem leitura ou interação.
       const issues = [...new Set([...checked.critical, ...checked.blocking, ...checked.fixable])].slice(0, 25);
       progress.phase(`Etapa 9: corrigindo ${issues.length} problema(s) (rodada ${saved.rounds} de ${V6_LIMITS.fixRounds})`);
-      const candidate = await timed("correcoes", () => writer!.structured(fixPrompt(business, finalBrief, code, issues, guide), siteCodeSchema, "medium"));
+      const candidate = await timed("correcoes", () => writer!.structured(fixPrompt(business, finalBrief, code, issues, guide, adjust), siteCodeSchema, "medium"));
       const entry: RoundLog = { round: saved.rounds, at: new Date().toISOString(), critical: 0, fixable: 0, warnings: 0, accepted: false };
       if (sha256(JSON.stringify(candidate)) === sha256(JSON.stringify(code))) {
         entry.note = "correção devolveu o mesmo código";
@@ -394,7 +400,7 @@ export async function generateV6(jobId: string, request: V6Request, progress: V6
     if (saved.visual) visual = saved.visual;
     else {
       const outcome = await visualStage({
-        rounds: visualRounds, checked, code, final, writer, guide, business, brief: finalBrief, assets, progress,
+        rounds: visualRounds, checked, code, final, writer, guide, business, brief: finalBrief, assets, progress, adjust,
         run, check, checkpoint, passthrough,
         persist: async (accepted, acceptedChecked) => { saved.code = accepted; saved.checked = acceptedChecked; await save(); },
       });
@@ -513,7 +519,7 @@ async function produceImages(brief: SiteBrief, request: V6Request, images: Await
 }
 
 interface VisualStageInput {
-  rounds: number; checked: Audit; code: SiteCode; final: ProcessedSite; writer: Writer; guide: V6Guide; business: V6Business; brief: SiteBrief; assets: Assets;
+  rounds: number; checked: Audit; code: SiteCode; final: ProcessedSite; writer: Writer; guide: V6Guide; business: V6Business; brief: SiteBrief; assets: Assets; adjust: Adjustments;
   progress: V6Progress; run: (code: SiteCode) => ProcessedSite; check: (site: ProcessedSite) => Promise<Audit>; checkpoint: () => Promise<void>; passthrough: WeakSet<object>;
   /** Grava no checkpoint uma correção visual aceita (uma pausa logo depois não a perde). */
   persist: (code: SiteCode, checked: Audit) => Promise<void>;
@@ -535,7 +541,7 @@ async function visualStage(input: VisualStageInput): Promise<{ visual: VisualQa;
       const images = await reviewImages(shots);
       if (!images.length) return { error: "capturas de 1440 e 390 px ausentes" };
       progress.phase(round ? `Etapa 10b: reavaliando o impacto visual (rodada ${round} de ${rounds})` : `Etapa 10b: avaliando o impacto visual em ${images.length} captura(s) reais`);
-      const review = await writer.visual(visualReviewPrompt(business, summary, guide, images.map((image) => image.label), round), images, visualReviewSchema, "medium");
+      const review = await writer.visual(visualReviewPrompt(business, summary, guide, images.map((image) => image.label), round, input.adjust), images, visualReviewSchema, "medium");
       const invalid = reviewProblems(review);
       if (invalid.length) return { error: `avaliação descartada por ser genérica ou incoerente (${invalid.slice(0, 2).join(" ")})` };
       return { review, score: weightedScore(review) };
@@ -566,7 +572,7 @@ async function visualStage(input: VisualStageInput): Promise<{ visual: VisualQa;
     try {
       progress.phase(`Etapa 10b: corrigindo o impacto visual (nota ${current.score.toFixed(1)}, rodada ${round} de ${rounds})`);
       const sum = reviewSummary(current.review);
-      candidate = await writer.visualCode(visualFixPrompt(business, brief, current.code, { score: current.score, problems: sum.problems, fixes: sum.fixes, preserve: current.review.preserve }, guide, input.assets.map((asset) => ({ path: asset.path, role: brief.images.find((image) => image.id === asset.id)?.role ?? asset.id, width: asset.width, height: asset.height }))), siteCodeSchema, "high");
+      candidate = await writer.visualCode(visualFixPrompt(business, brief, current.code, { score: current.score, problems: sum.problems, fixes: sum.fixes, preserve: current.review.preserve }, guide, input.assets.map((asset) => ({ path: asset.path, role: brief.images.find((image) => image.id === asset.id)?.role ?? asset.id, width: asset.width, height: asset.height })), input.adjust), siteCodeSchema, "high");
     } catch (error) {
       if (error && typeof error === "object" && input.passthrough.has(error)) throw error;
       entry.note = `correção visual não concluída: ${error instanceof Error ? error.message.slice(0, 160) : "falha"}`;

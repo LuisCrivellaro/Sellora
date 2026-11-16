@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { normalizeWhatsappPhone, whatsappDraftUrl, manualDemoContactsOnDay } from "./whatsapp";
+import { isBrazilianLandline, normalizeWhatsappPhone, whatsappDraftUrl, manualDemoContactsOnDay } from "./whatsapp";
 import { createLeadDemo } from "./model";
 import { createSeed } from "../data/seed";
 
@@ -23,4 +23,13 @@ describe("WhatsApp manual", () => {
     expect(url.searchParams.get("text")).toContain("https://sellora.example/demo#");
     expect(() => whatsappDraftUrl(approved, "", "https://sellora.example")).toThrow(/telefone/i);
   });
+});
+
+it("identifica telefone fixo brasileiro, que quase nunca tem WhatsApp", () => {
+  expect(isBrazilianLandline("+55 11 3887-7198")).toBe(true);
+  expect(isBrazilianLandline("(19) 3234-5678")).toBe(true);
+  expect(isBrazilianLandline("+55 11 97755-8491")).toBe(false);
+  expect(isBrazilianLandline("(19) 99999-1234")).toBe(false);
+  expect(isBrazilianLandline("")).toBe(false);
+  expect(isBrazilianLandline("+1 212 555 0100")).toBe(false);
 });

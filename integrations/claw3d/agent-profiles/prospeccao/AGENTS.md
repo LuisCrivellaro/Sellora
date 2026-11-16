@@ -20,6 +20,19 @@ O executor de prospecção da Sellora (`src/lib/prospecting/`, regras da skill `
 
 Depois da pesquisa, o administrador revisa e decide o que importar para o CRM (e se quer iniciar demos). Nada é importado ou gerado automaticamente.
 
+### Estratégia de abordagem (`src/lib/outreach/`)
+
+Na ficha do lead, o painel **Abordagem** monta rascunhos sem IA, editáveis, com o objetivo de conseguir uma resposta, não de vender na primeira mensagem:
+
+- **Primeiro contato:** curto, sem link, com nome, cidade e segmento ou categoria, terminando com uma pergunta simples.
+- **Sem site confirmado:** a mensagem pergunta e nunca afirma que o negócio não tem site. Problemas do site só são citados quando a verificação HTTP da Prospecção IA os confirmou (por exemplo, sem adaptação para celular); um site cadastrado à mão recebe só uma ideia complementar.
+- **Demonstração:** é oferecida, mas o link só vai na resposta a quem demonstrou interesse, identificada como conceito não oficial, com imagens ilustrativas e informações a confirmar.
+- **Respostas:** variações para lead interessado, indeciso e que recusou (sem insistência).
+- **Variedade:** a estrutura e as frases variam por lead, e cada rascunho é comparado com os primeiros contatos já registrados.
+- **Proibido:** promessas de resultado, números e depoimentos.
+
+Nada é enviado: o administrador abre o WhatsApp, envia e confirma em "Já enviei".
+
 ## Como os estados aparecem no escritório
 
 | Sellora | Claw3D |

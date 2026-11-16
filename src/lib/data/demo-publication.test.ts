@@ -1,7 +1,7 @@
 import { beforeAll, beforeEach, expect, it, vi } from "vitest";
 import { createEmptyDatabase } from "./seed";
 import { getDb, replaceDatabase } from "./store";
-import { applyDemoPublication, applyGeneratedLeadDemo, approveLeadDemo, createLead, generateLeadDemo, requestDemoChanges, setManualDemoPublication } from "./repository";
+import { applyDemoPublication, applyGeneratedLeadDemo, approveLeadDemo, createLead, generateLeadDemo, removeDemoAdjustment, requestDemoChanges, setManualDemoPublication } from "./repository";
 import { demoMessageForCopy, demoRevision, publishedDemoUrl } from "../demos/model";
 import { leadFromRow, leadToRow } from "./mappers";
 
@@ -101,4 +101,21 @@ it("publicação manual não substitui uma publicação do Coolify", () => {
   applyGeneratedLeadDemo(lead.id, { site: site(SITE_A), message: "Olá! Preparei uma demonstração não oficial de site para o café. Posso enviar o link?" }, demoRevision(before));
   applyDemoPublication(lead.id, publication(SITE_A, SITE_A));
   expect(() => setManualDemoPublication(lead.id, "https://cafe.netlify.app")).toThrow(/Coolify/);
+});
+
+it("pedido de ajuste fica pendente na demo, é marcado como aplicado na nova versão e pode ser removido", () => {
+  const lead = createLead(input);
+  const before = generateLeadDemo(lead.id);
+  applyGeneratedLeadDemo(lead.id, { site: site(SITE_A), message: "Olá! Preparei uma demonstração não oficial de site para o café. Posso enviar o link?" }, demoRevision(before));
+  requestDemoChanges(lead.id, "Aumentar o título no celular");
+  requestDemoChanges(lead.id, "Fundo mais claro");
+  expect(getDb().leads[0].demo?.adjustments?.map((item) => [item.text, item.siteId])).toEqual([["Aumentar o título no celular", SITE_A], ["Fundo mais claro", SITE_A]]);
+  removeDemoAdjustment(lead.id, getDb().leads[0].demo!.adjustments![1].id);
+  expect(getDb().leads[0].demo?.adjustments?.map((item) => item.text)).toEqual(["Aumentar o título no celular"]);
+  expect(getDb().activities.filter((item) => item.description.startsWith("Ajuste da demo:"))).toHaveLength(2);
+  applyGeneratedLeadDemo(lead.id, { site: site(SITE_B), message: "Olá! Preparei uma demonstração não oficial de site para o café. Posso enviar o link?" }, demoRevision(getDb().leads[0].demo));
+  const demo = getDb().leads[0].demo!;
+  expect(demo.adjustments).toBeUndefined();
+  expect(demo.appliedAdjustments?.map((item) => item.text)).toEqual(["Aumentar o título no celular"]);
+  expect(leadFromRow(leadToRow(getDb().leads[0])).demo?.appliedAdjustments).toEqual(demo.appliedAdjustments);
 });

@@ -73,9 +73,9 @@ export async function refreshDemoGenerator() {
   } catch { set({ ...state, connection: { available: false, connected: false, imageGeneration: false, message: "Não foi possível conectar ao gerador local." } }); }
 }
 
-function historyReferences(): CreativeReference[] {
+function historyReferences(excludeLeadId?: string): CreativeReference[] {
   return getDb().leads.flatMap((lead) => {
-    if (!lead.demo) return [];
+    if (!lead.demo || lead.id === excludeLeadId) return [];
     const content = demoCreativeContent(lead.demo);
     const imageDescription = lead.demo.creation?.image.alt ?? (lead.demo.conceptId ? approvedConcepts[lead.demo.conceptId].media.alt : demoDesigns[lead.demo.business.segment].alt);
     const site = lead.demo.site;
@@ -102,13 +102,20 @@ async function run(item: DemoQueueItem) {
   } else {
     const business = item.expectedBusiness ? demoBusinessSchema.parse(JSON.parse(item.expectedBusiness)) : lead.demo?.business ?? demoBusinessSchema.parse(lead);
     const publicContext = demoBusinessSchema.omit({ phone: true }).parse(business);
-    const history = historyReferences();
+    // Pedidos de ajuste pendentes: a nova versão parte da anterior, que deixa de contar como repetição a evitar.
+    const adjustments = (lead.demo?.adjustments ?? []).map((adjustment) => adjustment.text);
+    const site = lead.demo?.site;
+    const previous = adjustments.length && site && lead.demo ? {
+      headline: withoutBusinessFields(site.summary.headline, lead.demo.business).slice(0, 200), hero: site.summary.hero.slice(0, 200),
+      fonts: site.summary.fonts, palette: site.summary.palette, sections: site.summary.sections, ...(site.summary.pages ? { pages: site.summary.pages } : {}),
+    } : null;
+    const history = historyReferences(adjustments.length ? lead.id : undefined);
     if (history.length > 500) throw new Error("O histórico ultrapassa 500 demos. A comparação completa precisa ser ampliada antes desta geração.");
     if (!item.expectedBusiness) {
       item = { ...item, expectedRevision: demoRevision(lead.demo), expectedBusiness: JSON.stringify(business) };
       update(item.id, { expectedRevision: item.expectedRevision, expectedBusiness: item.expectedBusiness });
     }
-    const response = await fetch("/api/demos/jobs", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: item.id, business: publicContext, history, textProvider: "claude", imageProvider: "codex", generator: "v6", phone: business.phone ?? "", leadId: item.leadId }) });
+    const response = await fetch("/api/demos/jobs", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: item.id, business: publicContext, history, textProvider: "claude", imageProvider: "codex", generator: "v6", phone: business.phone ?? "", leadId: item.leadId, adjustments, previous }) });
     if (response.status === 429) { await delay(3000); return false; }
     const data = await response.json();
     if (!response.ok) throw new Error(data.error || "Não foi possível iniciar a geração.");
